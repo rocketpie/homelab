@@ -1,0 +1,132 @@
+---
+- name: Bootstrap Proxmox API user + token + ACLs (run once)
+  hosts: proxmox
+  become: true
+  gather_facts: false
+  run_once: true
+
+  vars:
+    # target Identity
+    pve_realm: pve
+    pve_user: ansible
+    pve_user_comment: "Ansible automation"
+    pve_userid: "{{ pve_user }}@{{ pve_realm }}"
+
+    # target Token
+    pve_token_id: lc3win-ansible
+    pve_token_privsep: 0   # inherit user permissions
+    pve_token_comment: "Ansible API token (inherited perms)"
+
+    # Provisioning scope: Where you want this user to be able to create VMs / allocate disks
+    provision_nodes: "{{ groups['proxmox'] | default([]) }}"
+    provision_storages:
+      - local-pve-rpool
+      - local-pve-rpool-ISOs
+    iso_storages:
+      - local-pve-rpool-ISOs
+
+    # Roles to apply
+    node_role: PVEVMAdmin
+    disk_storage_role: PVEDatastoreAdmin
+    iso_storage_role: PVEDatastoreUser
+
+  tasks:
+    - name: Fail if we have no proxmox group
+      ansible.builtin.assert:
+        that:
+          - provision_nodes | length > 0
+        fail_msg: "Inventory group 'proxmox' is empty; can't grant node ACLs everywhere."
+
+    - name: Fail if user already exists
+      ansible.builtin.shell: |
+        set -euo pipefail
+        pveum user list | awk 'NR>1 {print $1}' | grep -Fx "{{ pve_userid }}"
+      register: user_exists
+      changed_when: false
+      failed_when: user_exists.rc == 0  # found -> not a clean slate
+
+    - name: Fail if token already exists
+      ansible.builtin.shell: |
+        set -euo pipefail
+        pveum user token list "{{ pve_userid }}" | awk 'NR>1 {print $1}' | grep -Fx "{{ pve_token_id }}"
+      register: token_exists
+      changed_when: false
+      failed_when: token_exists.rc == 0  # found -> not a clean slate
+
+    - name: Fail if ACL entries for this user exist
+      ansible.builtin.shell: |
+        set -euo pipefail
+        pveum acl list | grep -F " {{ pve_userid }} " >/dev/null
+      register: acl_exists_any
+      changed_when: false
+      failed_when: acl_exists_any.rc == 0
+
+    - name: Create user
+      ansible.builtin.command: >
+        pveum user add {{ pve_userid }}
+        --comment "{{ pve_user_comment }}"
+      register: user_add
+      changed_when: true
+
+    - name: Create token (JSON)
+      ansible.builtin.command: >
+        pveum user token add {{ pve_userid }} {{ pve_token_id }}
+        --privsep {{ pve_token_privsep }}
+        --output-format json
+      register: token_add
+      changed_when: true
+      no_log: true
+
+    - name: Extract token secret from JSON
+      ansible.builtin.set_fact:
+        # example {"full-tokenid":"ansible@pve!token-test","info":{"privsep":"0"},"value":"00000000-0000-guid-0000-000000000000"}
+        pve_token_secret: "{{ (token_add.stdout | from_json).value }}"
+      no_log: true
+
+    - name: Fail with token command output if secret not found
+      ansible.builtin.fail:
+        msg: |
+          Could not parse token secret from pveum output.
+          stdout:
+          {{ token_add.stdout | default('') }}
+          stderr:
+          {{ token_add.stderr | default('') }}
+      when: pve_token_secret | length == 0
+
+    - name: Grant VM allocation scope on /vms
+      ansible.builtin.command: "pveum aclmod /vms -user {{ pve_userid }} -role {{ node_role }}"
+      changed_when: true
+
+    - name: Apply node ACLs (all nodes in proxmox group)
+      ansible.builtin.command: "pveum aclmod /nodes/{{ item }} -user {{ pve_userid }} -role {{ node_role }}"
+      loop: "{{ provision_nodes }}"
+      changed_when: true
+
+    - name: Apply storage ACLs (disk vs ISO)
+      ansible.builtin.command: >-
+        pveum aclmod /storage/{{ item }}
+        -user {{ pve_userid }}
+        -role {{ (item in iso_storages) | ternary(iso_storage_role, disk_storage_role) }}
+      loop: "{{ provision_storages }}"
+      changed_when: true
+
+    - name: Grant global audit permissions (easier troubleshooting user permissions)
+      ansible.builtin.command: "pveum aclmod / -user {{ pve_userid }} -role PVEAuditor"
+      changed_when: true
+
+    - name: Allow using SDN objects for NIC attachment (eg /sdn/zones/localnetwork/vmbr0)
+      ansible.builtin.command: "pveum aclmod /sdn -user {{ pve_userid }} -role PVESDNUser"
+      changed_when: true
+
+    - name: Verify effective permissions include node/storage paths
+      ansible.builtin.command: "pvesh get /access/permissions --userid {{ pve_userid }}"
+      register: eff_perms
+      changed_when: false
+
+    - name: Print credentials to store securely (shown only once)
+      ansible.builtin.debug:
+        msg:
+          - "SAVE THESE NOW (you cannot retrieve the secret later):"
+          - "proxmox_api_user: {{ pve_userid }}"
+          - "proxmox_api_token_id: {{ pve_token_id }}"
+          - "proxmox_api_token_secret: {{ pve_token_secret }}"

@@ -5,3 +5,6 @@ __pycache__/
 
 .collections/
 .vault_pass
+
+inventories/homelab/group_vars/all.yml
+inventories/homelab/group_vars/proxmox.yml

@@ -1,0 +1,156 @@
+---
+- name: Provision Ubuntu 24.04 via ISO autoinstall on Proxmox
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    target_node: n2
+    vmid: 22001
+    vm_name: restic1
+
+    # CHANGE THIS to your VM disk storage (NOT the ISO storage)
+    vm_storage: local-pve-rpool
+    vm_disk_gb: 20
+
+    bridge: vmbr0
+    iso_storage: local-pve-rpool-ISOs
+    iso_file: ubuntu-24.04-live-server-autoinstall.iso
+
+    # Proxmox API auth (use vault in real use)
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: false
+
+  tasks:
+    - name: Show API identity used
+      ansible.builtin.debug:
+        msg:
+          api_host: "{{ api_host }}"
+          api_user: "{{ api_user }}"
+          api_token_id: "{{ api_token_id }}"
+          target_node: "{{ target_node }}"
+          vm_storage: "{{ vm_storage }}"
+          iso_storage: "{{ iso_storage }}"
+
+    - name: Sanity-check perms via API using the same token (should show VM.Allocate etc.)
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}:8006/api2/json/access/permissions?userid={{ api_user }}"
+        method: GET
+        headers:
+          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        return_content: true
+      register: perms_check
+
+    - name: Show node/storage perms for this token
+      ansible.builtin.debug:
+        msg:
+          nodes_n2: "{{ perms_check.json.data['/nodes/n2'] | default({}) }}"
+          storage_disk: "{{ perms_check.json.data['/storage/' ~ vm_storage] | default({}) }}"
+          storage_iso: "{{ perms_check.json.data['/storage/' ~ iso_storage] | default({}) }}"
+
+    - name: Create VM shell with disk + NIC + ISO
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ api_host }}"
+        api_user: "{{ api_user }}"
+        api_token_id: "{{ api_token_id }}"
+        api_token_secret: "{{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        node: "{{ target_node }}"
+        vmid: "{{ vmid }}"
+        name: "{{ vm_name }}"
+        ostype: l26
+        cores: 2
+        memory: 2048
+        scsihw: virtio-scsi-pci
+
+        # Disk (SCSI)
+        scsi:
+          scsi0: "{{ vm_storage }}:{{ vm_disk_gb }},format=raw"
+
+        # NIC
+        net:
+          net0: "virtio,bridge={{ bridge }}"
+
+        # CD-ROM (IDE)
+        ide:
+          ide2: "{{ iso_storage }}:iso/{{ iso_file }},media=cdrom"
+
+        # Boot order (CD first)
+        boot: "order=ide2;scsi0"
+
+        agent: 1
+        state: present
+
+    - name: Start VM (installer will autoinstall)
+      community.general.proxmox_kvm:
+        api_host: "{{ api_host }}"
+        api_user: "{{ api_user }}"
+        api_token_id: "{{ api_token_id }}"
+        api_token_secret: "{{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        node: "{{ target_node }}"
+        vmid: "{{ vmid }}"
+        state: started
+
+    - name: Wait for qemu-guest-agent to report an IP (poll Proxmox API)
+      vars:
+        agent_url: "https://{{ api_host }}:8006/api2/json/nodes/{{ target_node }}/qemu/{{ vmid }}/agent/network-get-interfaces"
+      ansible.builtin.uri:
+        url: "{{ agent_url }}"
+        method: GET
+        headers:
+          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        return_content: true
+      register: agent_net
+      until: >
+        (agent_net.json is defined) and
+        (agent_net.json.data is defined) and
+        (
+          agent_net.json.data
+          | map(attribute='ip-addresses') | list
+          | select('defined') | list
+          | length > 0
+        )
+      retries: 90
+      delay: 10
+
+    - name: Pick first non-local IPv4 from agent data
+      ansible.builtin.set_fact:
+        vm_ip: >-
+          {{
+            (
+              agent_net.json.data
+              | map(attribute='ip-addresses') | list
+              | select('defined') | list
+              | sum(start=[])
+              | selectattr('ip-address-type', 'equalto', 'ipv4') | list
+              | rejectattr('ip-address', 'match', '^127\.') | list
+              | rejectattr('ip-address', 'match', '^169\.254\.') | list
+            )[0]['ip-address']
+          }}
+
+    - name: Wait for SSH to come up
+      ansible.builtin.wait_for:
+        host: "{{ vm_ip }}"
+        port: 22
+        timeout: 1200
+
+    - name: Add new VM to in-memory inventory
+      ansible.builtin.add_host:
+        name: "{{ vm_name }}"
+        ansible_host: "{{ vm_ip }}"
+        ansible_user: archivar
+        ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/lars-co3d-ed25519' }}"
+        groups: new_vms
+
+- name: Post-install configuration (example)
+  hosts: new_vms
+  gather_facts: false
+  tasks:
+    - name: Ping over SSH
+      ansible.builtin.ping:

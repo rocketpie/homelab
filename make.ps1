@@ -1,5 +1,5 @@
-# Make.ps1
-# PowerShell 7+ (pwsh) on Linux recommended.
+#!/usr/bin/env pwsh
+#Requires -Version 7
 
 [CmdletBinding(DefaultParameterSetName = "Help")]
 param(
@@ -58,7 +58,7 @@ function Write-Targets {
     Write-Host "  -Help                  Show this help (default)"
     Write-Host "  -Install               apt install python3.10-venv python3-pip sshpass; pip install uv"
     Write-Host "  -Setup                 Create venv; install requirements via uv; create .collections; install community.general"
-    Write-Host "  -Build                 Run yamllint + ansible-lint on /inventories and /playbooks"
+    Write-Host "  -Build                 Run ansible-lint on /inventories and /playbooks"
     Write-Host "  -Run <env> <playbook>  Prompt for vault pass, set env; run playbook with inventories/<env>/hosts.yml"
 }
 
@@ -74,6 +74,11 @@ Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScri
 
 
 function Main {
+    $localCollections = $(Join-Path $PSScriptRoot ".collections")
+    if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+        $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
+    }
+
     switch ($PSCmdlet.ParameterSetName) {
         default {
             Write-Targets
@@ -159,36 +164,23 @@ function Setup-Venv {
     Write-Host "Ensuring collections directory: $ansibleCollectionsDir"
     New-Item -ItemType Directory -Force -Path $ansibleCollectionsDir | Out-Null
 
-   $requirements = @(get-content $collectionsRequirements)
-foreach ($requirement in $requirements) {
-    Write-Host "Installing Ansible collection $($requirement)..."
-    & $vEnvAnsibleGalaxy collection install -p $ansibleCollectionsDir $requirement
-}
+    $requirements = @(get-content $collectionsRequirements)
+    foreach ($requirement in $requirements) {
+        Write-Host "Installing Ansible collection $($requirement)..."
+        & $vEnvAnsibleGalaxy collection install -p $ansibleCollectionsDir $requirement
+    }
 }
 
 function Build-Checks {
     Ensure-Venv
     Ensure-ToolsInVenv
 
-    $yamllint = Join-Path $vEnvPath "bin/yamllint"
     $ansibleLint = Join-Path $vEnvPath "bin/ansible-lint"
 
-    if (-not (Test-Path $yamllint)) { throw "yamllint not found in venv. Ensure it's in $vEnvRequirements and run -Setup." }
     if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -Setup." }
 
-    $inventoriesPath = Join-Path $PSScriptRoot "inventories"
-    $playbooksPath = Join-Path $PSScriptRoot "playbooks"
-
-    if (-not (Test-Path $inventoriesPath)) { throw "Missing path: $inventoriesPath" }
-    if (-not (Test-Path $playbooksPath)) { throw "Missing path: $playbooksPath" }
-
-    Write-Host "Running yamllint on inventories/ and playbooks/ ..."
-    & $yamllint $inventoriesPath
-    & $yamllint $playbooksPath
-
-    Write-Host "Running ansible-lint on inventories/ and playbooks/ ..."
-    & $ansibleLint $inventoriesPath
-    & $ansibleLint $playbooksPath
+    Write-Host "Running ansible-lint..."
+    & $ansibleLint $PSScriptRoot
 }
 
 function Run-Playbook([string]$EnvironmentName, [string]$PlaybookName) {

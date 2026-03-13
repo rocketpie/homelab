@@ -1,6 +1,5 @@
 ansible-core
 ansible-lint
-yamllint
 jmespath
 netaddr
 passlib
