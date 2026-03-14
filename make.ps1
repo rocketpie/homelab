@@ -132,12 +132,13 @@ function Ensure-ToolsInVenv {
     }
 }
 
+# TODO: read from apt-requirements.txt
 function Install-AptDeps {
     Require-Command "sudo"
     Require-Command "apt-get"
-    Write-Host "apt-get install -y python3.10-venv python3-pip sshpass..."
+    Write-Host "apt-get install -y python3.10-venv python3-pip sshpass xorriso..."
     & sudo apt-get update
-    & sudo apt-get install -y python3.10-venv python3-pip sshpass
+    & sudo apt-get install -y python3.10-venv python3-pip sshpass xorriso
 }
 
 function Install-UvGlobal {

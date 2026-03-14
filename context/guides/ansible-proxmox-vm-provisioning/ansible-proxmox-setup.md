@@ -81,6 +81,14 @@ xorriso -as mkisofs \
 
 If your extracted tree doesn’t have isolinux/isohdpfx.bin or boot/grub/efi.img, the exact xorriso flags may need minor adjustment depending on the ISO build. If you hit that, tell me the file paths present under ~/iso/work/isolinux/ and ~/iso/work/boot/grub/ and I’ll give you the exact working command.
 
+# ISO Patch script
+
+./export-iso-grub.py --input ubuntu-24.04.4-live-server-amd64.iso
+find ./iso -type f
+$EDITOR ./iso/boot/grub/grub.cfg
+$EDITOR ./iso/EFI/BOOT/grub.cfg
+./patch-iso-grub.py --input debian.iso --output debian-patched.iso
+
 
 # Upload the remastered ISO to Proxmox ISO storage
 
