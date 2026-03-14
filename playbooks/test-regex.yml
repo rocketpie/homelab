@@ -1,0 +1,23 @@
+---
+- name: Test regex_search on proxmox token output
+- hosts: localhost
+  gather_facts: false
+  vars:
+    token_stdout: |
+      ┌──────────────┬──────────────────────────────────────┐
+      │ key          │ value                                │
+      ╞══════════════╪══════════════════════════════════════╡
+      │ full-tokenid │ ansible@pve!ansible-token            │
+      ├──────────────┼──────────────────────────────────────┤
+      │ info         │ {"privsep":"0"}                      │
+      ├──────────────┼──────────────────────────────────────┤
+      │ value        │ d2190bb8-d56a-4291-b188-c5e498fefa2f │
+      └──────────────┴──────────────────────────────────────┘
+  tasks:
+    - name: Execute regex_search
+      ansible.builtin.debug:
+        msg: "{{ 'test-text' | regex_search('-t(e)', '\\0', '\\1') }}"
+
+    - name: Show matched value line
+      ansible.builtin.debug:
+        msg: "{{ token_stdout | regex_search('(?s)value\\s+\\S\\s+([\\w-]{16,})', '\\0', '\\1') }}"
