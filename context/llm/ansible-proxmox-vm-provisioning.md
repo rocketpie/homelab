@@ -22,12 +22,20 @@ autoinstall ds=nocloud-net;s=http://<workstation>:8080/ubuntu2404/ ---
 Workstation runs a minimal Caddy HTTP server, serving:
 /srv/autoinstall/ubuntu2404/user-data and /srv/autoinstall/ubuntu2404/meta-data
 
-Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates user (e.g. homelab), injects SSH key, uses DHCP.
+Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates user (e.g. homelab), injects SSH key, uses DHCP, shutdown: poweroff
 
 ## Ansible provisioning flow
 * Create VM via Proxmox API: attach remastered ISO from storage local-pve-rpool-ISOs, create disk on chosen VM storage, NIC on vmbr0, boot from CD, enable QEMU agent.
 
-Start VM → unattended install → reboot.
-
-Discover DHCP IP (prefer qemu-guest-agent / DHCP reservation), wait for SSH, then run post-install roles/playbooks.
+* create VM via Proxmox API
+* start VM
+* when install finishes, VM powers off
+* Ansible polls Proxmox until VM is stopped
+* remove attached installer CD-ROM
+* boot the VM
+* poll qemu-guest-agent via Proxmox API until it reports a non-loopback IPv4
+* waits for SSH
+* remove any old SSH host key for that IP with ssh-keygen -R
+* adds VM to in-memory inventory with relaxed first-connect SSH options
+* second play: connect over SSH, run ping to confirm
 
