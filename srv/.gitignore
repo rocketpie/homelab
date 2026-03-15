@@ -1,4 +1,3 @@
 *.exe
-autoinstall/
-http_root/
 log.txt
+http_root/
