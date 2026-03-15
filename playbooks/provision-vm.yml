@@ -32,33 +32,9 @@
       ansible.builtin.include_role:
         name: export-autoinstall-seed
 
-    - name: Show API identity used
-      ansible.builtin.debug:
-        msg:
-          api_host: "{{ proxmox_api_host }}"
-          api_user: "{{ proxmox_api_user }}"
-          api_token_id: "{{ proxmox_api_token_id }}"
-          target_node: "{{ vm.proxmox_node }}"
-          vm_storage: "{{ proxmox_api_vm_storage }}"
-          iso_storage: "{{ proxmox_api_iso_storage }}"
-
-    - name: Sanity-check perms via API using the same token (should show VM.Allocate etc.)
-      ansible.builtin.uri:
-        url: "https://{{ proxmox_api_host }}:8006/api2/json/access/permissions?userid={{ proxmox_api_user }}"
-        method: GET
-        headers:
-          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
-        validate_certs: "{{ proxmox_api_verify_ssl }}"
-        return_content: true
-      register: perms_check
-
-    - name: Show node/storage perms for this token
-      ansible.builtin.debug:
-        msg:
-          perms_check: "{{ perms_check }}"
-          nodes_n2: "{{ perms_check.json.data['/nodes/n2'] | default({}) }}"
-          storage_disk: "{{ perms_check.json.data['/storage/' ~ proxmox_api_vm_storage] | default({}) }}"
-          storage_iso: "{{ perms_check.json.data['/storage/' ~ proxmox_api_iso_storage] | default({}) }}"
+    - name: Run Proxmox API preflight checks
+      ansible.builtin.include_role:
+        name: proxmox-api-preflight
 
     - name: Create VM shell with disk + NIC + ISO
       community.proxmox.proxmox_kvm:
