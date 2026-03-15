@@ -1,4 +1,6 @@
 # SSH (root) bootstrap
 ansible_user: root
-ansible_ssh_pass: "PROXMOX_ROOT_PASSWORD_HERE"
 ansible_become: true
+
+# Vault:
+#ansible_ssh_pass: "PROXMOX_ROOT_PASSWORD_HERE"
