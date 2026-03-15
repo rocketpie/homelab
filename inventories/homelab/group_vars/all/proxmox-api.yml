@@ -1,0 +1,16 @@
+proxmox_api_host: "192.168.178.6" # pick ONE reachable node
+
+# If you're using the default self-signed cert, keep false
+proxmox_api_verify_ssl: false
+
+proxmox_api_default_bridge: "vmbr0"
+proxmox_api_iso_storage: "local-pve-rpool-ISOs"
+proxmox_api_vm_storage: "local-pve-rpool"
+
+# API Token auth
+proxmox_api_user: "ansible@pve"
+proxmox_api_token_id: "lc3win-ansible"
+
+# vault.yml:
+# API Token auth
+# proxmox_api_token_secret: "BOOTSTRAP_TOKEN_SECRET_HERE"

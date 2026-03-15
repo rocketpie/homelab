@@ -1,4 +1,4 @@
-# Host Autoinstall config 
+# Host Autoinstall config
 
 we'll go with ubuntu server 24.04 LTS,
 with ISO-only unattended flow driven by ansible.

@@ -1,2 +1,4 @@
 *.exe
-autoinstall
+autoinstall/
+http_root/
+log.txt

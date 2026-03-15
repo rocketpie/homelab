@@ -86,7 +86,7 @@ function Main {
         "Help" {
             Write-Targets
         }
-        
+
         "Install" {
             Install-AptDeps
             Install-UvGlobal
@@ -100,7 +100,7 @@ function Main {
         }
         "Run" {
             Run-Playbook -EnvironmentName $EnvName -PlaybookName $Playbook
-        }  
+        }
     }
 
     "Done."
@@ -144,12 +144,12 @@ function Install-AptDeps {
 function Install-UvGlobal {
     Require-Command "python3"
     Require-Command "pip3"
-    
+
     Write-Host "installing uv using pip (https://docs.astral.sh/uv/)..."
     pip3 install uv
-    
+
     Write-Host "adding uv to PATH (python3 -m uv tool update-shell)..."
-    python3 -m uv tool update-shell    
+    python3 -m uv tool update-shell
 
     Write-Host "uv installed globally. restart your shell for PATH changes to take effect."
 }

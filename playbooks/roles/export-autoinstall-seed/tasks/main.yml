@@ -1,0 +1,32 @@
+- name: Validate required variables for autoinstall seed export
+  ansible.builtin.assert:
+    that:
+      - vm_name is defined
+      - vm.username is defined
+      - vm.password_hash is defined
+      - vm.ssh_public_keys is defined
+      - autoinstall_export_directory is defined
+    fail_msg: "Missing required variables for export-autoinstall-seed role"
+
+- name: Ensure autoinstall export directory exists
+  ansible.builtin.file:
+    path: "{{ autoinstall_export_directory }}"
+    state: directory
+
+- name: Export autoinstall user-data
+  ansible.builtin.template:
+    src: user-data.j2
+    dest: "{{ autoinstall_export_directory }}/user-data"
+    mode: 644
+
+- name: Export autoinstall meta-data
+  ansible.builtin.template:
+    src: meta-data.j2
+    dest: "{{ autoinstall_export_directory }}/meta-data"
+    mode: 644 
+- name: Export autoinstall vendor-data
+
+  ansible.builtin.template:
+    src: vendor-data.j2
+    dest: "{{ autoinstall_export_directory }}/vendor-data"
+    mode: 644

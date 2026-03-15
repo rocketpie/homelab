@@ -1,0 +1,14 @@
+vmid: 22001
+proxmox_node: "n2"
+
+proxmox_ostype: "l26"
+proxmox_iso_filename: "ubuntu-24.04.1-live-server-autoinstall.iso"
+
+cores: 2
+memory_mb: 2048
+os_disk_gb: 20
+
+username: "archivar"
+password_hash: "$6$eIdWYUiHMCvw3geq$./A6ctDU7KP1SZ5e9L/PqTjSfWham2TQUu6P5EjJuIpMWRY0unakemcdubEkra0mRrrPT7Ay4vwTHSoh4vgiP."
+ssh_public_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"

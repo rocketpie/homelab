@@ -6,4 +6,4 @@ __pycache__/
 .collections/
 .vault_pass
 
-inventories/**/*_vault.yml
+inventories/**/*vault.yml

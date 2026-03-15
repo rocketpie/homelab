@@ -1,83 +1,91 @@
 ---
-- name: Provision Ubuntu 24.04 via ISO autoinstall on Proxmox
+- name: Provision VM on Proxmox via autoinstall ISO
   hosts: localhost
   connection: local
   gather_facts: false
 
-  vars:
-    target_node: n2
-    vmid: 22001
-    vm_name: restic1
-
-    # CHANGE THIS to your VM disk storage (NOT the ISO storage)
-    vm_storage: local-pve-rpool
-    vm_disk_gb: 20
-
-    bridge: vmbr0
-    iso_storage: local-pve-rpool-ISOs
-    iso_file: ubuntu-24.04.4-live-server-amd64-autoinstall.iso
-
-    # Proxmox API auth (use vault in real use)
-    api_host: "{{ proxmox_api_host }}"
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    validate_certs: false
+  vars_prompt:
+    - name: vm_name
+      private: false
+      prompt: "VM to provision? a matching host_vars file must exist."
+      default: restic1
 
   tasks:
+    - name: Ensure target VM exists in inventory
+      ansible.builtin.assert:
+        that:
+          - vm_name in hostvars
+        fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
+    
+    - name: Materialize selected VM vars
+      ansible.builtin.set_fact:
+        vm: "{{ hostvars[vm_name] }}"
+
+    - name: Show selected VM
+      ansible.builtin.debug:
+        msg: 
+          - "vm_name: {{ vm_name }}"
+          - "vm.vmid: {{ vm.vmid }}"
+          - "vm.username: {{ vm.username }}"
+
+    - name: Export autoinstall seed for target VM
+      ansible.builtin.include_role:
+        name: export-autoinstall-seed
+
     - name: Show API identity used
       ansible.builtin.debug:
         msg:
-          api_host: "{{ api_host }}"
-          api_user: "{{ api_user }}"
-          api_token_id: "{{ api_token_id }}"
-          target_node: "{{ target_node }}"
-          vm_storage: "{{ vm_storage }}"
-          iso_storage: "{{ iso_storage }}"
+          api_host: "{{ proxmox_api_host }}"
+          api_user: "{{ proxmox_api_user }}"
+          api_token_id: "{{ proxmox_api_token_id }}"
+          target_node: "{{ vm.proxmox_node }}"
+          vm_storage: "{{ proxmox_api_vm_storage }}"
+          iso_storage: "{{ proxmox_api_iso_storage }}"
 
     - name: Sanity-check perms via API using the same token (should show VM.Allocate etc.)
       ansible.builtin.uri:
-        url: "https://{{ api_host }}:8006/api2/json/access/permissions?userid={{ api_user }}"
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/access/permissions?userid={{ proxmox_api_user }}"
         method: GET
         headers:
-          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
+          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
         return_content: true
       register: perms_check
 
     - name: Show node/storage perms for this token
       ansible.builtin.debug:
         msg:
+          perms_check: "{{ perms_check }}"
           nodes_n2: "{{ perms_check.json.data['/nodes/n2'] | default({}) }}"
-          storage_disk: "{{ perms_check.json.data['/storage/' ~ vm_storage] | default({}) }}"
-          storage_iso: "{{ perms_check.json.data['/storage/' ~ iso_storage] | default({}) }}"
+          storage_disk: "{{ perms_check.json.data['/storage/' ~ proxmox_api_vm_storage] | default({}) }}"
+          storage_iso: "{{ perms_check.json.data['/storage/' ~ proxmox_api_iso_storage] | default({}) }}"
 
     - name: Create VM shell with disk + NIC + ISO
       community.proxmox.proxmox_kvm:
-        api_host: "{{ api_host }}"
-        api_user: "{{ api_user }}"
-        api_token_id: "{{ api_token_id }}"
-        api_token_secret: "{{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
-        node: "{{ target_node }}"
-        vmid: "{{ vmid }}"
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
         name: "{{ vm_name }}"
-        ostype: l26
-        cores: 2
-        memory: 2048
+        ostype: "{{ vm.proxmox_ostype }}"
+        cores: "{{ vm.cores }}"
+        memory: "{{ vm.memory_mb }}"
         scsihw: virtio-scsi-pci
 
         # Disk (SCSI)
         scsi:
-          scsi0: "{{ vm_storage }}:{{ vm_disk_gb }},format=raw"
+          scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
 
         # NIC
         net:
-          net0: "virtio,bridge={{ bridge }}"
+          net0: "virtio,bridge={{ proxmox_api_default_bridge }}"
 
         # CD-ROM (IDE)
         ide:
-          ide2: "{{ iso_storage }}:iso/{{ iso_file }},media=cdrom"
+          ide2: "{{ proxmox_api_iso_storage }}:iso/{{ vm.proxmox_iso_filename }},media=cdrom"
 
         # Boot order (Disk first, then CD)
         boot: "order=scsi0;ide2"
@@ -87,22 +95,22 @@
 
     - name: Start VM (installer will autoinstall)
       community.proxmox.proxmox_kvm:
-        api_host: "{{ api_host }}"
-        api_user: "{{ api_user }}"
-        api_token_id: "{{ api_token_id }}"
-        api_token_secret: "{{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
-        node: "{{ target_node }}"
-        vmid: "{{ vmid }}"
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
         state: started
 
     - name: Wait for install to finish and VM to power off
       ansible.builtin.uri:
-        url: "https://{{ api_host }}:8006/api2/json/nodes/{{ target_node }}/qemu/{{ vmid }}/status/current"
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/status/current"
         method: GET
         headers:
-          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
+          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
         return_content: true
       register: vm_status
       changed_when: false
@@ -112,13 +120,13 @@
 
     - name: Remove installer ISO / CD-ROM
       community.proxmox.proxmox_kvm:
-        api_host: "{{ api_host }}"
-        api_user: "{{ api_user }}"
-        api_token_id: "{{ api_token_id }}"
-        api_token_secret: "{{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
-        node: "{{ target_node }}"
-        vmid: "{{ vmid }}"
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
         update: true
         ide:
           ide2: none
@@ -126,24 +134,24 @@
 
     - name: Boot installed system
       community.proxmox.proxmox_kvm:
-        api_host: "{{ api_host }}"
-        api_user: "{{ api_user }}"
-        api_token_id: "{{ api_token_id }}"
-        api_token_secret: "{{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
-        node: "{{ target_node }}"
-        vmid: "{{ vmid }}"
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
         state: started
 
     - name: Wait for qemu-guest-agent to report a non-loopback IPv4
       vars:
-        agent_url: "https://{{ api_host }}:8006/api2/json/nodes/{{ target_node }}/qemu/{{ vmid }}/agent/network-get-interfaces"
+        agent_url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/agent/network-get-interfaces"
       ansible.builtin.uri:
         url: "{{ agent_url }}"
         method: GET
         headers:
-          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
-        validate_certs: "{{ validate_certs }}"
+          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
         return_content: true
       register: agent_net
       changed_when: false

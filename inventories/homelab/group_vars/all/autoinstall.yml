@@ -1,0 +1,2 @@
+autoinstall_export_directory: "{{ playbook_dir }}/../srv/http_root/ubuntu2404"
+autoinstall_base_url: "http://lc3win:8080/"

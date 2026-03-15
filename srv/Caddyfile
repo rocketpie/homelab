@@ -1,8 +1,26 @@
 :8080 {
-	root * autoinstall
+	root * http_root
 	file_server
 
 	log {
-		output stdout
+		output file log.txt
+		format filter {
+			wrap json {
+				time_format iso8601
+				time_local
+				duration_format ms
+			}
+
+			request delete
+			resp_headers delete
+			size delete
+
+			duration rename duration_ms
+			status rename status_code
+			url rename request_url
+		}
 	}
+
+	log_append request_host {http.request.host}
+	log_append request_uri  {http.request.uri}
 }

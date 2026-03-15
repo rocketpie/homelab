@@ -1,0 +1,5 @@
+{"level":"info","ts":"2026-03-15T20:38:29.774+0100","logger":"http.log.access.log0","msg":"handled request","bytes_read":0,"user_id":"","duration_ms":0,"status_code":404,"request_url":"{http.request.host}{http.request.uri}"}
+{"level":"info","ts":"2026-03-15T20:39:21.154+0100","logger":"http.log.access.log0","msg":"handled request","bytes_read":0,"user_id":"","duration_ms":0,"status_code":404,"request_uri":"/","request_host":"localhost"}
+{"level":"info","ts":"2026-03-15T20:39:49.727+0100","logger":"http.log.access.log0","msg":"handled request","bytes_read":0,"user_id":"","duration_ms":0,"status_code":404,"request_uri":"/","request_host":"localhost"}
+{"level":"info","ts":"2026-03-15T20:39:49.875+0100","logger":"http.log.access.log0","msg":"handled request","bytes_read":0,"user_id":"","duration_ms":0,"status_code":404,"request_uri":"/","request_host":"localhost"}
+{"level":"info","ts":"2026-03-15T20:40:51.424+0100","logger":"http.log.access.log0","msg":"handled request","bytes_read":0,"user_id":"","duration_ms":47,"status_code":200,"request_uri":"/ubuntu2404/user-data","request_host":"localhost"}

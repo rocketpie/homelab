@@ -1,0 +1,35 @@
+#cloud-config
+autoinstall:
+  version: 1
+  shutdown: poweroff
+
+  identity:
+    hostname: {{ vm_name }}
+    username: {{ vm.username }}
+    password: "{{ vm.password_hash }}"
+
+  ssh:
+    install-server: true
+    allow-pw: false
+    authorized-keys:
+{% for key in vm.ssh_public_keys %}
+      - {{ key }}
+{% endfor %}
+
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+
+  storage:
+    layout:
+      name: direct
+
+  packages:
+    - qemu-guest-agent
+    - openssh-server
+
+  late-commands:
+    - curtin in-target --target=/target -- systemctl enable qemu-guest-agent
+    - curtin in-target --target=/target -- systemctl start qemu-guest-agent
+    - curtin in-target --target=/target -- sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    - curtin in-target --target=/target -- systemctl restart ssh
