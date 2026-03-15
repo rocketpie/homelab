@@ -1,0 +1,124 @@
+- name: Validate required variables for Proxmox VM create
+  ansible.builtin.assert:
+    that:
+      - vm_name is defined
+      - vm is defined
+      - vm.vmid is defined
+      - vm.proxmox_node is defined
+      - vm.proxmox_ostype is defined
+      - vm.proxmox_iso_filename is defined
+      - vm.cores is defined
+      - vm.memory_mb is defined
+      - vm.os_disk_gb is defined
+      - proxmox_api_host is defined
+      - proxmox_api_user is defined
+      - proxmox_api_token_id is defined
+      - proxmox_api_token_secret is defined
+      - proxmox_api_verify_ssl is defined
+      - proxmox_api_iso_storage is defined
+      - proxmox_api_vm_storage is defined
+    fail_msg: "Missing required vars for proxmox-api-vm-create"
+
+- name: Materialize VM create parameters
+  ansible.builtin.set_fact:
+    proxmox_vm_create_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
+    proxmox_vm_create_agent: "{{ vm.proxmox_qemu_agent | default(proxmox_api_qemu_agent) }}"
+
+- name: Show VM create inputs
+  ansible.builtin.debug:
+    msg:
+      vm_name: "{{ vm_name }}"
+      vmid: "{{ vm.vmid }}"
+      node: "{{ vm.proxmox_node }}"
+      cores: "{{ vm.cores }}"
+      memory_mb: "{{ vm.memory_mb }}"
+      disk_gb: "{{ vm.os_disk_gb }}"
+      bridge: "{{ proxmox_vm_create_bridge }}"
+      vm_storage: "{{ proxmox_api_vm_storage }}"
+      iso_storage: "{{ proxmox_api_iso_storage }}"
+      iso_filename: "{{ vm.proxmox_iso_filename }}"
+
+- name: Create VM via Proxmox API
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ vm.proxmox_node }}"
+    vmid: "{{ vm.vmid }}"
+    name: "{{ vm_name }}"
+    ostype: "{{ vm.proxmox_ostype }}"
+    cores: "{{ vm.cores }}"
+    memory: "{{ vm.memory_mb }}"
+    scsihw: virtio-scsi-pci
+    agent: "{{ 1 if proxmox_vm_create_agent else 0 }}"
+    
+    # NIC
+    net:
+      net0: "virtio,bridge={{ proxmox_vm_create_bridge }}"
+    
+    # Disk (SCSI)
+    scsi:
+      scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
+    
+    # boot iso (IDE CD-ROM)
+    ide:
+      ide2: "{{ proxmox_api_iso_storage }}:iso/{{ vm.proxmox_iso_filename }},media=cdrom"
+    
+    # Boot order (Disk first, then CD)
+    boot: "order=ide2;sata0"
+    
+    # create VM
+    state: present
+  register: proxmox_vm_create_result
+
+- name: Start VM to start autoinstall
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ vm.proxmox_node }}"
+    vmid: "{{ vm.vmid }}"
+    state: started
+
+- name: Wait for autoinstall to finish (VM will power off)
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/status/current"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: vm_status
+  changed_when: false
+  until: vm_status.json.data.status == 'stopped'
+  retries: 180
+  delay: 10
+
+- name: Remove installer ISO / CD-ROM
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ vm.proxmox_node }}"
+    vmid: "{{ vm.vmid }}"
+    update: true
+    ide:
+      ide2: none
+    boot: "order=scsi0"
+
+- name: Start VM
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ vm.proxmox_node }}"
+    vmid: "{{ vm.vmid }}"
+    state: started
