@@ -15,7 +15,7 @@
 
     bridge: vmbr0
     iso_storage: local-pve-rpool-ISOs
-    iso_file: ubuntu-24.04-live-server-autoinstall.iso
+    iso_file: ubuntu-24.04.4-live-server-amd64-autoinstall.iso
 
     # Proxmox API auth (use vault in real use)
     api_host: "{{ proxmox_api_host }}"
@@ -79,14 +79,14 @@
         ide:
           ide2: "{{ iso_storage }}:iso/{{ iso_file }},media=cdrom"
 
-        # Boot order (CD first)
-        boot: "order=ide2;scsi0"
+        # Boot order (Disk first, then CD)
+        boot: "order=scsi0;ide2"
 
         agent: 1
         state: present
 
     - name: Start VM (installer will autoinstall)
-      community.general.proxmox_kvm:
+      community.proxmox.proxmox_kvm:
         api_host: "{{ api_host }}"
         api_user: "{{ api_user }}"
         api_token_id: "{{ api_token_id }}"
@@ -96,7 +96,46 @@
         vmid: "{{ vmid }}"
         state: started
 
-    - name: Wait for qemu-guest-agent to report an IP (poll Proxmox API)
+    - name: Wait for install to finish and VM to power off
+      ansible.builtin.uri:
+        url: "https://{{ api_host }}:8006/api2/json/nodes/{{ target_node }}/qemu/{{ vmid }}/status/current"
+        method: GET
+        headers:
+          Authorization: "PVEAPIToken={{ api_user }}!{{ api_token_id }}={{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        return_content: true
+      register: vm_status
+      changed_when: false
+      until: vm_status.json.data.status == 'stopped'
+      retries: 180
+      delay: 10
+
+    - name: Remove installer ISO / CD-ROM
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ api_host }}"
+        api_user: "{{ api_user }}"
+        api_token_id: "{{ api_token_id }}"
+        api_token_secret: "{{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        node: "{{ target_node }}"
+        vmid: "{{ vmid }}"
+        update: true
+        ide:
+          ide2: none
+        boot: "order=scsi0"
+
+    - name: Boot installed system
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ api_host }}"
+        api_user: "{{ api_user }}"
+        api_token_id: "{{ api_token_id }}"
+        api_token_secret: "{{ api_token_secret }}"
+        validate_certs: "{{ validate_certs }}"
+        node: "{{ target_node }}"
+        vmid: "{{ vmid }}"
+        state: started
+
+    - name: Wait for qemu-guest-agent to report a non-loopback IPv4
       vars:
         agent_url: "https://{{ api_host }}:8006/api2/json/nodes/{{ target_node }}/qemu/{{ vmid }}/agent/network-get-interfaces"
       ansible.builtin.uri:
@@ -107,15 +146,21 @@
         validate_certs: "{{ validate_certs }}"
         return_content: true
       register: agent_net
+      changed_when: false
       until: >
-        (agent_net.json is defined) and
-        (agent_net.json.data is defined) and
         (
-          agent_net.json.data
-          | map(attribute='ip-addresses') | list
-          | select('defined') | list
-          | length > 0
-        )
+          agent_net.json.data.result
+          | default([])
+          | rejectattr('name', 'equalto', 'lo')
+          | map(attribute='ip-addresses')
+          | flatten
+          | selectattr('ip-address-type', 'equalto', 'ipv4')
+          | rejectattr('ip-address', 'match', '^127\.')
+          | rejectattr('ip-address', 'match', '^169\.254\.')
+          | map(attribute='ip-address')
+          | list
+          | length
+        ) > 0
       retries: 90
       delay: 10
 
@@ -124,14 +169,17 @@
         vm_ip: >-
           {{
             (
-              agent_net.json.data
-              | map(attribute='ip-addresses') | list
-              | select('defined') | list
-              | sum(start=[])
-              | selectattr('ip-address-type', 'equalto', 'ipv4') | list
-              | rejectattr('ip-address', 'match', '^127\.') | list
-              | rejectattr('ip-address', 'match', '^169\.254\.') | list
-            )[0]['ip-address']
+              agent_net.json.data.result
+              | default([])
+              | rejectattr('name', 'equalto', 'lo')
+              | map(attribute='ip-addresses')
+              | flatten
+              | selectattr('ip-address-type', 'equalto', 'ipv4')
+              | rejectattr('ip-address', 'match', '^127\.')
+              | rejectattr('ip-address', 'match', '^169\.254\.')
+              | map(attribute='ip-address')
+              | first
+            )
           }}
 
     - name: Wait for SSH to come up
@@ -140,15 +188,24 @@
         port: 22
         timeout: 1200
 
+    - name: Remove old SSH host key for this IP
+      ansible.builtin.command:
+        cmd: "ssh-keygen -R {{ vm_ip }}"
+      changed_when: false
+      failed_when: false
+
     - name: Add new VM to in-memory inventory
       ansible.builtin.add_host:
         name: "{{ vm_name }}"
         ansible_host: "{{ vm_ip }}"
         ansible_user: archivar
         ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/lars-co3d-ed25519' }}"
+        ansible_ssh_common_args: >-
+          -o StrictHostKeyChecking=no
+          -o UserKnownHostsFile={{ lookup('env', 'HOME') + '/.ssh/known_hosts' }}
         groups: new_vms
 
-- name: Post-install configuration (example)
+- name: Post-install configuration
   hosts: new_vms
   gather_facts: false
   tasks:
