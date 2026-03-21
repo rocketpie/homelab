@@ -19,10 +19,44 @@
       - proxmox_api_vm_storage is defined
     fail_msg: "Missing required vars for proxmox-api-vm-create"
 
+- name: Query existing Proxmox VMs
+  community.proxmox.proxmox_vm_info:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+  register: proxmox_existing_vms
+
+- name: Fail if VM already exists by vmid or name
+  ansible.builtin.assert:
+    that:
+      - (proxmox_existing_vms.proxmox_vms | selectattr('vmid', 'equalto', (vm.vmid | int)) | list | length) == 0
+      - (proxmox_existing_vms.proxmox_vms | selectattr('name', 'defined') | selectattr('name', 'equalto', vm_name) | list | length) == 0
+    fail_msg: "Refusing to create VM because vmid {{ vm.vmid }} or name {{ vm_name }} already exists"
+
 - name: Materialize VM create parameters
   ansible.builtin.set_fact:
     proxmox_vm_create_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
     proxmox_vm_create_agent: "{{ vm.proxmox_qemu_agent | default(proxmox_api_qemu_agent) }}"
+
+- name: Initialize SCSI disk map with OS disk
+  ansible.builtin.set_fact:
+    proxmox_vm_scsi_map:
+      scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
+
+- name: Add extra disks to SCSI disk map
+  ansible.builtin.set_fact:
+    proxmox_vm_scsi_map: >-
+      {{
+        proxmox_vm_scsi_map
+        | combine({
+            ('scsi' ~ (idx + 1)): ( (item.pve_storage | default(proxmox_api_vm_storage)) ~ ':' ~ item.disk_gb ~ ',format=raw')
+          })
+      }}
+  loop: "{{ vm.extra_disks | default([]) }}"
+  loop_control:
+    index_var: idx
 
 - name: Show VM create inputs
   ansible.builtin.debug:
@@ -32,11 +66,12 @@
       node: "{{ vm.proxmox_node }}"
       cores: "{{ vm.cores }}"
       memory_mb: "{{ vm.memory_mb }}"
-      disk_gb: "{{ vm.os_disk_gb }}"
+      proxmox_vm_scsi_map: "{{ proxmox_vm_scsi_map }}"
       bridge: "{{ proxmox_vm_create_bridge }}"
       vm_storage: "{{ proxmox_api_vm_storage }}"
       iso_storage: "{{ proxmox_api_iso_storage }}"
       iso_filename: "{{ vm.proxmox_iso_filename }}"
+
 
 - name: Create VM via Proxmox API
   community.proxmox.proxmox_kvm:
@@ -59,15 +94,14 @@
       net0: "virtio,bridge={{ proxmox_vm_create_bridge }}"
     
     # Disk (SCSI)
-    scsi:
-      scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
+    scsi: "{{ proxmox_vm_scsi_map }}"
     
     # boot iso (IDE CD-ROM)
     ide:
       ide2: "{{ proxmox_api_iso_storage }}:iso/{{ vm.proxmox_iso_filename }},media=cdrom"
     
     # Boot order (Disk first, then CD)
-    boot: "order=ide2;sata0"
+    boot: "order=ide2;scsi0"
     
     # create VM
     state: present

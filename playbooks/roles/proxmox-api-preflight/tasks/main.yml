@@ -39,30 +39,30 @@
 - name: Assert token has required permissions for VM creation
   ansible.builtin.assert:
     that:
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_vm_storage] is defined
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_vm_storage]['Datastore.Allocate'] | default(0) | int == 1
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_vm_storage]['Datastore.AllocateSpace'] | default(0) | int == 1
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_vm_storage]['Datastore.Audit'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_vm_storage] is defined
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_vm_storage]['Datastore.Allocate'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_vm_storage]['Datastore.AllocateSpace'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_vm_storage]['Datastore.Audit'] | default(0) | int == 1
 
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_iso_storage] is defined
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_iso_storage]['Datastore.AllocateSpace'] | default(0) | int == 1
-      - proxmox_api_permissions['/storage/' ~ proxmox_api_iso_storage]['Datastore.Audit'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_iso_storage] is defined
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_iso_storage]['Datastore.AllocateSpace'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/storage/' ~ proxmox_api_iso_storage]['Datastore.Audit'] | default(0) | int == 1
 
-      - proxmox_api_permissions['/vms'] is defined
-      - proxmox_api_permissions['/vms']['VM.Allocate'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Audit'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Backup'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Clone'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.CDROM'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.CPU'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.Cloudinit'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.Disk'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.HWType'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.Memory'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.Network'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Config.Options'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Migrate'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.Monitor'] | default(0) | int == 1
-      - proxmox_api_permissions['/vms']['VM.PowerMgmt'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms'] is defined
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Allocate'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Audit'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Backup'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Clone'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.CDROM'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.CPU'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.Cloudinit'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.Disk'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.HWType'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.Memory'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.Network'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Config.Options'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Migrate'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.Monitor'] | default(0) | int == 1
+      - proxmox_api_permissions_response.json.data['/vms']['VM.PowerMgmt'] | default(0) | int == 1
 
     fail_msg: "Proxmox API token is missing one or more permissions required for VM creation"
