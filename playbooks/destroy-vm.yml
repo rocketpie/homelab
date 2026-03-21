@@ -1,0 +1,106 @@
+---
+- name: Destroy VM on Proxmox
+  hosts: localhost
+  gather_facts: false
+
+  vars_prompt:
+    - name: vm_name
+      private: false
+      prompt: "VM to destroy? must match inventory hostname"
+      default: restic1
+
+  tasks:
+    - name: Ensure target VM exists in inventory
+      ansible.builtin.assert:
+        that:
+          - vm_name in hostvars
+        fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
+
+    - name: Materialize selected VM vars
+      ansible.builtin.set_fact:
+        vm: "{{ hostvars[vm_name] }}"
+
+    - name: Query existing Proxmox VMs
+      community.proxmox.proxmox_vm_info:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+      register: proxmox_existing_vms
+
+    - name: Materialize matches by vmid
+      ansible.builtin.set_fact:
+        proxmox_existing_vms_by_vmid: >-
+          {{
+            proxmox_existing_vms.proxmox_vms
+            | selectattr('vmid', 'equalto', (vm.vmid | int))
+            | list
+          }}
+
+    - name: Materialize matches by name
+      ansible.builtin.set_fact:
+        proxmox_existing_vms_by_name: >-
+          {{
+            proxmox_existing_vms.proxmox_vms
+            | selectattr('name', 'defined')
+            | selectattr('name', 'equalto', vm_name)
+            | list
+          }}
+
+    - name: Assert exactly one VM matches requested vmid and name
+      ansible.builtin.assert:
+        that:
+          - proxmox_existing_vms_by_vmid | length == 1
+          - proxmox_existing_vms_by_name | length == 1
+          - (proxmox_existing_vms_by_vmid | first).vmid == (proxmox_existing_vms_by_name | first).vmid
+        fail_msg: >-
+          Expected exactly one VM by vmid {{ vm.vmid }} and exactly one by name {{ vm_name }},
+          referring to the same VM.
+          by_vmid={{ proxmox_existing_vms_by_vmid }}
+          by_name={{ proxmox_existing_vms_by_name }}
+
+
+    - name: Materialize matched VM from Proxmox
+      ansible.builtin.set_fact:
+        proxmox_vm_match: "{{ proxmox_existing_vms_by_vmid | first }}"
+
+    - name: Show VM details from Proxmox before destroy
+      ansible.builtin.debug:
+        msg:
+          vmid: "{{ proxmox_vm_match.vmid | default('n/a') }}"
+          name: "{{ proxmox_vm_match.name | default('n/a') }}"
+          node: "{{ proxmox_vm_match.node | default('n/a') }}"
+          status: "{{ proxmox_vm_match.status | default('n/a') }}"
+          cpus: "{{ proxmox_vm_match.cpus | default('n/a') }}"
+          maxmem: "{{ proxmox_vm_match.maxmem | default('n/a') }}"
+          maxdisk: "{{ proxmox_vm_match.maxdisk | default('n/a') }}"
+
+    - name: Pause for destroy confirmation
+      ansible.builtin.pause:
+        prompt: >-
+          About to destroy VM {{ vm_name }} (vmid {{ vm.vmid }}).
+          Press Enter to continue, or Ctrl+C then a to abort.
+
+    - name: Stop VM before destroy
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
+        state: stopped
+      ignore_errors: true
+
+    - name: Destroy VM
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_api_verify_ssl }}"
+        node: "{{ vm.proxmox_node }}"
+        vmid: "{{ vm.vmid }}"
+        state: absent
