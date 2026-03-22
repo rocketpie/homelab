@@ -3,7 +3,7 @@
     that:
       - vm_name is defined
       - vm.username is defined
-      - vm.password_hash is defined
+      - vm.password is defined
       - vm.ssh_public_keys is defined
       - autoinstall_export_directory is defined
       - autoinstall_base_url is defined

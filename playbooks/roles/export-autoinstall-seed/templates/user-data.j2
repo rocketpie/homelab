@@ -3,18 +3,25 @@ autoinstall:
   version: 1
   shutdown: poweroff
 
-  identity:
+  user-data:
     hostname: {{ vm_name }}
-    username: {{ vm.username }}
-    password: "{{ vm.password_hash }}"
+    users:
+      - default
+      - name: {{ vm.username }}
+        gecos: {{ vm.username }}
+        groups: [adm, sudo]
+        shell: /bin/bash
+        lock_passwd: false
+        passwd: "{{ vm.password | ansible.builtin.password_hash('sha512') }}"
+        sudo: "ALL=(ALL) NOPASSWD:ALL"
+        ssh_authorized_keys:
+{% for key in vm.ssh_public_keys %}
+          - {{ key }}
+{% endfor %}
 
   ssh:
     install-server: true
     allow-pw: false
-    authorized-keys:
-{% for key in vm.ssh_public_keys %}
-      - {{ key }}
-{% endfor %}
 
   locale: en_US.UTF-8
   keyboard:
