@@ -40,40 +40,23 @@
     proxmox_vm_create_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
     proxmox_vm_create_agent: "{{ vm.proxmox_qemu_agent | default(proxmox_api_qemu_agent) }}"
 
-- name: Initialize SCSI disk map with OS disk
-  ansible.builtin.set_fact:
-    proxmox_vm_scsi_map:
-      scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
-
-- name: Add extra disks to SCSI disk map
-  ansible.builtin.set_fact:
-    proxmox_vm_scsi_map: >-
-      {{
-        proxmox_vm_scsi_map
-        | combine({
-            ('scsi' ~ (idx + 1)): ( (item.pve_storage | default(proxmox_api_vm_storage)) ~ ':' ~ item.disk_gb ~ ',format=raw')
-          })
-      }}
-  loop: "{{ vm.extra_disks | default([]) }}"
-  loop_control:
-    index_var: idx
-
 - name: Show VM create inputs
   ansible.builtin.debug:
     msg:
       vm_name: "{{ vm_name }}"
       vmid: "{{ vm.vmid }}"
       node: "{{ vm.proxmox_node }}"
+      ostype: "{{ vm.proxmox_ostype }}"
       cores: "{{ vm.cores }}"
       memory_mb: "{{ vm.memory_mb }}"
-      proxmox_vm_scsi_map: "{{ proxmox_vm_scsi_map }}"
+      os_disk_gb: "{{ vm.os_disk_gb }}"
       bridge: "{{ proxmox_vm_create_bridge }}"
       vm_storage: "{{ proxmox_api_vm_storage }}"
       iso_storage: "{{ proxmox_api_iso_storage }}"
       iso_filename: "{{ vm.proxmox_iso_filename }}"
+      extra_disks: "{{ vm.extra_disks | default([]) }}"
 
-
-- name: Create VM via Proxmox API
+- name: Create VM via Proxmox API with OS disk only
   community.proxmox.proxmox_kvm:
     api_host: "{{ proxmox_api_host }}"
     api_user: "{{ proxmox_api_user }}"
@@ -92,17 +75,15 @@
     # NIC
     net:
       net0: "virtio,bridge={{ proxmox_vm_create_bridge }}"
-    
-    # Disk (SCSI)
-    scsi: "{{ proxmox_vm_scsi_map }}"
-    
+   
+    # OS Disk (SCSI)
+    scsi:
+      scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"
+
     # boot iso (IDE CD-ROM)
     ide:
       ide2: "{{ proxmox_api_iso_storage }}:iso/{{ vm.proxmox_iso_filename }},media=cdrom"
-    
-    # Boot order (Disk first, then CD)
-    boot: "order=ide2;scsi0"
-    
+    boot: "order=ide2"
     # create VM
     state: present
   register: proxmox_vm_create_result
@@ -132,19 +113,54 @@
   retries: 180
   delay: 10
 
-- name: Remove installer ISO / CD-ROM
-  community.proxmox.proxmox_kvm:
+- name: Remove installer ISO / CD-ROM via Proxmox API
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/config"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body:
+      delete: "ide2"
+      boot: "order=scsi0"
+    return_content: true
+  register: proxmox_vm_remove_iso_result
+
+- name: Query VM config after CD-ROM removal
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/config"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: vm_config_after_cdrom_removal
+  changed_when: false
+
+- name: Show VM config after CD-ROM removal
+  ansible.builtin.debug:
+    msg:
+      boot: "{{ vm_config_after_cdrom_removal.json.data.boot | default('missing') }}"
+      ide2: "{{ vm_config_after_cdrom_removal.json.data.ide2 | default('missing') }}"
+      scsi0: "{{ vm_config_after_cdrom_removal.json.data.scsi0 | default('missing') }}"
+
+- name: Attach extra data disks after install
+  community.proxmox.proxmox_disk:
     api_host: "{{ proxmox_api_host }}"
     api_user: "{{ proxmox_api_user }}"
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ vm.proxmox_node }}"
     vmid: "{{ vm.vmid }}"
-    update: true
-    ide:
-      ide2: none
-    boot: "order=scsi0"
+    disk: "scsi{{ idx + 1 }}"
+    storage: "{{ item.pve_storage | default(proxmox_api_vm_storage) }}"
+    size: "{{ item.disk_gb }}"
+    state: present
+  loop: "{{ vm.extra_disks | default([]) }}"
+  loop_control:
+    index_var: idx
+    label: "scsi{{ idx + 1 }} -> {{ item.mount_path | default('no-mount-path') }}"
 
 - name: Start VM
   community.proxmox.proxmox_kvm:
