@@ -1,0 +1,13 @@
+guest_extra_disks: "{{ vm.extra_disks | default([]) }}"
+
+guest_extra_disk_fs_type_default: "ext4"
+guest_extra_disk_mount_options_default: "defaults,nofail"
+
+# serial format used when attaching disks in Proxmox
+guest_extra_disk_serial_prefix: "vm{{ vm.vmid }}-"
+
+# whether a pre-existing filesystem is allowed
+guest_extra_disks_allow_existing_filesystem: true
+
+# whether to fail if filesystem exists but differs from desired fs_type
+guest_extra_disks_fail_on_fs_type_mismatch: true

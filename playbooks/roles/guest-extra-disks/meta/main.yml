@@ -1,0 +1,9 @@
+dependencies: []
+galaxy_info:
+  author: you
+  description: Configure extra attached disks inside guest
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble

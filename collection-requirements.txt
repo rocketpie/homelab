@@ -1,2 +1,3 @@
 community.general
 community.proxmox
+ansible.posix

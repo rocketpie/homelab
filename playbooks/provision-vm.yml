@@ -16,10 +16,71 @@
         that:
           - vm_name in hostvars
         fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
-    
-    - name: Materialize selected VM vars
+        
+    - name: Materialize selected VM vars with normalized extra disks
       ansible.builtin.set_fact:
-        vm: "{{ hostvars[vm_name] }}"
+        vm: >-
+          {{
+            (hostvars[vm_name] | to_json | from_json)
+            | combine({
+                'extra_disks': normalized_extra_disks
+              }, recursive=True)
+          }}
+      vars:
+        normalized_extra_disks: >-
+          {%- set result = [] -%}
+          {%- for d in hostvars[vm_name].extra_disks | default([]) -%}
+          {%- set derived_disk_id = (
+                d.disk_id
+                | default(
+                    d.mount_path
+                    | regex_replace('\W+', '-')
+                    | regex_replace('^-+|-+$', '')
+                  )
+            ) -%}
+          {%- set derived_serial = 'vm' ~ hostvars[vm_name].vmid ~ '-' ~ derived_disk_id -%}
+          {%- set _ = result.append(
+                d | combine({
+                  'disk_id': derived_disk_id,
+                  'serial': derived_serial
+                }, recursive=True)
+              ) -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Ensure extra disk mount paths are unique
+      ansible.builtin.assert:
+        that:
+          - (vm.extra_disks | map(attribute='mount_path') | list | unique | length)
+            == (vm.extra_disks | length)
+        fail_msg: "extra_disks mount_path values must be unique"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Ensure derived extra disk IDs are not empty
+      ansible.builtin.assert:
+        that:
+          - item.disk_id | length > 0
+        fail_msg: "Derived extra disk ID is empty for mount_path {{ item.mount_path }}"
+      loop: "{{ vm.extra_disks | default([]) }}"
+      loop_control:
+        label: "{{ item.mount_path }}"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Ensure derived extra disk IDs are unique
+      ansible.builtin.assert:
+        that:
+          - (vm.extra_disks | map(attribute='disk_id') | list | unique | length)
+            == (vm.extra_disks | length)
+        fail_msg: "Derived extra_disks disk_id values are not unique"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Ensure derived extra disk serials are unique
+      ansible.builtin.assert:
+        that:
+          - (vm.extra_disks | map(attribute='serial') | list | unique | length)
+            == (vm.extra_disks | length)
+        fail_msg: "Derived extra_disks serial values are not unique"
+      when: vm.extra_disks | default([]) | length > 0
 
     - name: Show selected VM
       ansible.builtin.debug:
@@ -101,19 +162,33 @@
 
     - name: Add new VM to in-memory inventory
       ansible.builtin.add_host:
+        vm: "{{ vm }}"
         name: "{{ vm_name }}"
         ansible_host: "{{ vm_ip }}"
-        ansible_user: archivar
+        ansible_user: "{{ vm.username }}"
         ansible_python_interpreter: /usr/bin/python3
         ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/lars-co3d-ed25519' }}"
         ansible_ssh_common_args: >-
           -o StrictHostKeyChecking=no
           -o UserKnownHostsFile={{ lookup('env', 'HOME') + '/.ssh/known_hosts' }}
-        groups: new_vms
+        groups: provisioned_vms
 
-- name: Post-install configuration
-  hosts: new_vms
+- name: Assert SSH works to provisioned VM
+  hosts: provisioned_vms
   gather_facts: false
   tasks:
     - name: Ping over SSH
       ansible.builtin.ping:
+
+- name: Configure provisioned VM
+  hosts: provisioned_vms
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Configure extra disks inside guest
+      ansible.builtin.include_role:
+        name: guest-extra-disks
+      vars:
+        guest_extra_disks: "{{ vm.extra_disks | default([]) }}"
+      when: vm.extra_disks | default([]) | length > 0

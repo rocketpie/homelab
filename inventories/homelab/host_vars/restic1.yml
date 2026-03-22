@@ -12,6 +12,8 @@ extra_disks:
   - disk_gb: 50
     pve_storage: "local-pve-rpool"
     mount_path: "/media/backups"
+    fs_type: "ext4"
+    mount_options: "defaults,nofail"
 
 username: "archivar"
 password_hash: "$6$eIdWYUiHMCvw3geq$./A6ctDU7KP1SZ5e9L/PqTjSfWham2TQUu6P5EjJuIpMWRY0unakemcdubEkra0mRrrPT7Ay4vwTHSoh4vgiP."

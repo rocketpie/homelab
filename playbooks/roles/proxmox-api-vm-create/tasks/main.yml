@@ -110,8 +110,8 @@
   register: vm_status
   changed_when: false
   until: vm_status.json.data.status == 'stopped'
-  retries: 180
-  delay: 10
+  retries: 30
+  delay: 15
 
 - name: Remove installer ISO / CD-ROM via Proxmox API
   ansible.builtin.uri:
@@ -145,22 +145,29 @@
       ide2: "{{ vm_config_after_cdrom_removal.json.data.ide2 | default('missing') }}"
       scsi0: "{{ vm_config_after_cdrom_removal.json.data.scsi0 | default('missing') }}"
 
-- name: Attach extra data disks after install
-  community.proxmox.proxmox_disk:
-    api_host: "{{ proxmox_api_host }}"
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
+- name: Attach extra disks after install
+  ansible.builtin.uri:
+    url: >-
+      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/config
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    vmid: "{{ vm.vmid }}"
-    disk: "scsi{{ idx + 1 }}"
-    storage: "{{ item.pve_storage | default(proxmox_api_vm_storage) }}"
-    size: "{{ item.disk_gb }}"
-    state: present
+    body_format: form-urlencoded
+    body: >-
+      {{
+        {}
+        | combine({
+            ('scsi' ~ (loop_index + 1)): (
+              item.pve_storage ~ ':' ~ item.disk_gb ~ ',serial=' ~ item.serial
+            )
+          })
+      }}
+    status_code: 200
   loop: "{{ vm.extra_disks | default([]) }}"
   loop_control:
-    index_var: idx
-    label: "scsi{{ idx + 1 }} -> {{ item.mount_path | default('no-mount-path') }}"
+    index_var: loop_index
+    label: "{{ item.disk_id }}"
 
 - name: Start VM
   community.proxmox.proxmox_kvm:
