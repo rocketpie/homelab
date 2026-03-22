@@ -6,12 +6,11 @@ param(
     [Parameter(ParameterSetName = "Help")]
     [switch]$Help,
 
-    [Parameter(ParameterSetName = "Install")]
-    [switch]$Install,
+    [Parameter(ParameterSetName = "InstallApt")]
+    [switch]$InstallApt,
 
-    # a.k.a. "Restore"?
-    [Parameter(ParameterSetName = "Setup")]
-    [switch]$Setup,
+    [Parameter(ParameterSetName = "InstallVenv")]
+    [switch]$InstallVenv,
 
     [Parameter(ParameterSetName = "Build")]
     [switch]$Build,
@@ -56,8 +55,8 @@ $ErrorActionPreference = "Stop"
 function Write-Targets {
     Write-Host "Targets:"
     Write-Host "  -Help                  Show this help (default)"
-    Write-Host "  -Install               apt install python3.10-venv python3-pip sshpass; pip install uv"
-    Write-Host "  -Setup                 Create venv; install requirements via uv; create .collections; install community.general"
+    Write-Host "  -InstallApt            apt install python3.10-venv python3-pip sshpass; pip install uv"
+    Write-Host "  -InstallVenv           Create venv; install requirements via uv; create .collections; install community.general"
     Write-Host "  -Build                 Run ansible-lint on /inventories and /playbooks"
     Write-Host "  -Run <env> <playbook>  Prompt for vault pass, set env; run playbook with inventories/<env>/hosts.yml"
 }
@@ -87,13 +86,13 @@ function Main {
             Write-Targets
         }
 
-        "Install" {
+        "InstallApt" {
             Install-AptDeps
             Install-UvGlobal
         }
-        "Setup" {
+        "InstallVenv" {
             Require-Command "uv"
-            Setup-Venv
+            Install-Venv
         }
         "Build" {
             Build-Checks
@@ -128,7 +127,7 @@ function Ensure-vEnvRequirements {
 
 function Ensure-ToolsInVenv {
     if (-not (Test-Path $vEnvAnsiblePlaybook)) {
-        throw "ansible-playbook not found in venv. Did you run -Setup?"
+        throw "ansible-playbook not found in venv. Did you run -InstallVenv?"
     }
 }
 
@@ -154,7 +153,7 @@ function Install-UvGlobal {
     Write-Host "uv installed globally. restart your shell for PATH changes to take effect."
 }
 
-function Setup-Venv {
+function Install-Venv {
     Ensure-Venv
     Ensure-vEnvRequirements
     Require-Command "uv"
@@ -178,7 +177,7 @@ function Build-Checks {
 
     $ansibleLint = Join-Path $vEnvPath "bin/ansible-lint"
 
-    if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -Setup." }
+    if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -InstallVenv." }
 
     Write-Host "Running ansible-lint..."
     & $ansibleLint $PSScriptRoot
