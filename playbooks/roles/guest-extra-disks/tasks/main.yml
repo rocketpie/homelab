@@ -162,6 +162,31 @@
   register: guest_extra_disk_postpart_lsblk
   changed_when: false
 
+- name: Show post-partition lsblk summary
+  ansible.builtin.debug:
+    msg:
+      disk_id: "{{ item.item.disk_id }}"
+      disk_device: "{{ item.item.disk_device }}"
+      root_blockdevice: "{{ (item.stdout | from_json).blockdevices[0] }}"
+      child_count: "{{ ((item.stdout | from_json).blockdevices[0].children | default([], true)) | length }}"
+      first_child: "{{ ((item.stdout | from_json).blockdevices[0].children | default([], true) | first) | default({}, true) }}"
+    verbosity: 1
+  loop: "{{ guest_extra_disk_postpart_lsblk.results }}"
+  loop_control:
+    label: "{{ item.item.disk_id }}"
+
+- name: Show post-partition lsblk raw JSON
+  ansible.builtin.debug:
+    msg: |
+      disk_id: {{ item.item.disk_id }}
+      disk_device: {{ item.item.disk_device }}
+      lsblk_json:
+      {{ item.stdout | from_json | to_nice_json }}
+    verbosity: 2
+  loop: "{{ guest_extra_disk_postpart_lsblk.results }}"
+  loop_control:
+    label: "{{ item.item.disk_id }}"
+
 - name: Build final partition targets
   ansible.builtin.set_fact:
     guest_extra_disks_final: >-
@@ -169,8 +194,8 @@
         guest_extra_disks_final | default([]) + [
           item.item | combine({
             'partition': ((item.stdout | from_json).blockdevices[0].children[0].path),
-            'partition_fstype': ((item.stdout | from_json).blockdevices[0].children[0].fstype | default('')),
-            'partition_uuid': ((item.stdout | from_json).blockdevices[0].children[0].uuid | default(''))
+            'partition_fstype': (((item.stdout | from_json).blockdevices[0].children[0].fstype | default('', true)) | string),
+            'partition_uuid': (((item.stdout | from_json).blockdevices[0].children[0].uuid | default('', true)) | string)
           })
         ]
       }}
@@ -183,11 +208,12 @@
     that:
       - not (
           guest_extra_disks_fail_on_fs_type_mismatch
-          and item.partition_fstype | length > 0
-          and item.partition_fstype != item.fs_type
+          and (item.partition_fstype | default('', true) | length > 0)
+          and (item.partition_fstype | default('', true) != item.fs_type)
         )
     fail_msg: >-
-      Disk {{ item.disk_id }} already has filesystem {{ item.partition_fstype }},
+      Disk {{ item.disk_id }} already has filesystem
+      {{ item.partition_fstype | default('none', true) }},
       expected {{ item.fs_type }}.
   loop: "{{ guest_extra_disks_final }}"
   loop_control:
@@ -197,7 +223,7 @@
   community.general.filesystem:
     dev: "{{ item.partition }}"
     fstype: "{{ item.fs_type }}"
-  when: item.partition_fstype | length == 0
+  when: item.partition_fstype | default('', true) | length == 0
   loop: "{{ guest_extra_disks_final }}"
   loop_control:
     label: "{{ item.disk_id }}"

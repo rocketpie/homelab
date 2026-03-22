@@ -55,6 +55,7 @@
       iso_storage: "{{ proxmox_api_iso_storage }}"
       iso_filename: "{{ vm.proxmox_iso_filename }}"
       extra_disks: "{{ vm.extra_disks | default([]) }}"
+    verbosity: 0
 
 - name: Create VM via Proxmox API with OS disk only
   community.proxmox.proxmox_kvm:

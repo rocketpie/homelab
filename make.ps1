@@ -208,7 +208,12 @@ function Run-Playbook([string]$EnvironmentName, [string]$PlaybookName) {
     }
 
     Write-Host "Running: $playbookPath (inventory: $inventory)"
-    & $vEnvAnsiblePlaybook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
+    if ($PSBoundParameters['Debug']) {
+        & $vEnvAnsiblePlaybook -i $inventory $playbookPath -v --vault-password-file $vaultPasswordScript
+    }
+    else {
+        & $vEnvAnsiblePlaybook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
+    }
 }
 
 

@@ -75,6 +75,7 @@
           - "vm_name: {{ vm_name }}"
           - "vm.vmid: {{ vm.vmid }}"
           - "vm.username: {{ vm.username }}"
+        verbosity: 1
 
     - name: Export autoinstall seed for target VM
       ansible.builtin.include_role:

@@ -18,7 +18,7 @@
       api_token_id: "{{ proxmox_api_token_id }}"
       vm_storage: "{{ proxmox_api_vm_storage }}"
       iso_storage: "{{ proxmox_api_iso_storage }}"
-  when: proxmox_api_preflight_show_debug
+    verbosity: 1
 
 - name: Query Proxmox API permissions for current token user
   ansible.builtin.uri:
@@ -34,7 +34,7 @@
   ansible.builtin.debug:
     msg:
       proxmox_api_permissions: "{{ proxmox_api_permissions_response.json.data }}"
-  when: proxmox_api_preflight_show_debug
+    verbosity: 2
 
 - name: Assert token has required permissions for VM creation
   ansible.builtin.assert:
