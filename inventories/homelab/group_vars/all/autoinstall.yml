@@ -1,2 +1,8 @@
 autoinstall_export_directory: "{{ playbook_dir }}/../srv/http_root/ubuntu2404"
-autoinstall_base_url: "http://lc3win:8080/"
+
+# what the Autoinstall VM uses to access the seed files
+autoinstall_base_url: "http://lc3win:8080/ubuntu2404"
+# what ansible uses to test if the seed files are being served
+autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
+
+autoinstall_caddy_executable: "{{ playbook_dir }}/../srv/caddy_windows_amd64.exe"

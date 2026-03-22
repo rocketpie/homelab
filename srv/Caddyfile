@@ -22,5 +22,5 @@
 	}
 
 	log_append request_host {http.request.host}
-	log_append request_uri  {http.request.uri}
+	log_append request_uri {http.request.uri}
 }

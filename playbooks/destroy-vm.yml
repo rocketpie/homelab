@@ -92,6 +92,7 @@
         node: "{{ vm.proxmox_node }}"
         vmid: "{{ vm.vmid }}"
         state: stopped
+        force: true
       ignore_errors: true
 
     - name: Destroy VM
