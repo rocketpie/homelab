@@ -16,7 +16,7 @@
         that:
           - vm_name in hostvars
         fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
-        
+
     - name: Materialize selected VM vars with normalized extra disks
       ansible.builtin.set_fact:
         vm: >-
@@ -30,19 +30,26 @@
         normalized_extra_disks: >-
           {%- set result = [] -%}
           {%- for d in hostvars[vm_name].extra_disks | default([]) -%}
-          {%- set derived_disk_id = (
+          {%- set raw_disk_id = (
                 d.disk_id
                 | default(
-                    d.mount_path
-                    | regex_replace('\W+', '-')
-                    | regex_replace('^-+|-+$', '')
+                    (
+                      d.mount_path
+                      | basename
+                      | lower
+                      | regex_replace('\W+', '-')
+                      | regex_replace('^-+|-+$', '')
+                      | truncate(15, True, '')
+                    ) ~ '-' ~ (
+                      d.mount_path
+                      | hash('sha1')
+                      | regex_replace('^(.{4}).*$', '\1')
+                    )
                   )
             ) -%}
-          {%- set derived_serial = 'vm' ~ hostvars[vm_name].vmid ~ '-' ~ derived_disk_id -%}
           {%- set _ = result.append(
                 d | combine({
-                  'disk_id': derived_disk_id,
-                  'serial': derived_serial
+                  'disk_id': raw_disk_id
                 }, recursive=True)
               ) -%}
           {%- endfor -%}
@@ -56,35 +63,19 @@
         fail_msg: "extra_disks mount_path values must be unique"
       when: vm.extra_disks | default([]) | length > 0
 
-    - name: Ensure derived extra disk IDs are not empty
+    - name: Ensure derived extra disk IDs are non-empty and unique
       ansible.builtin.assert:
         that:
-          - item.disk_id | length > 0
-        fail_msg: "Derived extra disk ID is empty for mount_path {{ item.mount_path }}"
-      loop: "{{ vm.extra_disks | default([]) }}"
-      loop_control:
-        label: "{{ item.mount_path }}"
-      when: vm.extra_disks | default([]) | length > 0
-
-    - name: Ensure derived extra disk IDs are unique
-      ansible.builtin.assert:
-        that:
+          - (vm.extra_disks | map(attribute='disk_id') | reject('equalto', '') | list | length)
+            == (vm.extra_disks | length)
           - (vm.extra_disks | map(attribute='disk_id') | list | unique | length)
             == (vm.extra_disks | length)
-        fail_msg: "Derived extra_disks disk_id values are not unique"
-      when: vm.extra_disks | default([]) | length > 0
-
-    - name: Ensure derived extra disk serials are unique
-      ansible.builtin.assert:
-        that:
-          - (vm.extra_disks | map(attribute='serial') | list | unique | length)
-            == (vm.extra_disks | length)
-        fail_msg: "Derived extra_disks serial values are not unique"
+        fail_msg: "Derived extra_disks disk_id values are empty or not unique"
       when: vm.extra_disks | default([]) | length > 0
 
     - name: Show selected VM
       ansible.builtin.debug:
-        msg: 
+        msg:
           - "vm_name: {{ vm_name }}"
           - "vm.vmid: {{ vm.vmid }}"
           - "vm.username: {{ vm.username }}"

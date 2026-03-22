@@ -39,8 +39,7 @@
           item | combine({
             'fs_type': item.fs_type | default(guest_extra_disk_fs_type_default),
             'mount_options': item.mount_options | default(guest_extra_disk_mount_options_default),
-            'disk_serial': item.serial,
-            'disk_by_id_path': '/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_' ~ item.serial
+            'disk_by_id_path': '/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_' ~ item.disk_id
           })
         ]
       }}
