@@ -1,2 +1,0 @@
-instance-id: ubuntu-2404-autoinstall
-local-hostname: {{hostname}}
