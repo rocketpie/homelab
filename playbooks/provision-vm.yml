@@ -30,26 +30,22 @@
         normalized_extra_disks: >-
           {%- set result = [] -%}
           {%- for d in hostvars[vm_name].extra_disks | default([]) -%}
-          {%- set raw_disk_id = (
-                d.disk_id
-                | default(
-                    (
-                      d.mount_path
-                      | basename
-                      | lower
-                      | regex_replace('\W+', '-')
-                      | regex_replace('^-+|-+$', '')
-                      | truncate(15, True, '')
-                    ) ~ '-' ~ (
-                      d.mount_path
-                      | hash('sha1')
-                      | regex_replace('^(.{4}).*$', '\1')
-                    )
-                  )
+          {%- set raw_name = (
+                d.mount_path
+                | basename
+                | lower
+                | regex_replace('\W+', '-')
+                | regex_replace('^-+|-+$', '')
             ) -%}
+          {%- set short_name = (
+                (raw_name if raw_name | length > 0 else 'disk')
+                | truncate(15, True, '')
+            ) -%}
+          {%- set hash_suffix = (d.mount_path | hash('sha1'))[:4] -%}
+          {%- set derived_disk_id = d.disk_id | default(short_name ~ '-' ~ hash_suffix) -%}
           {%- set _ = result.append(
                 d | combine({
-                  'disk_id': raw_disk_id
+                  'disk_id': derived_disk_id
                 }, recursive=True)
               ) -%}
           {%- endfor -%}

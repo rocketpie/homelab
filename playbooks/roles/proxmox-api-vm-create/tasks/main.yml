@@ -111,7 +111,7 @@
   changed_when: false
   until: vm_status.json.data.status == 'stopped'
   retries: 30
-  delay: 15
+  delay: 30
 
 - name: Remove installer ISO / CD-ROM via Proxmox API
   ansible.builtin.uri:
@@ -149,7 +149,7 @@
   ansible.builtin.debug:
     msg:
       controller: "{{ 'scsi' ~ (loop_index + 1) }}"
-      value: "{{ item.pve_storage ~ ':' ~ item.disk_gb ~ ',serial=' ~ item.serial }}"
+      value: "{{ item.pve_storage ~ ':' ~ item.disk_gb ~ ',serial=' ~ item.disk_id }}"
   loop: "{{ vm.extra_disks | default([]) }}"
   loop_control:
     index_var: loop_index
