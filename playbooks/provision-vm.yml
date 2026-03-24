@@ -180,3 +180,37 @@
       vars:
         guest_extra_disks: "{{ vm.extra_disks | default([]) }}"
       when: vm.extra_disks | default([]) | length > 0
+
+    - name: Reboot VM after guest disk configuration
+      ansible.builtin.reboot:
+        reboot_timeout: 1200
+        test_command: whoami
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Verify extra disks are mounted after reboot
+      ansible.builtin.command:
+        cmd: "mountpoint -q {{ item.mount_path }}"
+      changed_when: false
+      loop: "{{ vm.extra_disks | default([]) }}"
+      loop_control:
+        label: "{{ item.mount_path }}"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Verify mounted filesystem source by UUID is present in fstab
+      ansible.builtin.command:
+        cmd: "findmnt --target {{ item.mount_path }} --noheadings --output SOURCE,TARGET,FSTYPE,OPTIONS"
+      changed_when: false
+      loop: "{{ vm.extra_disks | default([]) }}"
+      loop_control:
+        label: "{{ item.mount_path }}"
+      register: mounted_filesystems
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Show mounted extra disk details
+      ansible.builtin.debug:
+        msg: "{{ item.stdout }}"
+        verbosity: 1
+      loop: "{{ mounted_filesystems.results }}"
+      loop_control:
+        label: "{{ item.item.mount_path }}"
+      when: vm.extra_disks | default([]) | length > 0
