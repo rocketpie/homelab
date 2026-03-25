@@ -15,7 +15,7 @@ autoinstall:
         shell: {{ user.shell | default('/bin/bash') }}
         lock_passwd: {{ (user.lock_passwd | default(false) | bool) | ternary('true', 'false') }}
 {% if not (user.lock_passwd | default(false) | bool) %}
-        passwd: "{{ user.password | ansible.builtin.password_hash('sha512') }}"
+        passwd: {{ user.password_hash | to_json }}
 {% endif %}
 {% if user.sudo is defined %}
         sudo: {{ user.sudo | to_json }}

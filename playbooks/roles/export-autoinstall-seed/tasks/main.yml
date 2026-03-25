@@ -16,9 +16,17 @@
       {%- set host_users = vm.host_users | default([]) -%}
       {%- set password_map = vm.host_user_passwords | default({}) -%}
       {%- for user in host_users -%}
-      {%- set _ = result.append(user | combine({'password': password_map.get(user.name)}, recursive=True)) -%}
+      {%- set lock_passwd = user.lock_passwd | default(false) | bool -%}
+      {%- set password = password_map.get(user.name) -%}
+      {%- set password_hash = (password | ansible.builtin.password_hash('sha512')) if (not lock_passwd and (password | default('', true) | string | length) > 0) else omit -%}
+      {%- set resolved_user = user | combine({'gecos': user.description | default(user.name)}, recursive=True) -%}
+      {%- if password_hash is not sameas omit -%}
+      {%- set resolved_user = resolved_user | combine({'password_hash': password_hash}, recursive=True) -%}
+      {%- endif -%}
+      {%- set _ = result.append(resolved_user) -%}
       {%- endfor -%}
       {{ result }}
+  no_log: true
 
 - name: Build VM provisioning user list
   ansible.builtin.set_fact:
@@ -40,7 +48,7 @@
       - item.ssh_authorized_keys is defined
       - item.ssh_authorized_keys | length > 0
       - (item.lock_passwd | default(false) | bool)
-        or ((item.password | default('', true) | string | length) > 0)
+        or ((item.password_hash | default('', true) | string | length) > 0)
     fail_msg: "Invalid VM user definition for {{ item.name | default('unnamed-user') }}"
   loop: "{{ vm_users }}"
   loop_control:
