@@ -74,7 +74,8 @@
         msg:
           - "vm_name: {{ vm_name }}"
           - "vm.vmid: {{ vm.vmid }}"
-          - "vm.username: {{ vm.username }}"
+          - "vm.ansible_user: {{ vm.ansible_user }}"
+          - "vm.host_users: {{ vm.host_users | default([]) | map(attribute='name') | list }}"
         verbosity: 1
 
     - name: Export autoinstall seed for target VM
@@ -153,9 +154,9 @@
         vm: "{{ vm }}"
         name: "{{ vm_name }}"
         ansible_host: "{{ vm_ip }}"
-        ansible_user: "{{ vm.username }}"
-        ansible_python_interpreter: /usr/bin/python3
-        ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/lars-co3d-ed25519' }}"
+        ansible_user: "{{ vm.ansible_user }}"
+        ansible_python_interpreter: "{{ vm.ansible_python_interpreter }}"
+        ansible_ssh_private_key_file: "{{ vm.ansible_ssh_private_key_file }}"
         ansible_ssh_common_args: >-
           -o StrictHostKeyChecking=no
           -o UserKnownHostsFile={{ lookup('env', 'HOME') + '/.ssh/known_hosts' }}

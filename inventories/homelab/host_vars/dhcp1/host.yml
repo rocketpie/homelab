@@ -8,10 +8,11 @@ cores: 1
 memory_mb: 512
 os_disk_gb: 10
 
-ssh_public_keys:
-  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
-
-username: "networker"
+host_users:
+  - name: "networker"
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
 
 # vault.yml:
-# password: "USER_PASSWORD_HERE"
+# host_user_passwords:
+#   networker: "USER_PASSWORD_HERE"

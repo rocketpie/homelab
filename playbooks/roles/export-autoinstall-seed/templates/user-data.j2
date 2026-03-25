@@ -6,17 +6,24 @@ autoinstall:
   user-data:
     hostname: {{ vm_name }}
     users:
-      - default
-      - name: {{ vm.username }}
-        gecos: {{ vm.username }}
-        groups: [adm, sudo]
-        shell: /bin/bash
-        lock_passwd: false
-        passwd: "{{ vm.password | ansible.builtin.password_hash('sha512') }}"
-        sudo: "ALL=(ALL) NOPASSWD:ALL"
+{% for user in vm_users %}
+      - name: {{ user.name }}
+        gecos: {{ user.gecos | default(user.name) | to_json }}
+{% if user.groups is defined and user.groups | length > 0 %}
+        groups: {{ user.groups | to_json }}
+{% endif %}
+        shell: {{ user.shell | default('/bin/bash') }}
+        lock_passwd: {{ (user.lock_passwd | default(false) | bool) | ternary('true', 'false') }}
+{% if not (user.lock_passwd | default(false) | bool) %}
+        passwd: "{{ user.password | ansible.builtin.password_hash('sha512') }}"
+{% endif %}
+{% if user.sudo is defined %}
+        sudo: {{ user.sudo | to_json }}
+{% endif %}
         ssh_authorized_keys:
-{% for key in vm.ssh_public_keys %}
-          - {{ key }}
+{% for key in user.ssh_authorized_keys %}
+          - {{ key | to_json }}
+{% endfor %}
 {% endfor %}
 
   ssh:

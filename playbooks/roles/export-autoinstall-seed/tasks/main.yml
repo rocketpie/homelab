@@ -2,13 +2,49 @@
   ansible.builtin.assert:
     that:
       - vm_name is defined
-      - vm.username is defined
-      - vm.password is defined
-      - vm.ssh_public_keys is defined
+      - vm.ansible_user is defined
+      - shared_admin_users is defined
       - autoinstall_export_directory is defined
       - autoinstall_base_url is defined
       - autoinstall_caddy_executable is defined
     fail_msg: "Missing required variables for export-autoinstall-seed role"
+
+- name: Resolve host-specific VM users
+  ansible.builtin.set_fact:
+    vm_host_users: >-
+      {%- set result = [] -%}
+      {%- set host_users = vm.host_users | default([]) -%}
+      {%- set password_map = vm.host_user_passwords | default({}) -%}
+      {%- for user in host_users -%}
+      {%- set _ = result.append(user | combine({'password': password_map.get(user.name)}, recursive=True)) -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: Build VM provisioning user list
+  ansible.builtin.set_fact:
+    vm_users: "{{ (shared_admin_users | default([])) + (vm_host_users | default([])) }}"
+
+- name: Ensure VM provisioning user list is not empty
+  ansible.builtin.assert:
+    that:
+      - vm_users | length > 0
+      - vm.ansible_user in (vm_users | map(attribute='name') | list)
+      - (vm_users | map(attribute='name') | list | unique | length) == (vm_users | length)
+    fail_msg: "VM users must include the inventory ansible_user and use unique names"
+
+- name: Validate VM user definitions
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | length > 0
+      - item.ssh_authorized_keys is defined
+      - item.ssh_authorized_keys | length > 0
+      - (item.lock_passwd | default(false) | bool)
+        or ((item.password | default('', true) | string | length) > 0)
+    fail_msg: "Invalid VM user definition for {{ item.name | default('unnamed-user') }}"
+  loop: "{{ vm_users }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed-user') }}"
 
 - name: Ensure autoinstall export directory exists
   ansible.builtin.file:
