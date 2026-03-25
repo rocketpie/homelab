@@ -68,8 +68,8 @@
     vmid: "{{ vm.vmid }}"
     name: "{{ vm_name }}"
     ostype: "{{ vm.proxmox_ostype }}"
-    cores: "{{ vm.cores }}"
-    memory: "{{ vm.memory_mb }}"
+    cores: "{{ autoinstall_provision_cores }}"
+    memory: "{{ autoinstall_provision_memory_mb }}"
     scsihw: virtio-scsi-pci
     agent: "{{ 1 if proxmox_vm_create_agent else 0 }}"
  
@@ -113,6 +113,23 @@
   until: vm_status.json.data.status == 'stopped'
   retries: 30
   delay: 30
+
+- name: Apply final CPU and memory after autoinstall shutdown
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ vm.proxmox_node }}"
+    vmid: "{{ vm.vmid }}"
+    cores: "{{ vm.cores }}"
+    memory: "{{ vm.memory_mb }}"
+    state: present
+    update: true
+  when: >
+    (vm.cores | int) != (autoinstall_provision_cores | int)
+    or (vm.memory_mb | int) != (autoinstall_provision_memory_mb | int)
 
 - name: Remove installer ISO / CD-ROM via Proxmox API
   ansible.builtin.uri:

@@ -3,13 +3,17 @@
   hosts: localhost
   gather_facts: false
 
-  vars_prompt:
-    - name: vm_name
-      private: false
-      prompt: "VM to destroy? must match inventory hostname"
-      default: "{{ autoinstall_default_vm_name }}"
-
   tasks:
+    - name: Prompt for VM to destroy when not provided
+      ansible.builtin.pause:
+        prompt: "VM to destroy? must match inventory hostname [{{ autoinstall_default_vm_name }}]"
+      register: destroy_vm_name_prompt
+
+    - name: Resolve VM name for destroy
+      ansible.builtin.set_fact:
+        vm_name: "{{ (destroy_vm_name_prompt.user_input | default('', true) | trim) or autoinstall_default_vm_name }}"
+      when: vm_name is not defined
+
     - name: Ensure target VM exists in inventory
       ansible.builtin.assert:
         that:

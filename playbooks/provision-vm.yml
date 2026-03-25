@@ -4,13 +4,17 @@
   connection: local
   gather_facts: false
 
-  vars_prompt:
-    - name: vm_name
-      private: false
-      prompt: "VM to provision? a matching host_vars file must exist."
-      default: "{{ autoinstall_default_vm_name }}"
-
   tasks:
+    - name: Prompt for VM to provision when not provided
+      ansible.builtin.pause:
+        prompt: "VM to provision? a matching host_vars file must exist. [{{ autoinstall_default_vm_name }}]"
+      register: provision_vm_name_prompt
+
+    - name: Resolve VM name for provisioning
+      ansible.builtin.set_fact:
+        vm_name: "{{ (provision_vm_name_prompt.user_input | default('', true) | trim) or autoinstall_default_vm_name }}"
+      when: vm_name is not defined
+
     - name: Ensure target VM exists in inventory
       ansible.builtin.assert:
         that:
