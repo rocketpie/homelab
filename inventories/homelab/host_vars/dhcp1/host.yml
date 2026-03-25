@@ -1,24 +1,17 @@
-vmid: 22001
+vmid: 23001
 proxmox_node: "n2"
 
 proxmox_ostype: "l26"
 proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
 
-cores: 2
-memory_mb: 2048
-os_disk_gb: 20
-
-extra_disks:
-  - disk_gb: 50
-    pve_storage: "local-pve-rpool"
-    mount_path: "/media/backups"
-    fs_type: "ext4"
-    mount_options: "defaults,nofail"
+cores: 1
+memory_mb: 512
+os_disk_gb: 10
 
 ssh_public_keys:
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
 
-username: "archivar"
+username: "networker"
 
 # vault.yml:
 # password: "USER_PASSWORD_HERE"
