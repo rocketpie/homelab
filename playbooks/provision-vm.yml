@@ -8,7 +8,7 @@
     - name: vm_name
       private: false
       prompt: "VM to provision? a matching host_vars file must exist."
-      default: restic1
+      default: "{{ autoinstall_default_vm_name }}"
 
   tasks:
     - name: Ensure target VM exists in inventory

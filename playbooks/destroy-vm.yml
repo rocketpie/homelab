@@ -7,7 +7,7 @@
     - name: vm_name
       private: false
       prompt: "VM to destroy? must match inventory hostname"
-      default: restic1
+      default: "{{ autoinstall_default_vm_name }}"
 
   tasks:
     - name: Ensure target VM exists in inventory
