@@ -4,6 +4,6 @@ __pycache__/
 *.retry
 
 .collections/
-.vault_pass
 
-inventories/**/*vault.yml
+.vault_pass
+vault.yml

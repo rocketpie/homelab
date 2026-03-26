@@ -2,5 +2,5 @@
 ansible_user: root
 ansible_become: true
 
-# proxmox.vault.yml:
+# vault.yml:
 # ansible_ssh_pass: "PROXMOX_ROOT_PASSWORD_HERE"

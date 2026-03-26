@@ -10,43 +10,7 @@ param(
     [switch]$InstallApt,
 
     [Parameter(ParameterSetName = "InstallVenv")]
-    [switch]$InstallVenv,
-
-    [Parameter(ParameterSetName = "Build")]
-    [switch]$Build,
-
-    [Parameter(ParameterSetName = "Run")]
-    [switch]$Run,
-
-    # For -Run
-    [Parameter(ParameterSetName = "Run", Position = 0)]
-    [ArgumentCompleter({
-            param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
-
-            $inventoriesPath = Join-Path $PSScriptRoot "inventories"
-            if (-not (Test-Path $inventoriesPath)) { return }
-
-            Get-ChildItem -Path $inventoriesPath -Directory -ErrorAction SilentlyContinue |
-            ForEach-Object { $_.Name } |
-            Where-Object { $_ -like "$wordToComplete*" } |
-            Sort-Object
-        })]
-    [string]$EnvName,
-
-    [Parameter(ParameterSetName = "Run", Position = 1)]
-    [ArgumentCompleter({
-            param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
-
-            $playbooksPath = Join-Path $PSScriptRoot "playbooks"
-            if (-not (Test-Path $playbooksPath)) { return }
-
-            Get-ChildItem -Path $playbooksPath -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension -in ".yml", ".yaml" } |
-            ForEach-Object { $_.Name } |
-            Where-Object { $_ -like "$wordToComplete*" } |
-            Sort-Object
-        })]
-    [string]$Playbook
+    [switch]$InstallVenv
 )
 
 Set-StrictMode -Version Latest
@@ -57,8 +21,6 @@ function Write-Targets {
     Write-Host "  -Help                  Show this help (default)"
     Write-Host "  -InstallApt            apt install python3.10-venv python3-pip sshpass; pip install uv"
     Write-Host "  -InstallVenv           Create venv; install requirements via uv; create .collections; install community.general"
-    Write-Host "  -Build                 Run ansible-lint on /inventories and /playbooks"
-    Write-Host "  -Run <env> <playbook>  Prompt for vault pass, set env; run playbook with inventories/<env>/hosts.yml"
 }
 
 Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".venv")
@@ -93,12 +55,6 @@ function Main {
         "InstallVenv" {
             Require-Command "uv"
             Install-Venv
-        }
-        "Build" {
-            Build-Checks
-        }
-        "Run" {
-            Run-Playbook -EnvironmentName $EnvName -PlaybookName $Playbook
         }
     }
 
@@ -168,51 +124,6 @@ function Install-Venv {
     foreach ($requirement in $requirements) {
         Write-Host "Installing Ansible collection $($requirement)..."
         & $vEnvAnsibleGalaxy collection install -p $ansibleCollectionsDir $requirement
-    }
-}
-
-function Build-Checks {
-    Ensure-Venv
-    Ensure-ToolsInVenv
-
-    $ansibleLint = Join-Path $vEnvPath "bin/ansible-lint"
-
-    if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -InstallVenv." }
-
-    Write-Host "Running ansible-lint..."
-    & $ansibleLint $PSScriptRoot
-}
-
-function Run-Playbook([string]$EnvironmentName, [string]$PlaybookName) {
-    if ([string]::IsNullOrWhiteSpace($EnvironmentName) -or [string]::IsNullOrWhiteSpace($PlaybookName)) {
-        throw "Usage: ./Make.ps1 -Run <env> <playbook.yml>"
-    }
-
-    Ensure-Venv
-    Ensure-ToolsInVenv
-
-    $inventory = Join-Path $PSScriptRoot ("inventories/{0}/hosts.yml" -f $EnvironmentName)
-    if (-not (Test-Path $inventory)) {
-        throw "Inventory not found: $inventory"
-    }
-
-    $playbookPath = Join-Path $PSScriptRoot ("playbooks/{0}" -f $PlaybookName)
-    if (-not (Test-Path $playbookPath)) {
-        throw "Playbook not found: $playbookPath"
-    }
-
-    $vaultPassword = $env:ANSIBLE_VAULT_PASSWORD
-    if ([string]::IsNullOrWhiteSpace($vaultPassword)) {
-        $vaultPassword = Read-Host -Prompt "Ansible Vault password?"
-        $env:ANSIBLE_VAULT_PASSWORD = $vaultPassword
-    }
-
-    Write-Host "Running: $playbookPath (inventory: $inventory)"
-    if ($PSBoundParameters['Debug']) {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath -v --vault-password-file $vaultPasswordScript
-    }
-    else {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
     }
 }
 
