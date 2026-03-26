@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sources_file="{{ unbound_blocklist_sources_file }}"
+output_file="{{ unbound_blocklist_output_file }}"
+tmp_domains="$(mktemp)"
+tmp_output="$(mktemp)"
+trap 'rm -f "$tmp_domains" "$tmp_output"' EXIT
+
+if [[ ! -s "$sources_file" ]]; then
+  cat >"$output_file" <<'EOF'
+# No blocklist sources configured
+EOF
+  exit 0
+fi
+
+while IFS= read -r source; do
+  [[ -z "$source" ]] && continue
+  [[ "$source" =~ ^# ]] && continue
+
+  curl -fsSL "$source" |
+    awk '
+      /^[[:space:]]*#/ { next }
+      NF == 0 { next }
+      {
+        domain = $NF
+        if (domain == "localhost" || domain == "localhost.localdomain") {
+          next
+        }
+        print tolower(domain)
+      }
+    ' >>"$tmp_domains"
+done <"$sources_file"
+
+sort -u "$tmp_domains" |
+  awk '
+    BEGIN {
+      print "# Managed by Ansible via unbound-refresh-blocklist"
+      print "server:"
+    }
+    {
+      print "  local-zone: \"" $1 "\" always_nxdomain"
+    }
+  ' >"$tmp_output"
+
+mv "$tmp_output" "$output_file"

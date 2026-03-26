@@ -1,0 +1,21 @@
+---
+unbound_packages:
+  - unbound
+  - curl
+
+unbound_service_name: unbound
+
+unbound_include_dir: /etc/unbound/unbound.conf.d
+unbound_blocklist_state_dir: /var/lib/unbound
+unbound_blocklist_sources_file: "{{ unbound_blocklist_state_dir }}/homelab-blocklist.sources"
+unbound_blocklist_output_file: "{{ unbound_include_dir }}/homelab-blocklist.conf"
+unbound_local_records_file: "{{ unbound_include_dir }}/homelab-records.conf"
+
+unbound_blocklist_refresh_script_path: /usr/local/bin/unbound-refresh-blocklist
+unbound_blocklist_refresh_service_name: unbound-refresh-blocklist.service
+unbound_blocklist_refresh_timer_name: unbound-refresh-blocklist.timer
+unbound_blocklist_refresh_on_calendar: daily
+
+unbound_local_tld: "{{ homelab_dns_local_tld | default('lan') }}"
+unbound_blocklist_sources: "{{ homelab_dns_blocklist_sources | default([]) }}"
+unbound_local_dns_records: "{{ homelab_dns_records | default([]) }}"

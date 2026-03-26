@@ -1,0 +1,21 @@
+---
+homelab_dns_blocklist_sources: []
+
+homelab_dns_local_tld: "lan"
+homelab_dns_records:
+  - name: "n2.pxe"
+    value: "192.168.178.6"
+  - name: "n5.pxe"
+    value: "192.168.178.5"
+  - name: "dockerhost1"
+    value: "192.168.178.55"
+  - name: "dhcp1"
+    value: "192.168.178.193"
+  - name: "dhcp2"
+    value: "192.168.178.194"
+  - name: "restic1"
+    value: "192.168.178.195"
+  - name: "gateway.vpn"
+    value: "10.13.0.3"
+  - name: "dockerhost1.vpn"
+    value: "10.13.0.6"

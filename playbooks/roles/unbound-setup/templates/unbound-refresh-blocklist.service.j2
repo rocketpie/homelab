@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh Unbound blocklist configuration
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ unbound_blocklist_refresh_script_path }}

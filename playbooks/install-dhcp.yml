@@ -1,0 +1,16 @@
+---
+- name: Install DHCP service components
+  hosts: kea
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: kea-install
+
+- name: Install and configure DNS service components
+  hosts: unbound
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: unbound-setup

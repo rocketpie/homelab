@@ -1,0 +1,106 @@
+---
+- name: Install Unbound packages
+  ansible.builtin.apt:
+    name: "{{ unbound_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure Unbound include and state directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ unbound_include_dir }}"
+    - "{{ unbound_blocklist_state_dir }}"
+
+- name: Validate local DNS record definitions
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | length > 0
+      - item.value is defined
+      - item.value | length > 0
+    fail_msg: "Invalid homelab DNS record: {{ item | to_nice_yaml }}"
+  loop: "{{ unbound_local_dns_records }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed-record') }}"
+
+- name: Render local DNS records include
+  ansible.builtin.template:
+    src: homelab-records.conf.j2
+    dest: "{{ unbound_local_records_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart unbound
+
+- name: Render blocklist source manifest
+  ansible.builtin.template:
+    src: homelab-blocklist.sources.j2
+    dest: "{{ unbound_blocklist_sources_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install blocklist refresh script
+  ansible.builtin.template:
+    src: unbound-refresh-blocklist.sh.j2
+    dest: "{{ unbound_blocklist_refresh_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install blocklist refresh service unit
+  ansible.builtin.template:
+    src: unbound-refresh-blocklist.service.j2
+    dest: "/etc/systemd/system/{{ unbound_blocklist_refresh_service_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload systemd
+
+- name: Install blocklist refresh timer unit
+  ansible.builtin.template:
+    src: unbound-refresh-blocklist.timer.j2
+    dest: "/etc/systemd/system/{{ unbound_blocklist_refresh_timer_name }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload systemd
+
+- name: Refresh blocklist configuration
+  ansible.builtin.command:
+    cmd: "{{ unbound_blocklist_refresh_script_path }}"
+  changed_when: true
+  when: unbound_blocklist_sources | length > 0
+  notify: restart unbound
+
+- name: Ensure empty blocklist include exists when no sources are configured
+  ansible.builtin.copy:
+    content: "# No blocklist sources configured\n"
+    dest: "{{ unbound_blocklist_output_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: unbound_blocklist_sources | length == 0
+  notify: restart unbound
+
+- name: Validate Unbound configuration
+  ansible.builtin.command:
+    cmd: unbound-checkconf
+  changed_when: false
+
+- name: Enable and start Unbound
+  ansible.builtin.service:
+    name: "{{ unbound_service_name }}"
+    enabled: true
+    state: started
+
+- name: Enable and start blocklist refresh timer
+  ansible.builtin.service:
+    name: "{{ unbound_blocklist_refresh_timer_name }}"
+    enabled: true
+    state: started
