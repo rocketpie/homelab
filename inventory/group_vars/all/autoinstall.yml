@@ -1,4 +1,5 @@
 autoinstall_export_directory: "{{ playbook_dir }}/../srv/http_root/ubuntu2404"
+autoinstall_provision_proxmox_node: "n2"
 autoinstall_provision_cores: 2
 autoinstall_provision_memory_mb: 3072
 
@@ -15,4 +16,4 @@ autoinstall_vm_ipv4_nameservers:
   - "192.168.178.1"
 
 # this is the default for all playbooks that target a single VM
-autoinstall_default_vm_name: dhcp1
+autoinstall_default_vm_name:  netcontroller2

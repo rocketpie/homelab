@@ -1,5 +1,5 @@
 vmid: 23001
-proxmox_node: "n2"
+proxmox_node: "n5"
 
 proxmox_ostype: "l26"
 proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
