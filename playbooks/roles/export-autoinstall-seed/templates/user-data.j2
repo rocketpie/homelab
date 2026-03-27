@@ -5,6 +5,7 @@ autoinstall:
 
   user-data:
     hostname: {{ vm_name }}
+    manage_etc_hosts: true
     users:
 {% for user in vm_users %}
       - name: {{ user.name }}
