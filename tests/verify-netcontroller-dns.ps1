@@ -28,26 +28,57 @@ function Get-DigLines([string[]]$Arguments) {
     $digArguments = @("@$Server") + $Arguments
     $result = & dig @digArguments 2>&1
     $lines = @($result | ForEach-Object { "$_" })
-    if ($LASTEXITCODE -ne 0) {
-        throw "dig failed: $($lines -join [Environment]::NewLine)"
+    return [pscustomobject]@{
+        ExitCode = $LASTEXITCODE
+        Lines = $lines
     }
-    return $lines
 }
 
-function Get-DigShort([string]$Name, [string]$Type) {
-    $lines = Get-DigLines @($Name, $Type, "+short")
-    return @($lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+function Get-DigShort([string]$Name, [string]$Type, [switch]$Tcp) {
+    $arguments = @($Name, $Type, "+short", "+time=2", "+tries=1")
+    if ($Tcp) {
+        $arguments += "+tcp"
+    }
+
+    $result = Get-DigLines $arguments
+    return [pscustomobject]@{
+        ExitCode = $result.ExitCode
+        Lines = $result.Lines
+        Answers = @($result.Lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
 }
 
 function Test-QueryHasAnswer([string]$Name, [string]$Type) {
-    $answers = Get-DigShort -Name $Name -Type $Type
-    $ok = $answers.Count -gt 0
+    $udpResult = Get-DigShort -Name $Name -Type $Type
+    $tcpResult = Get-DigShort -Name $Name -Type $Type -Tcp
+    $ok = ($udpResult.ExitCode -eq 0 -and $udpResult.Answers.Count -gt 0) -or ($tcpResult.ExitCode -eq 0 -and $tcpResult.Answers.Count -gt 0)
+
+    $details = @()
+    if ($udpResult.ExitCode -eq 0 -and $udpResult.Answers.Count -gt 0) {
+        $details += "UDP ok: $($udpResult.Answers -join ', ')"
+    }
+    elseif ($udpResult.ExitCode -eq 0) {
+        $details += "UDP no answer"
+    }
+    else {
+        $details += "UDP failed: $($udpResult.Lines -join ' ')"
+    }
+
+    if ($tcpResult.ExitCode -eq 0 -and $tcpResult.Answers.Count -gt 0) {
+        $details += "TCP ok: $($tcpResult.Answers -join ', ')"
+    }
+    elseif ($tcpResult.ExitCode -eq 0) {
+        $details += "TCP no answer"
+    }
+    else {
+        $details += "TCP failed: $($tcpResult.Lines -join ' ')"
+    }
 
     [pscustomobject]@{
         Name = $Name
         Type = $Type
         Passed = $ok
-        Details = if ($ok) { $answers -join ", " } else { "No answer returned" }
+        Details = $details -join "; "
     }
 }
 
@@ -57,12 +88,14 @@ function Test-LocalRecord([string]$Name) {
 }
 
 function Test-BlockedRecord([string]$Name) {
-    $lines = Get-DigLines @($Name, "A")
+    $result = Get-DigLines @($Name, "A", "+time=2", "+tries=1")
+    $lines = $result.Lines
     $statusLine = $lines | Where-Object { $_ -match "status:" } | Select-Object -First 1
     $answerCountLine = $lines | Where-Object { $_ -match "ANSWER: " } | Select-Object -First 1
-    $shortAnswers = Get-DigShort -Name $Name -Type "A"
+    $shortResult = Get-DigShort -Name $Name -Type "A"
+    $shortAnswers = $shortResult.Answers
 
-    $looksBlocked = ($shortAnswers.Count -eq 0) -or ($statusLine -match "NXDOMAIN") -or ($answerCountLine -match "ANSWER: 0")
+    $looksBlocked = ($result.ExitCode -eq 0) -and (($shortAnswers.Count -eq 0) -or ($statusLine -match "NXDOMAIN") -or ($answerCountLine -match "ANSWER: 0"))
 
     [pscustomobject]@{
         Name = $Name
@@ -72,7 +105,12 @@ function Test-BlockedRecord([string]$Name) {
             ($statusLine, $answerCountLine | Where-Object { $_ }) -join "; "
         }
         else {
-            "Unexpected answer: $($shortAnswers -join ', ')"
+            if ($result.ExitCode -ne 0) {
+                "UDP failed: $($lines -join ' ')"
+            }
+            else {
+                "Unexpected answer: $($shortAnswers -join ', ')"
+            }
         }
     }
 }

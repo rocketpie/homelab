@@ -5,12 +5,15 @@ unbound_packages:
 
 unbound_service_name: unbound
 unbound_resolved_service_name: systemd-resolved
+unbound_user: unbound
+unbound_group: unbound
 
 unbound_include_dir: /etc/unbound/unbound.conf.d
 unbound_blocklist_state_dir: /var/lib/unbound
 unbound_blocklist_sources_file: "{{ unbound_blocklist_state_dir }}/homelab-blocklist.sources"
 unbound_blocklist_output_file: "{{ unbound_include_dir }}/homelab-blocklist.conf"
 unbound_local_records_file: "{{ unbound_include_dir }}/homelab-records.conf"
+unbound_forward_zone_file: "{{ unbound_include_dir }}/homelab-forwarders.conf"
 unbound_resolved_dropin_dir: /etc/systemd/resolved.conf.d
 unbound_resolved_dropin_file: "{{ unbound_resolved_dropin_dir }}/homelab.conf"
 
@@ -24,3 +27,4 @@ unbound_inventory_dns_enabled: true
 unbound_blocklist_sources: "{{ homelab_dns_blocklist_sources | default([]) }}"
 unbound_manual_dns_records: "{{ homelab_dns_records | default([]) }}"
 unbound_server_config_file: "{{ unbound_include_dir }}/homelab-server.conf"
+unbound_forward_addrs: "{{ homelab_dns_forward_servers | default([]) }}"

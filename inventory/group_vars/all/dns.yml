@@ -1,6 +1,10 @@
 ---
 homelab_dns_blocklist_sources: []
 
+homelab_dns_forward_servers:
+  - "9.9.9.9"
+  - "192.168.178.1"
+
 homelab_dns_local_tld: "lan"
 homelab_dns_records:
   - name: "dockerhost1"

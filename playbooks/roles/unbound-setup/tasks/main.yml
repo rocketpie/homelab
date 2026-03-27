@@ -5,16 +5,21 @@
     state: present
     update_cache: true
 
-- name: Ensure Unbound include and state directories exist
+- name: Ensure Unbound include directory exists
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ unbound_include_dir }}"
     state: directory
     owner: root
     group: root
     mode: "0755"
-  loop:
-    - "{{ unbound_include_dir }}"
-    - "{{ unbound_blocklist_state_dir }}"
+
+- name: Ensure Unbound state directory exists
+  ansible.builtin.file:
+    path: "{{ unbound_blocklist_state_dir }}"
+    state: directory
+    owner: "{{ unbound_user }}"
+    group: "{{ unbound_group }}"
+    mode: "0755"
 
 - name: Ensure systemd-resolved drop-in directory exists
   ansible.builtin.file:
@@ -103,6 +108,15 @@
   ansible.builtin.template:
     src: homelab-records.conf.j2
     dest: "{{ unbound_local_records_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart unbound
+
+- name: Render Unbound forwarders include
+  ansible.builtin.template:
+    src: homelab-forwarders.conf.j2
+    dest: "{{ unbound_forward_zone_file }}"
     owner: root
     group: root
     mode: "0644"
