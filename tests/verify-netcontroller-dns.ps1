@@ -5,7 +5,7 @@
 param(
     [string]$Server = "127.0.0.1",
     [string]$LocalTld = "lan",
-    [string[]]$LocalNames = @("netcontroller1", "netcontroller2", "n2.pxe"),
+    [string[]]$LocalNames = @("netcontroller1", "netcontroller2", "n2.pxe.lan"),
     [string]$BlockedDomain = "",
     [switch]$SkipServiceChecks
 )
