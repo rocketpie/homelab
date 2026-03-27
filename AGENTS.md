@@ -41,12 +41,10 @@ At the start of a task, quickly inspect:
 
 - top-level directories and key files
 - the target inventory, playbook, role, or host vars involved in the request
-- [`README.md`](README.md)
-- [`make.ps1`](make.ps1)
 
 If relevant, also inspect:
 
-- [`inventories/`](inventories/)
+- [`inventory/`](inventories/)
 - [`playbooks/`](playbooks/)
 - the matching files under `context/`
 
@@ -58,21 +56,9 @@ If relevant, also inspect:
 - Do not overwrite unrelated user changes.
 - Treat inventory and host variable changes as sensitive, because they affect real infrastructure behavior.
 
-## Common Commands
-
-Use [`make.ps1`](make.ps1) as the main entrypoint:
-
-- `./make.ps1 -Help`
-- `./make.ps1 -InstallApt`
-- `./make.ps1 -InstallVenv`
-- `./make.ps1 -Build`
-- `./make.ps1 -Run homelab provision-vm.yml`
-
-`-Build` runs `ansible-lint` against the repository.
-
 ## Key Areas
 
-- [`inventories/homelab/`](inventories/homelab/) contains inventory, group vars, and host vars
+- [`inventory/`](inventory/) contains inventory, group vars, and host vars
 - [`playbooks/`](playbooks/) contains playbooks and roles
 - [`playbooks/provision-vm.yml`](playbooks/provision-vm.yml) is a central workflow for provisioning a VM on Proxmox
 

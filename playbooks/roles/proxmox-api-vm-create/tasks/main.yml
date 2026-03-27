@@ -72,11 +72,11 @@
     memory: "{{ autoinstall_provision_memory_mb }}"
     scsihw: virtio-scsi-pci
     agent: "{{ 1 if proxmox_vm_create_agent else 0 }}"
- 
+
     # NIC
     net:
       net0: "virtio,bridge={{ proxmox_vm_create_bridge }}"
- 
+
     # OS Disk (SCSI)
     scsi:
       scsi0: "{{ proxmox_api_vm_storage }}:{{ vm.os_disk_gb }},format=raw"

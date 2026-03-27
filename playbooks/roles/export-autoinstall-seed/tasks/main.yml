@@ -9,6 +9,17 @@
       - autoinstall_caddy_executable is defined
     fail_msg: "Missing required variables for export-autoinstall-seed role"
 
+- name: Validate static network variables for VM autoinstall
+  ansible.builtin.assert:
+    that:
+      - vm.ansible_host is defined
+      - vm.ansible_host | length > 0
+      - autoinstall_vm_ipv4_prefix is defined
+      - autoinstall_vm_ipv4_gateway is defined
+      - autoinstall_vm_ipv4_nameservers is defined
+      - autoinstall_vm_ipv4_nameservers | length > 0
+    fail_msg: "Missing required static network variables for VM autoinstall"
+
 - name: Resolve host-specific VM users
   ansible.builtin.set_fact:
     vm_host_users: >-
@@ -58,6 +69,7 @@
   ansible.builtin.file:
     path: "{{ autoinstall_export_directory }}"
     state: directory
+    mode: "0755"
 
 - name: Export autoinstall user-data
   ansible.builtin.template:

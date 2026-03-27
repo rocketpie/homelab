@@ -24,9 +24,52 @@
       - item.value is defined
       - item.value | length > 0
     fail_msg: "Invalid homelab DNS record: {{ item | to_nice_yaml }}"
-  loop: "{{ unbound_local_dns_records }}"
+  loop: "{{ unbound_manual_dns_records }}"
   loop_control:
     label: "{{ item.name | default('unnamed-record') }}"
+
+- name: Initialize inventory-derived DNS records
+  ansible.builtin.set_fact:
+    unbound_inventory_dns_records: []
+    unbound_dns_record_map: {}
+
+- name: Collect inventory-derived DNS records
+  ansible.builtin.set_fact:
+    unbound_inventory_dns_records: >-
+      {{
+        unbound_inventory_dns_records + [
+          {
+            'name': (hostvars[item].dns_name | default(item)),
+            'value': hostvars[item].ansible_host
+          }
+        ]
+      }}
+  loop: "{{ groups['all'] | default([]) }}"
+  when:
+    - unbound_inventory_dns_enabled | bool
+    - hostvars[item].ansible_host is defined
+    - hostvars[item].ansible_host | string | length > 0
+    - hostvars[item].dns_record_enabled | default(true) | bool
+  loop_control:
+    label: "{{ item }}"
+
+- name: Seed DNS record map from inventory-derived records
+  ansible.builtin.set_fact:
+    unbound_dns_record_map: "{{ unbound_dns_record_map | combine({item.name: item}, recursive=True) }}"
+  loop: "{{ unbound_inventory_dns_records }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Overlay manual DNS records onto DNS record map
+  ansible.builtin.set_fact:
+    unbound_dns_record_map: "{{ unbound_dns_record_map | combine({item.name: item}, recursive=True) }}"
+  loop: "{{ unbound_manual_dns_records }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Build effective DNS record list
+  ansible.builtin.set_fact:
+    unbound_effective_dns_records: "{{ unbound_dns_record_map | dict2items | map(attribute='value') | sort(attribute='name') }}"
 
 - name: Render local DNS records include
   ansible.builtin.template:
@@ -60,7 +103,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: reload systemd
+  notify: Reload systemd
 
 - name: Install blocklist refresh timer unit
   ansible.builtin.template:
@@ -69,14 +112,14 @@
     owner: root
     group: root
     mode: "0644"
-  notify: reload systemd
+  notify: Reload systemd
 
 - name: Refresh blocklist configuration
   ansible.builtin.command:
     cmd: "{{ unbound_blocklist_refresh_script_path }}"
   changed_when: true
   when: unbound_blocklist_sources | length > 0
-  notify: restart unbound
+  notify: Restart unbound
 
 - name: Ensure empty blocklist include exists when no sources are configured
   ansible.builtin.copy:
@@ -86,7 +129,7 @@
     group: root
     mode: "0644"
   when: unbound_blocklist_sources | length == 0
-  notify: restart unbound
+  notify: Restart unbound
 
 - name: Validate Unbound configuration
   ansible.builtin.command:

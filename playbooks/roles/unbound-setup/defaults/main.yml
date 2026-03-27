@@ -17,5 +17,6 @@ unbound_blocklist_refresh_timer_name: unbound-refresh-blocklist.timer
 unbound_blocklist_refresh_on_calendar: daily
 
 unbound_local_tld: "{{ homelab_dns_local_tld | default('lan') }}"
+unbound_inventory_dns_enabled: true
 unbound_blocklist_sources: "{{ homelab_dns_blocklist_sources | default([]) }}"
-unbound_local_dns_records: "{{ homelab_dns_records | default([]) }}"
+unbound_manual_dns_records: "{{ homelab_dns_records | default([]) }}"

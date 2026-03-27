@@ -34,6 +34,21 @@ autoinstall:
   keyboard:
     layout: us
 
+  network:
+    version: 2
+    ethernets:
+      primary:
+        match:
+          name: "en*"
+        dhcp4: false
+        addresses:
+          - {{ (vm.ansible_host ~ '/' ~ autoinstall_vm_ipv4_prefix) | to_json }}
+        routes:
+          - to: default
+            via: {{ autoinstall_vm_ipv4_gateway | to_json }}
+        nameservers:
+          addresses: {{ autoinstall_vm_ipv4_nameservers | to_json }}
+
   storage:
     layout:
       name: direct

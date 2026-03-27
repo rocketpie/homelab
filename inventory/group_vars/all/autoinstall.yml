@@ -9,5 +9,10 @@ autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
 
 autoinstall_caddy_executable: "{{ playbook_dir }}/../srv/caddy_windows_amd64.exe"
 
+autoinstall_vm_ipv4_prefix: 24
+autoinstall_vm_ipv4_gateway: "192.168.178.1"
+autoinstall_vm_ipv4_nameservers:
+  - "192.168.178.1"
+
 # this is the default for all playbooks that target a single VM
 autoinstall_default_vm_name: dhcp1

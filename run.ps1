@@ -30,6 +30,11 @@ Set-Variable -Scope Script -Name 'vEnvPython' -Value (Join-Path $vEnvPath "bin/p
 Set-Variable -Scope Script -Name 'vEnvAnsiblePlaybook' -Value (Join-Path $vEnvPath "bin/ansible-playbook")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 
+$localCollections = $(Join-Path $PSScriptRoot ".collections")
+if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+    $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
+}
+
 function Main([string]$PlaybookName) {
     Ensure-Venv
     Ensure-ToolsInVenv

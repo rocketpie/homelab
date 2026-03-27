@@ -1,6 +1,6 @@
 # Managed by Ansible
 server:
-{% for record in unbound_local_dns_records %}
+{% for record in unbound_effective_dns_records %}
 {% set fqdn = record.name if '.' ~ unbound_local_tld in record.name or record.name.endswith('.' ~ unbound_local_tld) else record.name ~ '.' ~ unbound_local_tld %}
   local-data: "{{ fqdn }} IN A {{ record.value }}"
 {% endfor %}

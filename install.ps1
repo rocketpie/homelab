@@ -33,13 +33,12 @@ Set-Variable -Scope Script -Name 'ansibleCollectionsDir' -Value (Join-Path $PSSc
 Set-Variable -Scope Script -Name 'collectionsRequirements' -Value (Join-Path $PSScriptRoot "collection-requirements.txt")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 
+$localCollections = $(Join-Path $PSScriptRoot ".collections")
+if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+    $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
+}
 
 function Main {
-    $localCollections = $(Join-Path $PSScriptRoot ".collections")
-    if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
-        $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
-    }
-
     switch ($PSCmdlet.ParameterSetName) {
         default {
             Write-Targets
