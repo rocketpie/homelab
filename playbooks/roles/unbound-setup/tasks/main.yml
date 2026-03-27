@@ -16,6 +16,25 @@
     - "{{ unbound_include_dir }}"
     - "{{ unbound_blocklist_state_dir }}"
 
+- name: Ensure systemd-resolved drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ unbound_resolved_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable systemd-resolved DNS stub listener
+  ansible.builtin.copy:
+    dest: "{{ unbound_resolved_dropin_file }}"
+    content: |
+      [Resolve]
+      DNSStubListener=no
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+
 - name: Validate local DNS record definitions
   ansible.builtin.assert:
     that:
@@ -70,6 +89,15 @@
 - name: Build effective DNS record list
   ansible.builtin.set_fact:
     unbound_effective_dns_records: "{{ unbound_dns_record_map | dict2items | map(attribute='value') | sort(attribute='name') }}"
+
+- name: Render Unbound server config include
+  ansible.builtin.template:
+    src: homelab-server.conf.j2
+    dest: "{{ unbound_server_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart unbound
 
 - name: Render local DNS records include
   ansible.builtin.template:
@@ -135,6 +163,9 @@
   ansible.builtin.command:
     cmd: unbound-checkconf
   changed_when: false
+
+- name: Flush handlers before starting Unbound
+  ansible.builtin.meta: flush_handlers
 
 - name: Enable and start Unbound
   ansible.builtin.service:
