@@ -1,0 +1,19 @@
+vmid: 23002
+proxmox_node: "n5"
+
+proxmox_ostype: "l26"
+proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
+
+cores: 1
+memory_mb: 512
+os_disk_gb: 10
+
+host_users:
+  - name: "networker"
+    description: "dhcp / dns service account"
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
+
+# vault.yml:
+# host_user_passwords:
+#   networker: "USER_PASSWORD_HERE"

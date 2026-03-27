@@ -78,7 +78,7 @@
     owner: root
     group: root
     mode: "0644"
-  notify: restart unbound
+  notify: Restart unbound
 
 - name: Render blocklist source manifest
   ansible.builtin.template:
