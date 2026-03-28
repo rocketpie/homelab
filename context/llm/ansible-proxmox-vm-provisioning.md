@@ -2,7 +2,7 @@
 
 ## Environment
 Homelab with two Proxmox hosts (inventory group proxmox: n2, n5).
-ansible automation user setup: playbooks/bootstrap-proxmox-ansible-user.yml
+ansible automation user setup: playbooks/add-proxmox-api-user-ansible.yml
 
 Network bridge vmbr0.
 Notes/docs in Obsidian + Git.

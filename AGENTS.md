@@ -37,6 +37,7 @@ When adding durable project knowledge, prefer placing it in `context/` rather th
 
 Current workflow notes worth checking:
 - `context/guides/wsl-pwsh-ansible-workflow.md` for the local WSL + `pwsh` execution flow
+- `context/guides/naming-conventions.md` for playbook, role, and variable naming rules
 
 ## Lightweight Repo Scan
 
@@ -55,6 +56,8 @@ If relevant, also inspect:
 
 - Keep changes focused and minimal.
 - Follow existing Ansible and PowerShell patterns already used in the repo.
+- Use the repository naming convention:
+  playbooks use PowerShell-style verb-noun names in kebab-case, roles use verb_noun snake_case, and role-local variables should be prefixed with the full role name.
 - Prefer updating the relevant `context/` docs when you discover task-specific knowledge that should persist.
 - Do not overwrite unrelated user changes.
 - Treat inventory and host variable changes as sensitive, because they affect real infrastructure behavior.

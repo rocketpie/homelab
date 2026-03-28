@@ -83,7 +83,7 @@ dns_aliases:
 
 ## How It Works
 
-When the `add_unbound` playbook runs:
+When the `configure-netcontroller.yml` playbook runs:
 
 1. **Global records are flattened**
    - IP→aliases map is converted to individual name/value pairs
@@ -158,8 +158,8 @@ If validation fails, the playbook will error with details about the invalid reco
 ### Records not resolving
 
 1. Check DNS records were created:
-   ```bash
-   ansible-playbook install-netcontroller.yml
+   ```pwsh
+   run.ps1 configure-netcontroller.yml
    ```
 
 2. Check Unbound config was generated:
@@ -171,7 +171,7 @@ If validation fails, the playbook will error with details about the invalid reco
 
 ### Changes not taking effect
 
-- Rerun `install-netcontroller.yml` to regenerate config
+- Rerun `configure-netcontroller.yml` to regenerate config
 - Reload Unbound: `systemctl reload unbound`
 
 ### Ambiguous/conflicting names

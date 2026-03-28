@@ -1,13 +1,13 @@
 # Netcontroller Notes
 
 ## Current direction
-- Use a dedicated install play: `playbooks/install-netcontroller.yml`
+- Use a dedicated configuration play: `playbooks/configure-netcontroller.yml`
 - DNS setup via `playbooks/roles/add_unbound`
 - DHCP setup via `playbooks/roles/add_kea`
 - start with dns/unbound role, without dhcp/kea
 
 ## DNS rollout behavior
-- `playbooks/install-netcontroller.yml` rolls Unbound updates one resolver at a time
+- `playbooks/configure-netcontroller.yml` rolls Unbound updates one resolver at a time
 - passive resolvers are updated first, then the active resolver last
 - after each resolver update, the controller verifies every effective DNS A record with `dig`
 - set `unbound_active_resolver_host` to pin which resolver should be treated as active
@@ -26,4 +26,3 @@
   - Host-level `dns_aliases` in each host's host_vars
 
 See [DNS Records Guide](../guides/dns-records-guide.md) for details.
-
