@@ -1,5 +1,6 @@
 forward-zone:
   name: "."
-{% for addr in unbound_forward_addrs %}
+{% for addr in unbound_setup_forward_addrs %}
   forward-addr: {{ addr }}
 {% endfor %}
+

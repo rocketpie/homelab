@@ -2,8 +2,9 @@
 Description=Refresh Unbound blocklist configuration on schedule
 
 [Timer]
-OnCalendar={{ unbound_blocklist_refresh_on_calendar }}
+OnCalendar={{ unbound_setup_blocklist_refresh_on_calendar }}
 Persistent=true
 
 [Install]
 WantedBy=timers.target
+

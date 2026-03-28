@@ -22,7 +22,7 @@
 
 - name: Resolve host-specific VM users
   ansible.builtin.set_fact:
-    vm_host_users: >-
+    export_autoinstall_seed_vm_host_users: >-
       {%- set result = [] -%}
       {%- set host_users = vm.host_users | default([]) -%}
       {%- set password_map = vm.host_user_passwords | default({}) -%}
@@ -42,14 +42,14 @@
 
 - name: Build VM provisioning user list
   ansible.builtin.set_fact:
-    vm_users: "{{ (shared_admin_users | default([])) + (vm_host_users | default([])) }}"
+    export_autoinstall_seed_vm_users: "{{ (shared_admin_users | default([])) + (export_autoinstall_seed_vm_host_users | default([])) }}"
 
 - name: Ensure VM provisioning user list is not empty
   ansible.builtin.assert:
     that:
-      - vm_users | length > 0
-      - vm.ansible_user in (vm_users | map(attribute='name') | list)
-      - (vm_users | map(attribute='name') | list | unique | length) == (vm_users | length)
+      - export_autoinstall_seed_vm_users | length > 0
+      - vm.ansible_user in (export_autoinstall_seed_vm_users | map(attribute='name') | list)
+      - (export_autoinstall_seed_vm_users | map(attribute='name') | list | unique | length) == (export_autoinstall_seed_vm_users | length)
     fail_msg: "VM users must include the inventory ansible_user and use unique names"
 
 - name: Validate VM user definitions
@@ -62,7 +62,7 @@
       - (item.lock_passwd | default(false) | bool)
         or ((item.password_hash | default('', true) | string | length) > 0)
     fail_msg: "Invalid VM user definition for {{ item.name | default('unnamed-user') }}"
-  loop: "{{ vm_users }}"
+  loop: "{{ export_autoinstall_seed_vm_users }}"
   loop_control:
     label: "{{ item.name | default('unnamed-user') }}"
 
@@ -96,7 +96,7 @@
     method: GET
     return_content: false
     status_code: 200
-  register: autoinstall_http_check
+  register: export_autoinstall_seed_http_check
   failed_when: false
   changed_when: false
 
@@ -108,7 +108,7 @@
     chdir: "{{ autoinstall_caddy_executable | dirname }}"
   async: 3600
   poll: 0
-  when: autoinstall_http_check.status | default(0) != 200
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
   changed_when: true
 
 - name: Wait until autoinstall user-data is reachable
@@ -117,8 +117,8 @@
     method: GET
     return_content: false
     status_code: 200
-  register: autoinstall_http_ready
+  register: export_autoinstall_seed_http_ready
   retries: 3
   delay: 3
-  until: autoinstall_http_ready.status == 200
+  until: export_autoinstall_seed_http_ready.status == 200
   changed_when: false

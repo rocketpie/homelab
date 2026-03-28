@@ -1,8 +1,8 @@
 ---
-kea_packages:
+kea_install_packages:
   - kea-dhcp4-server
   - kea-ctrl-agent
 
-kea_services:
+kea_install_services:
   - kea-dhcp4-server
   - kea-ctrl-agent

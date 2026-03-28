@@ -1,1 +1,1 @@
-proxmox_api_qemu_agent: true
+proxmox_api_vm_create_qemu_agent: true

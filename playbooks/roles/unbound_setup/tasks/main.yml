@@ -1,13 +1,13 @@
 ---
 - name: Install Unbound packages
   ansible.builtin.apt:
-    name: "{{ unbound_packages }}"
+    name: "{{ unbound_setup_packages }}"
     state: present
     update_cache: true
 
 - name: Ensure Unbound include directory exists
   ansible.builtin.file:
-    path: "{{ unbound_include_dir }}"
+    path: "{{ unbound_setup_include_dir }}"
     state: directory
     owner: root
     group: root
@@ -15,15 +15,15 @@
 
 - name: Ensure Unbound state directory exists
   ansible.builtin.file:
-    path: "{{ unbound_blocklist_state_dir }}"
+    path: "{{ unbound_setup_blocklist_state_dir }}"
     state: directory
-    owner: "{{ unbound_user }}"
-    group: "{{ unbound_group }}"
+    owner: "{{ unbound_setup_user }}"
+    group: "{{ unbound_setup_group }}"
     mode: "0755"
 
 - name: Ensure systemd-resolved drop-in directory exists
   ansible.builtin.file:
-    path: "{{ unbound_resolved_dropin_dir }}"
+    path: "{{ unbound_setup_resolved_dropin_dir }}"
     state: directory
     owner: root
     group: root
@@ -31,7 +31,7 @@
 
 - name: Disable systemd-resolved DNS stub listener
   ansible.builtin.copy:
-    dest: "{{ unbound_resolved_dropin_file }}"
+    dest: "{{ unbound_setup_resolved_dropin_file }}"
     content: |
       [Resolve]
       DNSStubListener=no
@@ -42,17 +42,17 @@
 
 - name: Build manual DNS records from IP->aliases structure
   ansible.builtin.set_fact:
-    unbound_manual_dns_records: "{{ lookup('template', 'dns-records-flatten.j2') }}"
+    unbound_setup_manual_dns_records: "{{ lookup('template', 'dns-records-flatten.j2') }}"
   when: homelab_dns_records is defined and homelab_dns_records is mapping
 
 - name: Initialize to empty list if no global records
   ansible.builtin.set_fact:
-    unbound_manual_dns_records: []
+    unbound_setup_manual_dns_records: []
   when: homelab_dns_records is not defined or homelab_dns_records is not mapping
 
 - name: Collect host-level DNS aliases
   ansible.builtin.set_fact:
-    unbound_host_dns_records: >-
+    unbound_setup_host_dns_records: >-
       {%- set records = [] -%}
       {%- for host_name in groups['all'] | default([]) -%}
         {%- set host_aliases = hostvars[host_name].dns_aliases | default([]) -%}
@@ -64,16 +64,16 @@
         {%- endif -%}
       {%- endfor -%}
       {{- records -}}
-  when: unbound_inventory_dns_enabled | bool
+  when: unbound_setup_inventory_dns_enabled | bool
 
 - name: Initialize empty host records if not collecting
   ansible.builtin.set_fact:
-    unbound_host_dns_records: []
-  when: not (unbound_inventory_dns_enabled | bool)
+    unbound_setup_host_dns_records: []
+  when: not (unbound_setup_inventory_dns_enabled | bool)
 
 - name: Merge manual records with host aliases
   ansible.builtin.set_fact:
-    unbound_manual_dns_records: "{{ (unbound_manual_dns_records | default([])) + (unbound_host_dns_records | default([])) }}"
+    unbound_setup_manual_dns_records: "{{ (unbound_setup_manual_dns_records | default([])) + (unbound_setup_host_dns_records | default([])) }}"
 
 - name: Validate local DNS record definitions
   ansible.builtin.assert:
@@ -83,20 +83,20 @@
       - item.value is defined
       - item.value | length > 0
     fail_msg: "Invalid homelab DNS record: {{ item | to_nice_yaml }}"
-  loop: "{{ unbound_manual_dns_records }}"
+  loop: "{{ unbound_setup_manual_dns_records }}"
   loop_control:
     label: "{{ item.name | default('unnamed-record') }}"
 
 - name: Initialize inventory-derived DNS records
   ansible.builtin.set_fact:
-    unbound_inventory_dns_records: []
-    unbound_dns_record_map: {}
+    unbound_setup_inventory_dns_records: []
+    unbound_setup_dns_record_map: {}
 
 - name: Collect inventory-derived DNS records
   ansible.builtin.set_fact:
-    unbound_inventory_dns_records: >-
+    unbound_setup_inventory_dns_records: >-
       {{
-        unbound_inventory_dns_records + [
+        unbound_setup_inventory_dns_records + [
           {
             'name': (hostvars[item].dns_name | default(item)),
             'value': hostvars[item].ansible_host
@@ -105,7 +105,7 @@
       }}
   loop: "{{ groups['all'] | default([]) }}"
   when:
-    - unbound_inventory_dns_enabled | bool
+    - unbound_setup_inventory_dns_enabled | bool
     - hostvars[item].ansible_host is defined
     - hostvars[item].ansible_host | string | length > 0
     - hostvars[item].dns_record_enabled | default(true) | bool
@@ -114,26 +114,26 @@
 
 - name: Seed DNS record map from inventory-derived records
   ansible.builtin.set_fact:
-    unbound_dns_record_map: "{{ unbound_dns_record_map | combine({item.name: item}, recursive=True) }}"
-  loop: "{{ unbound_inventory_dns_records }}"
+    unbound_setup_dns_record_map: "{{ unbound_setup_dns_record_map | combine({item.name: item}, recursive=True) }}"
+  loop: "{{ unbound_setup_inventory_dns_records }}"
   loop_control:
     label: "{{ item.name }}"
 
 - name: Overlay manual DNS records onto DNS record map
   ansible.builtin.set_fact:
-    unbound_dns_record_map: "{{ unbound_dns_record_map | combine({item.name: item}, recursive=True) }}"
-  loop: "{{ unbound_manual_dns_records }}"
+    unbound_setup_dns_record_map: "{{ unbound_setup_dns_record_map | combine({item.name: item}, recursive=True) }}"
+  loop: "{{ unbound_setup_manual_dns_records }}"
   loop_control:
     label: "{{ item.name }}"
 
 - name: Build effective DNS record list
   ansible.builtin.set_fact:
-    unbound_effective_dns_records: "{{ unbound_dns_record_map | dict2items | map(attribute='value') | sort(attribute='name') }}"
+    unbound_setup_effective_dns_records: "{{ unbound_setup_dns_record_map | dict2items | map(attribute='value') | sort(attribute='name') }}"
 
 - name: Render Unbound server config include
   ansible.builtin.template:
     src: homelab-server.conf.j2
-    dest: "{{ unbound_server_config_file }}"
+    dest: "{{ unbound_setup_server_config_file }}"
     owner: root
     group: root
     mode: "0644"
@@ -142,7 +142,7 @@
 - name: Render local DNS records include
   ansible.builtin.template:
     src: homelab-records.conf.j2
-    dest: "{{ unbound_local_records_file }}"
+    dest: "{{ unbound_setup_local_records_file }}"
     owner: root
     group: root
     mode: "0644"
@@ -151,7 +151,7 @@
 - name: Render Unbound forwarders include
   ansible.builtin.template:
     src: homelab-forwarders.conf.j2
-    dest: "{{ unbound_forward_zone_file }}"
+    dest: "{{ unbound_setup_forward_zone_file }}"
     owner: root
     group: root
     mode: "0644"
@@ -160,7 +160,7 @@
 - name: Render blocklist source manifest
   ansible.builtin.template:
     src: homelab-blocklist.sources.j2
-    dest: "{{ unbound_blocklist_sources_file }}"
+    dest: "{{ unbound_setup_blocklist_sources_file }}"
     owner: root
     group: root
     mode: "0644"
@@ -168,7 +168,7 @@
 - name: Install blocklist refresh script
   ansible.builtin.template:
     src: unbound-refresh-blocklist.sh.j2
-    dest: "{{ unbound_blocklist_refresh_script_path }}"
+    dest: "{{ unbound_setup_blocklist_refresh_script_path }}"
     owner: root
     group: root
     mode: "0755"
@@ -176,7 +176,7 @@
 - name: Install blocklist refresh service unit
   ansible.builtin.template:
     src: unbound-refresh-blocklist.service.j2
-    dest: "/etc/systemd/system/{{ unbound_blocklist_refresh_service_name }}"
+    dest: "/etc/systemd/system/{{ unbound_setup_blocklist_refresh_service_name }}"
     owner: root
     group: root
     mode: "0644"
@@ -185,7 +185,7 @@
 - name: Install blocklist refresh timer unit
   ansible.builtin.template:
     src: unbound-refresh-blocklist.timer.j2
-    dest: "/etc/systemd/system/{{ unbound_blocklist_refresh_timer_name }}"
+    dest: "/etc/systemd/system/{{ unbound_setup_blocklist_refresh_timer_name }}"
     owner: root
     group: root
     mode: "0644"
@@ -193,20 +193,20 @@
 
 - name: Refresh blocklist configuration
   ansible.builtin.command:
-    cmd: "{{ unbound_blocklist_refresh_script_path }}"
-  register: unbound_blocklist_refresh_result
-  changed_when: "'updated' in (unbound_blocklist_refresh_result.stdout | default(''))"
-  when: unbound_blocklist_sources | length > 0
+    cmd: "{{ unbound_setup_blocklist_refresh_script_path }}"
+  register: unbound_setup_blocklist_refresh_result
+  changed_when: "'updated' in (unbound_setup_blocklist_refresh_result.stdout | default(''))"
+  when: unbound_setup_blocklist_sources | length > 0
   notify: Restart Unbound
 
 - name: Ensure empty blocklist include exists when no sources are configured
   ansible.builtin.copy:
     content: "# No blocklist sources configured\n"
-    dest: "{{ unbound_blocklist_output_file }}"
+    dest: "{{ unbound_setup_blocklist_output_file }}"
     owner: root
     group: root
     mode: "0644"
-  when: unbound_blocklist_sources | length == 0
+  when: unbound_setup_blocklist_sources | length == 0
   notify: Restart Unbound
 
 - name: Validate Unbound configuration
@@ -221,7 +221,7 @@
 
     - name: Enable and start Unbound
       ansible.builtin.service:
-        name: "{{ unbound_service_name }}"
+        name: "{{ unbound_setup_service_name }}"
         enabled: true
         state: started
   rescue:
@@ -231,39 +231,39 @@
         ss -H -lunp '( sport = :53 )' || true
       args:
         executable: /bin/bash
-      register: unbound_port_53_inspection
+      register: unbound_setup_port_53_inspection
       changed_when: false
       failed_when: false
 
     - name: Capture Unbound service status
       ansible.builtin.command:
-        cmd: "systemctl status {{ unbound_service_name }} --no-pager --full"
-      register: unbound_status_result
+        cmd: "systemctl status {{ unbound_setup_service_name }} --no-pager --full"
+      register: unbound_setup_status_result
       changed_when: false
       failed_when: false
 
     - name: Capture recent Unbound journal entries
       ansible.builtin.command:
-        cmd: "journalctl -xeu {{ unbound_service_name }} --no-pager -n 50"
-      register: unbound_journal_result
+        cmd: "journalctl -xeu {{ unbound_setup_service_name }} --no-pager -n 50"
+      register: unbound_setup_journal_result
       changed_when: false
       failed_when: false
 
     - name: Fail with Unbound startup diagnostics
       ansible.builtin.fail:
         msg: |
-          Failed to start or reload {{ unbound_service_name }}.
+          Failed to start or reload {{ unbound_setup_service_name }}.
           port 53 listeners:
-          {{ unbound_port_53_inspection.stdout | default('(no output)') }}
+          {{ unbound_setup_port_53_inspection.stdout | default('(no output)') }}
 
           systemctl status:
-          {{ unbound_status_result.stdout | default('(no output)') }}
+          {{ unbound_setup_status_result.stdout | default('(no output)') }}
 
           journalctl:
-          {{ unbound_journal_result.stdout | default('(no output)') }}
+          {{ unbound_setup_journal_result.stdout | default('(no output)') }}
 
 - name: Enable and start blocklist refresh timer
   ansible.builtin.service:
-    name: "{{ unbound_blocklist_refresh_timer_name }}"
+    name: "{{ unbound_setup_blocklist_refresh_timer_name }}"
     enabled: true
     state: started

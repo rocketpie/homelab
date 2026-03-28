@@ -5,4 +5,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart={{ unbound_blocklist_refresh_script_path }}
+ExecStart={{ unbound_setup_blocklist_refresh_script_path }}
+

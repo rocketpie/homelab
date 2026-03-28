@@ -7,7 +7,7 @@ autoinstall:
     hostname: {{ vm_name }}
     manage_etc_hosts: true
     users:
-{% for user in vm_users %}
+{% for user in export_autoinstall_seed_vm_users %}
       - name: {{ user.name }}
         gecos: {{ user.gecos | default(user.name) | to_json }}
 {% if user.groups is defined and user.groups | length > 0 %}
@@ -63,3 +63,4 @@ autoinstall:
     - curtin in-target --target=/target -- systemctl start qemu-guest-agent
     - curtin in-target --target=/target -- sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
     - curtin in-target --target=/target -- systemctl restart ssh
+

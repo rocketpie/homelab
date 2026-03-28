@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-sources_file="{{ unbound_blocklist_sources_file }}"
-output_file="{{ unbound_blocklist_output_file }}"
+sources_file="{{ unbound_setup_blocklist_sources_file }}"
+output_file="{{ unbound_setup_blocklist_output_file }}"
 tmp_domains="$(mktemp)"
 tmp_output="$(mktemp)"
 tmp_config="$(mktemp)"
@@ -89,3 +89,4 @@ fi
 chmod 0644 "$tmp_output"
 mv "$tmp_output" "$output_file"
 echo "updated"
+

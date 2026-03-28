@@ -26,35 +26,35 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-  register: proxmox_existing_vms
+  register: proxmox_api_vm_create_existing_vms
 
 - name: Fail if VM already exists by vmid or name
   ansible.builtin.assert:
     that:
-      - (proxmox_existing_vms.proxmox_vms | selectattr('vmid', 'equalto', (vm.vmid | int)) | list | length) == 0
-      - (proxmox_existing_vms.proxmox_vms | selectattr('name', 'defined') | selectattr('name', 'equalto', vm_name) | list | length) == 0
+      - (proxmox_api_vm_create_existing_vms.proxmox_vms | selectattr('vmid', 'equalto', (vm.vmid | int)) | list | length) == 0
+      - (proxmox_api_vm_create_existing_vms.proxmox_vms | selectattr('name', 'defined') | selectattr('name', 'equalto', vm_name) | list | length) == 0
     fail_msg: "Refusing to create VM because vmid {{ vm.vmid }} or name {{ vm_name }} already exists"
 
 - name: Materialize VM create parameters
   ansible.builtin.set_fact:
-    proxmox_vm_create_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
-    proxmox_vm_create_agent: "{{ vm.proxmox_qemu_agent | default(proxmox_api_qemu_agent) }}"
-    proxmox_vm_provision_node: "{{ autoinstall_provision_proxmox_node }}"
-    proxmox_vm_target_node: "{{ vm.proxmox_node }}"
-    proxmox_vm_active_node: "{{ autoinstall_provision_proxmox_node }}"
+    proxmox_api_vm_create_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
+    proxmox_api_vm_create_agent: "{{ vm.proxmox_qemu_agent | default(proxmox_api_vm_create_qemu_agent) }}"
+    proxmox_api_vm_create_provision_node: "{{ autoinstall_provision_proxmox_node }}"
+    proxmox_api_vm_create_target_node: "{{ vm.proxmox_node }}"
+    proxmox_api_vm_create_active_node: "{{ autoinstall_provision_proxmox_node }}"
 
 - name: Show VM create inputs
   ansible.builtin.debug:
     msg:
       vm_name: "{{ vm_name }}"
       vmid: "{{ vm.vmid }}"
-      provision_node: "{{ proxmox_vm_provision_node }}"
-      target_node: "{{ proxmox_vm_target_node }}"
+      provision_node: "{{ proxmox_api_vm_create_provision_node }}"
+      target_node: "{{ proxmox_api_vm_create_target_node }}"
       ostype: "{{ vm.proxmox_ostype }}"
       cores: "{{ vm.cores }}"
       memory_mb: "{{ vm.memory_mb }}"
       os_disk_gb: "{{ vm.os_disk_gb }}"
-      bridge: "{{ proxmox_vm_create_bridge }}"
+      bridge: "{{ proxmox_api_vm_create_bridge }}"
       vm_storage: "{{ proxmox_api_vm_storage }}"
       iso_storage: "{{ proxmox_api_iso_storage }}"
       iso_filename: "{{ vm.proxmox_iso_filename }}"
@@ -68,18 +68,18 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ proxmox_vm_provision_node }}"
+    node: "{{ proxmox_api_vm_create_provision_node }}"
     vmid: "{{ vm.vmid }}"
     name: "{{ vm_name }}"
     ostype: "{{ vm.proxmox_ostype }}"
     cores: "{{ autoinstall_provision_cores }}"
     memory: "{{ autoinstall_provision_memory_mb }}"
     scsihw: virtio-scsi-pci
-    agent: "{{ 1 if proxmox_vm_create_agent else 0 }}"
+    agent: "{{ 1 if proxmox_api_vm_create_agent else 0 }}"
 
     # NIC
     net:
-      net0: "virtio,bridge={{ proxmox_vm_create_bridge }}"
+      net0: "virtio,bridge={{ proxmox_api_vm_create_bridge }}"
 
     # OS Disk (SCSI)
     scsi:
@@ -91,7 +91,7 @@
     boot: "order=ide2"
     # create VM
     state: present
-  register: proxmox_vm_create_result
+  register: proxmox_api_vm_create_create_result
 
 - name: Start VM to start autoinstall
   community.proxmox.proxmox_kvm:
@@ -100,27 +100,27 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ proxmox_vm_active_node }}"
+    node: "{{ proxmox_api_vm_create_active_node }}"
     vmid: "{{ vm.vmid }}"
     state: started
 
 - name: Wait for autoinstall to finish (VM will power off)
   ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_active_node }}/qemu/{{ vm.vmid }}/status/current"
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_api_vm_create_active_node }}/qemu/{{ vm.vmid }}/status/current"
     method: GET
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
     return_content: true
-  register: vm_status
+  register: proxmox_api_vm_create_status
   changed_when: false
-  until: vm_status.json.data.status == 'stopped'
+  until: proxmox_api_vm_create_status.json.data.status == 'stopped'
   retries: 30
   delay: 30
 
 - name: Remove installer ISO / CD-ROM via Proxmox API
   ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_active_node }}/qemu/{{ vm.vmid }}/config"
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_api_vm_create_active_node }}/qemu/{{ vm.vmid }}/config"
     method: PUT
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
@@ -130,54 +130,56 @@
       delete: "ide2"
       boot: "order=scsi0"
     return_content: true
-  register: proxmox_vm_remove_iso_result
+  register: proxmox_api_vm_create_remove_iso_result
 
 - name: Migrate stopped VM to target Proxmox node
   ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_provision_node }}/qemu/{{ vm.vmid }}/migrate"
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_api_vm_create_provision_node }}/qemu/{{ vm.vmid }}/migrate"
     method: POST
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
     body_format: form-urlencoded
     body:
-      target: "{{ proxmox_vm_target_node }}"
+      target: "{{ proxmox_api_vm_create_target_node }}"
       online: 0
       "with-local-disks": 1
       targetstorage: "{{ proxmox_api_vm_storage }}"
     return_content: true
-  register: proxmox_vm_migrate_result
-  when: proxmox_vm_provision_node != proxmox_vm_target_node
+  register: proxmox_api_vm_create_migrate_result
+  when: proxmox_api_vm_create_provision_node != proxmox_api_vm_create_target_node
 
 - name: Wait for Proxmox migration task to finish
   ansible.builtin.uri:
     url: >-
-      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_provision_node }}/tasks/{{ proxmox_vm_migrate_result.json.data | urlencode }}/status
+      https://{{ proxmox_api_host }}:8006/api2/json/nodes/
+      {{ proxmox_api_vm_create_provision_node }}/tasks/
+      {{ proxmox_api_vm_create_migrate_result.json.data | urlencode }}/status
     method: GET
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
     return_content: true
-  register: proxmox_vm_migrate_status
+  register: proxmox_api_vm_create_migrate_status
   changed_when: false
-  until: proxmox_vm_migrate_status.json.data.status == 'stopped'
+  until: proxmox_api_vm_create_migrate_status.json.data.status == 'stopped'
   retries: 60
   delay: 10
-  when: proxmox_vm_provision_node != proxmox_vm_target_node
+  when: proxmox_api_vm_create_provision_node != proxmox_api_vm_create_target_node
 
 - name: Assert Proxmox migration completed successfully
   ansible.builtin.assert:
     that:
-      - proxmox_vm_migrate_status.json.data.exitstatus == 'OK'
+      - proxmox_api_vm_create_migrate_status.json.data.exitstatus == 'OK'
     fail_msg: >-
       Proxmox VM migration failed for {{ vm_name }}:
-      {{ proxmox_vm_migrate_status.json.data | to_nice_json }}
-  when: proxmox_vm_provision_node != proxmox_vm_target_node
+      {{ proxmox_api_vm_create_migrate_status.json.data | to_nice_json }}
+  when: proxmox_api_vm_create_provision_node != proxmox_api_vm_create_target_node
 
 - name: Switch active Proxmox node to final target
   ansible.builtin.set_fact:
-    proxmox_vm_active_node: "{{ proxmox_vm_target_node }}"
-  when: proxmox_vm_provision_node != proxmox_vm_target_node
+    proxmox_api_vm_create_active_node: "{{ proxmox_api_vm_create_target_node }}"
+  when: proxmox_api_vm_create_provision_node != proxmox_api_vm_create_target_node
 
 - name: Apply final CPU and memory after autoinstall shutdown
   community.proxmox.proxmox_kvm:
@@ -186,7 +188,7 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ proxmox_vm_active_node }}"
+    node: "{{ proxmox_api_vm_create_active_node }}"
     vmid: "{{ vm.vmid }}"
     cores: "{{ vm.cores }}"
     memory: "{{ vm.memory_mb }}"
@@ -198,21 +200,21 @@
 
 - name: Query VM config after CD-ROM removal
   ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_active_node }}/qemu/{{ vm.vmid }}/config"
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_api_vm_create_active_node }}/qemu/{{ vm.vmid }}/config"
     method: GET
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
     return_content: true
-  register: vm_config_after_cdrom_removal
+  register: proxmox_api_vm_create_config_after_cdrom_removal
   changed_when: false
 
 - name: Show VM config after CD-ROM removal
   ansible.builtin.debug:
     msg:
-      boot: "{{ vm_config_after_cdrom_removal.json.data.boot | default('missing') }}"
-      ide2: "{{ vm_config_after_cdrom_removal.json.data.ide2 | default('missing') }}"
-      scsi0: "{{ vm_config_after_cdrom_removal.json.data.scsi0 | default('missing') }}"
+      boot: "{{ proxmox_api_vm_create_config_after_cdrom_removal.json.data.boot | default('missing') }}"
+      ide2: "{{ proxmox_api_vm_create_config_after_cdrom_removal.json.data.ide2 | default('missing') }}"
+      scsi0: "{{ proxmox_api_vm_create_config_after_cdrom_removal.json.data.scsi0 | default('missing') }}"
 
 - name: Show extra disk config payload
   ansible.builtin.debug:
@@ -227,7 +229,7 @@
 - name: Attach extra disks after install
   ansible.builtin.uri:
     url: >-
-      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_vm_active_node }}/qemu/{{ vm.vmid }}/config
+      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_api_vm_create_active_node }}/qemu/{{ vm.vmid }}/config
     method: PUT
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
@@ -255,7 +257,6 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ proxmox_vm_active_node }}"
+    node: "{{ proxmox_api_vm_create_active_node }}"
     vmid: "{{ vm.vmid }}"
     state: started
-
