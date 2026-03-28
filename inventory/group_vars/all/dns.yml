@@ -1,11 +1,15 @@
 ---
-homelab_dns_blocklist_sources: []
+homelab_dns_blocklist_sources:
+  - "https://codeberg.org/hagezi/mirror2/raw/branch/main/dns-blocklists/rpz/multi.txt"
+  - "https://codeberg.org/hagezi/mirror2/raw/branch/main/dns-blocklists/rpz/doh.txt"
+
 
 homelab_dns_forward_servers:
   - "9.9.9.9"
   - "192.168.178.1"
 
 homelab_dns_local_tld: "lan"
+
 homelab_dns_records:
   - name: "dockerhost1"
     value: "192.168.178.55"

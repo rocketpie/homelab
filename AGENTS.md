@@ -35,6 +35,9 @@ Current structure:
 
 When adding durable project knowledge, prefer placing it in `context/` rather than bloating this file.
 
+Current workflow notes worth checking:
+- `context/guides/wsl-pwsh-ansible-workflow.md` for the local WSL + `pwsh` execution flow
+
 ## Lightweight Repo Scan
 
 At the start of a task, quickly inspect:

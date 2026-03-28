@@ -12,8 +12,8 @@
 
 
 ## `192.168.178.192/26` Homelab
-- host `192.168.178.193` ' netcontroller1'
-- host `192.168.178.194` ' netcontroller2'
+- host `192.168.178.193` 'netcontroller1'
+- host `192.168.178.194` 'netcontroller2'
 - host `192.168.178.195` 'restic1'
 - host `192.168.178.195` 'restic1'
 

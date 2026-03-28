@@ -29,6 +29,7 @@ Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".ve
 Set-Variable -Scope Script -Name 'vEnvPython' -Value (Join-Path $vEnvPath "bin/python")
 Set-Variable -Scope Script -Name 'vEnvAnsiblePlaybook' -Value (Join-Path $vEnvPath "bin/ansible-playbook")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
+Set-Variable -Scope Script -Name 'defaultAnsibleSshKeyPath' -Value (Join-Path $HOME ".ssh/ansible")
 
 $localCollections = $(Join-Path $PSScriptRoot ".collections")
 if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
@@ -38,6 +39,7 @@ if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
 function Main([string]$PlaybookName) {
     Ensure-Venv
     Ensure-ToolsInVenv
+    Ensure-AnsibleSshKeyLoaded
 
     $inventory = Join-Path $PSScriptRoot "inventory/hosts.yml"
     if (-not (Test-Path $inventory)) {
@@ -82,6 +84,58 @@ function Ensure-ToolsInVenv {
     if (-not (Test-Path $vEnvAnsiblePlaybook)) {
         throw "ansible-playbook not found in venv. Did you run -InstallVenv?"
     }
+}
+
+function Ensure-AnsibleSshKeyLoaded {
+    if (-not (Test-Path $defaultAnsibleSshKeyPath)) {
+        return
+    }
+
+    if (-not (Get-Command "ssh-agent" -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    if (-not (Get-Command "ssh-add" -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($env:SSH_AUTH_SOCK)) {
+        Start-SshAgent
+    }
+
+    try {
+        & ssh-add $defaultAnsibleSshKeyPath | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Ensured SSH key is loaded in ssh-agent: $defaultAnsibleSshKeyPath"
+        }
+        else {
+            Write-Warning "ssh-add could not load the Ansible SSH key. Continuing without ssh-agent bootstrap."
+        }
+    }
+    catch {
+        Write-Warning "Could not preload SSH key with ssh-add. Continuing without ssh-agent bootstrap."
+    }
+}
+
+function Start-SshAgent {
+    $agentOutput = & ssh-agent -s 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Could not start ssh-agent automatically. Continuing without ssh-agent bootstrap."
+        return
+    }
+
+    foreach ($line in $agentOutput) {
+        if ($line -match '^(SSH_AUTH_SOCK|SSH_AGENT_PID)=([^;]+);') {
+            Set-Item -Path ("Env:{0}" -f $matches[1]) -Value $matches[2]
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($env:SSH_AUTH_SOCK)) {
+        Write-Warning "ssh-agent started but SSH_AUTH_SOCK was not exported into this session."
+        return
+    }
+
+    Write-Host "Started ssh-agent for this PowerShell session."
 }
 
 Main -PlaybookName $Playbook

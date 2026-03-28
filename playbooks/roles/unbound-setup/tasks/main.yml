@@ -102,7 +102,6 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Restart unbound
 
 - name: Render local DNS records include
   ansible.builtin.template:
@@ -111,7 +110,6 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Restart unbound
 
 - name: Render Unbound forwarders include
   ansible.builtin.template:
@@ -120,7 +118,6 @@
     owner: root
     group: root
     mode: "0644"
-  notify: Restart unbound
 
 - name: Render blocklist source manifest
   ansible.builtin.template:
@@ -161,7 +158,6 @@
     cmd: "{{ unbound_blocklist_refresh_script_path }}"
   changed_when: true
   when: unbound_blocklist_sources | length > 0
-  notify: Restart unbound
 
 - name: Ensure empty blocklist include exists when no sources are configured
   ansible.builtin.copy:
@@ -171,21 +167,86 @@
     group: root
     mode: "0644"
   when: unbound_blocklist_sources | length == 0
-  notify: Restart unbound
 
 - name: Validate Unbound configuration
   ansible.builtin.command:
     cmd: unbound-checkconf
   changed_when: false
 
+- name: Stop Unbound before taking over DNS port 53
+  ansible.builtin.service:
+    name: "{{ unbound_service_name }}"
+    state: stopped
+  failed_when: false
+
 - name: Flush handlers before starting Unbound
   ansible.builtin.meta: flush_handlers
 
-- name: Enable and start Unbound
-  ansible.builtin.service:
-    name: "{{ unbound_service_name }}"
-    enabled: true
-    state: started
+- name: Inspect current port 53 listeners
+  ansible.builtin.shell: |
+    ss -H -ltnup '( sport = :53 )' || true
+    ss -H -lunp '( sport = :53 )' || true
+  args:
+    executable: /bin/bash
+  register: unbound_port_53_inspection
+  changed_when: false
+
+- name: Collect listener PIDs still holding port 53
+  ansible.builtin.set_fact:
+    unbound_port_53_listener_pids: >-
+      {{
+        unbound_port_53_inspection.stdout
+        | regex_findall('pid=([0-9]+)')
+        | unique
+      }}
+
+- name: Kill remaining processes holding port 53
+  ansible.builtin.command:
+    cmd: "kill -9 {{ unbound_port_53_listener_pids | join(' ') }}"
+  when: unbound_port_53_listener_pids | length > 0
+  changed_when: true
+
+- name: Verify port 53 is free before starting Unbound
+  ansible.builtin.shell: |
+    ss -H -ltnup '( sport = :53 )' || true
+    ss -H -lunp '( sport = :53 )' || true
+  args:
+    executable: /bin/bash
+  register: unbound_port_53_after_reset
+  changed_when: false
+  failed_when: unbound_port_53_after_reset.stdout | trim | length > 0
+
+- name: Ensure Unbound is running with the rendered configuration
+  block:
+    - name: Enable and start Unbound
+      ansible.builtin.service:
+        name: "{{ unbound_service_name }}"
+        enabled: true
+        state: started
+  rescue:
+    - name: Capture Unbound service status
+      ansible.builtin.command:
+        cmd: "systemctl status {{ unbound_service_name }} --no-pager --full"
+      register: unbound_status_result
+      changed_when: false
+      failed_when: false
+
+    - name: Capture recent Unbound journal entries
+      ansible.builtin.command:
+        cmd: "journalctl -xeu {{ unbound_service_name }} --no-pager -n 50"
+      register: unbound_journal_result
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with Unbound startup diagnostics
+      ansible.builtin.fail:
+        msg: |
+          Failed to start or reload {{ unbound_service_name }}.
+          systemctl status:
+          {{ unbound_status_result.stdout | default('(no output)') }}
+
+          journalctl:
+          {{ unbound_journal_result.stdout | default('(no output)') }}
 
 - name: Enable and start blocklist refresh timer
   ansible.builtin.service:

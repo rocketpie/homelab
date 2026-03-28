@@ -18,7 +18,7 @@ function Write-Section([string]$Title) {
     Write-Host "== $Title =="
 }
 
-function Require-Command([string]$Name) {
+function Test-Command([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw "Missing dependency: '$Name' not found on PATH."
     }
@@ -120,7 +120,7 @@ function Show-Result([pscustomobject]$Result) {
     Write-Host ("{0} {1} {2} - {3}" -f $prefix, $Result.Name, $Result.Type, $Result.Details)
 }
 
-Require-Command "dig"
+Test-Command "dig"
 
 $results = New-Object System.Collections.Generic.List[object]
 
