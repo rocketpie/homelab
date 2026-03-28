@@ -60,7 +60,7 @@ Cluster/global Proxmox vars include things like:
     proxmox_api_iso_storage
     proxmox_api_vm_storage
     proxmox_api_default_bridge
-    proxmox_api_vm_create_qemu_agent
+    add_proxmox_vm_qemu_agent
 Roles currently in use
 export_autoinstall_seed
 Purpose:
@@ -88,14 +88,14 @@ Caddy startup:
     command with async/poll: 0 was used to launch Caddy
     controller-side readiness should be checked against 127.0.0.1, not lc3win
 Proxmox preflight role
-proxmox_api_preflight
+test_proxmox_api
 Purpose:
     verify Proxmox API access and required token permissions
 Important implementation notes:
     query permissions with uri
-    register full response as something like proxmox_api_preflight_permissions_response
+    register full response as something like test_proxmox_api_permissions_response
     then materialize:
-        proxmox_api_permissions: "{{ proxmox_api_preflight_permissions_response.json.data }}"
+        proxmox_api_permissions: "{{ test_proxmox_api_permissions_response.json.data }}"
     the bug was that proxmox_api_permissions was referenced before being set
 Permissions check:
     assert against explicit keys like:
@@ -104,15 +104,15 @@ Permissions check:
         '/vms'
     use concatenation in assert expressions, not nested {{ }} inside string keys
 Provision play flow
-playbooks/provision-vm.yml
+playbooks/add-vm.yml
 Current high-level flow:
     prompt for vm_name
     assert vm_name in hostvars
     vm: "{{ hostvars[vm_name] }}"
     debug selected VM
     include role export_autoinstall_seed
-    include role proxmox_api_preflight
-    include role proxmox_api_vm_create
+    include role test_proxmox_api
+    include role add_proxmox_vm
     poll qemu guest agent for IP
     wait for SSH
     remove old host key
@@ -121,7 +121,7 @@ Current high-level flow:
 Important note:
     ansible_user in add_host should come from vm.username, not be hardcoded
 VM create role
-roles/proxmox_api_vm_create/tasks/main.yml
+roles/add_proxmox_vm/tasks/main.yml
 Important final behavior:
     validates required vars
     checks VM does not already exist by vmid or name
@@ -724,11 +724,11 @@ roles/
 And in your VM provisioning flow:
 
 ```text
-playbooks/provision-vm.yml
+playbooks/add-vm.yml
   play 1: localhost
     - export_autoinstall_seed
-    - proxmox_api_preflight
-    - proxmox_api_vm_create
+    - test_proxmox_api
+    - add_proxmox_vm
     - wait/reachability/add_host
 
   play 2: provisioned_vms

@@ -63,7 +63,7 @@ If relevant, also inspect:
 
 - [`inventory/`](inventory/) contains inventory, group vars, and host vars
 - [`playbooks/`](playbooks/) contains playbooks and roles
-- [`playbooks/provision-vm.yml`](playbooks/provision-vm.yml) is a central workflow for provisioning a VM on Proxmox
+- [`playbooks/add-vm.yml`](playbooks/add-vm.yml) is a central workflow for provisioning a VM on Proxmox
 
 ## When Updating Docs
 

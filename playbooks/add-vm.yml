@@ -88,11 +88,11 @@
 
     - name: Run Proxmox API preflight checks
       ansible.builtin.include_role:
-        name: proxmox_api_preflight
+        name: test_proxmox_api
 
     - name: Create VM
       ansible.builtin.include_role:
-        name: proxmox_api_vm_create
+        name: add_proxmox_vm
 
     - name: Wait for qemu-guest-agent to report a non-loopback IPv4
       vars:

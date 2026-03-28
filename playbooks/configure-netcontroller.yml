@@ -78,7 +78,7 @@
 
   post_tasks:
     - name: Verify DNS from controller via passive resolver
-      ansible.builtin.include_tasks: tasks/verify-unbound-from-controller.yml
+      ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
 
 - name: Install and verify DNS service components on active resolver
   hosts: unbound_rollout_active
@@ -93,4 +93,4 @@
 
   post_tasks:
     - name: Verify DNS from controller via active resolver
-      ansible.builtin.include_tasks: tasks/verify-unbound-from-controller.yml
+      ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
