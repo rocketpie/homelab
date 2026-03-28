@@ -82,5 +82,10 @@ EOF
 
 unbound-checkconf "$tmp_config" >/dev/null
 
+if [[ -f "$output_file" ]] && cmp -s "$tmp_output" "$output_file"; then
+  exit 0
+fi
+
 chmod 0644 "$tmp_output"
 mv "$tmp_output" "$output_file"
+echo "updated"

@@ -7,3 +7,8 @@
   ansible.builtin.service:
     name: "{{ unbound_resolved_service_name }}"
     state: restarted
+
+- name: Restart Unbound
+  ansible.builtin.service:
+    name: "{{ unbound_service_name }}"
+    state: restarted
