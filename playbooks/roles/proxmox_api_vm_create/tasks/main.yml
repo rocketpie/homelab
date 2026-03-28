@@ -17,7 +17,7 @@
       - proxmox_api_verify_ssl is defined
       - proxmox_api_iso_storage is defined
       - proxmox_api_vm_storage is defined
-    fail_msg: "Missing required vars for proxmox-api-vm-create"
+    fail_msg: "Missing required vars for proxmox_api_vm_create"
 
 - name: Query existing Proxmox VMs
   community.proxmox.proxmox_vm_info:
@@ -258,3 +258,4 @@
     node: "{{ proxmox_vm_active_node }}"
     vmid: "{{ vm.vmid }}"
     state: started
+

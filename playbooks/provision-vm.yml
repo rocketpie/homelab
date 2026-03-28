@@ -84,15 +84,15 @@
 
     - name: Export autoinstall seed for target VM
       ansible.builtin.include_role:
-        name: export-autoinstall-seed
+        name: export_autoinstall_seed
 
     - name: Run Proxmox API preflight checks
       ansible.builtin.include_role:
-        name: proxmox-api-preflight
+        name: proxmox_api_preflight
 
     - name: Create VM
       ansible.builtin.include_role:
-        name: proxmox-api-vm-create
+        name: proxmox_api_vm_create
 
     - name: Wait for qemu-guest-agent to report a non-loopback IPv4
       vars:
@@ -181,7 +181,7 @@
   tasks:
     - name: Configure extra disks inside guest
       ansible.builtin.include_role:
-        name: guest-extra-disks
+        name: guest_extra_disks
       vars:
         guest_extra_disks: "{{ vm.extra_disks | default([]) }}"
       when: vm.extra_disks | default([]) | length > 0

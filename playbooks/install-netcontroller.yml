@@ -63,7 +63,7 @@
   gather_facts: true
 
   roles:
-    - role: kea-install
+    - role: kea_install
 
 - name: Install and verify DNS service components on passive resolvers
   hosts: unbound_rollout_passive
@@ -74,7 +74,7 @@
   gather_facts: true
 
   roles:
-    - role: unbound-setup
+    - role: unbound_setup
 
   post_tasks:
     - name: Verify DNS from controller via passive resolver
@@ -89,7 +89,7 @@
   gather_facts: true
 
   roles:
-    - role: unbound-setup
+    - role: unbound_setup
 
   post_tasks:
     - name: Verify DNS from controller via active resolver

@@ -8,7 +8,7 @@
       - proxmox_api_verify_ssl is defined
       - proxmox_api_vm_storage is defined
       - proxmox_api_iso_storage is defined
-    fail_msg: "Missing required vars for proxmox-api-preflight"
+    fail_msg: "Missing required vars for proxmox_api_preflight"
 
 - name: Show API identity used
   ansible.builtin.debug:

@@ -7,7 +7,7 @@
       - autoinstall_export_directory is defined
       - autoinstall_base_url is defined
       - autoinstall_caddy_executable is defined
-    fail_msg: "Missing required variables for export-autoinstall-seed role"
+    fail_msg: "Missing required variables for export_autoinstall_seed role"
 
 - name: Validate static network variables for VM autoinstall
   ansible.builtin.assert:

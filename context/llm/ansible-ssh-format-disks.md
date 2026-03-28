@@ -48,7 +48,7 @@ Important vars include:
 * autoinstall_export_directory: "{{ playbook_dir }}/../srv/autoinstall/ubuntu2404"
 * autoinstall_base_url: "http://lc3win:8080/ubuntu2404"
 * autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
-roles/export-autoinstall-seed/defaults/main.yml
+roles/export_autoinstall_seed/defaults/main.yml
 
 Proxmox vars
 Cluster/global Proxmox vars include things like:
@@ -62,7 +62,7 @@ Cluster/global Proxmox vars include things like:
     proxmox_api_default_bridge
     proxmox_api_qemu_agent
 Roles currently in use
-export-autoinstall-seed
+export_autoinstall_seed
 Purpose:
     render autoinstall seed files
     ensure Caddy is started if needed
@@ -88,7 +88,7 @@ Caddy startup:
     command with async/poll: 0 was used to launch Caddy
     controller-side readiness should be checked against 127.0.0.1, not lc3win
 Proxmox preflight role
-proxmox-api-preflight
+proxmox_api_preflight
 Purpose:
     verify Proxmox API access and required token permissions
 Important implementation notes:
@@ -110,9 +110,9 @@ Current high-level flow:
     assert vm_name in hostvars
     vm: "{{ hostvars[vm_name] }}"
     debug selected VM
-    include role export-autoinstall-seed
-    include role proxmox-api-preflight
-    include role proxmox-api-vm-create
+    include role export_autoinstall_seed
+    include role proxmox_api_preflight
+    include role proxmox_api_vm_create
     poll qemu guest agent for IP
     wait for SSH
     remove old host key
@@ -121,7 +121,7 @@ Current high-level flow:
 Important note:
     ansible_user in add_host should come from vm.username, not be hardcoded
 VM create role
-roles/proxmox-api-vm-create/tasks/main.yml
+roles/proxmox_api_vm_create/tasks/main.yml
 Important final behavior:
     validates required vars
     checks VM does not already exist by vmid or name
@@ -228,7 +228,7 @@ Your current flow already supports this nicely:
 7. wait for SSH
 8. run guest configuration role
 
-That is the right place to add a role like `guest-extra-disks`.
+That is the right place to add a role like `guest_extra_disks`.
 
 ### 3) Make the guest role explicitly conservative
 
@@ -294,7 +294,7 @@ After your second play can reach the guest, include the new role:
   gather_facts: true
 
   roles:
-    - role: guest-extra-disks
+    - role: guest_extra_disks
 ```
 
 I would keep this separate from first-boot reachability tasks.
@@ -303,7 +303,7 @@ I would keep this separate from first-boot reachability tasks.
 
 ## Draft role contract
 
-### `roles/guest-extra-disks/defaults/main.yml`
+### `roles/guest_extra_disks/defaults/main.yml`
 
 ```yaml
 guest_extra_disks: "{{ vm.extra_disks | default([]) }}"
@@ -321,7 +321,7 @@ guest_extra_disks_allow_existing_filesystem: true
 guest_extra_disks_fail_on_fs_type_mismatch: true
 ```
 
-### `roles/guest-extra-disks/meta/main.yml`
+### `roles/guest_extra_disks/meta/main.yml`
 
 ```yaml
 dependencies: []
@@ -349,7 +349,7 @@ collections:
 
 ## Draft task flow
 
-### `roles/guest-extra-disks/tasks/main.yml`
+### `roles/guest_extra_disks/tasks/main.yml`
 
 ```yaml
 ---
@@ -712,7 +712,7 @@ The exact `/dev/disk/by-id/...` naming for QEMU/Proxmox SCSI disks can vary a bi
 
 ```text
 roles/
-  guest-extra-disks/
+  guest_extra_disks/
     defaults/
       main.yml
     tasks/
@@ -726,13 +726,13 @@ And in your VM provisioning flow:
 ```text
 playbooks/provision-vm.yml
   play 1: localhost
-    - export-autoinstall-seed
-    - proxmox-api-preflight
-    - proxmox-api-vm-create
+    - export_autoinstall_seed
+    - proxmox_api_preflight
+    - proxmox_api_vm_create
     - wait/reachability/add_host
 
   play 2: provisioned_vms
-    - guest-extra-disks
+    - guest_extra_disks
 ```
 
 That keeps the boundary clean:
@@ -743,3 +743,4 @@ That keeps the boundary clean:
 If you want, I can turn this into a tighter, repo-ready role with `defaults`, `asserts`, and the corresponding Proxmox attach task updated to set per-disk serials.
 
 [1]: https://docs.ansible.com/projects/ansible/latest/collections/community/general/parted_module.html?utm_source=chatgpt.com "community.general.parted module - Ansible Documentation"
+

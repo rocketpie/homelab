@@ -7,7 +7,7 @@ The homelab DNS system uses two mechanisms to register DNS records:
 1. **Global DNS records** - defined in `inventory/group_vars/all/dns.yml`
 2. **Host-level aliases** - defined in each host's `inventory/host_vars/{hostname}/host.yml`
 
-Both are processed by the `unbound-setup` role and merged together into the DNS resolver.
+Both are processed by the `unbound_setup` role and merged together into the DNS resolver.
 
 ## Global DNS Records (`dns.yml`)
 
@@ -83,7 +83,7 @@ dns_aliases:
 
 ## How It Works
 
-When the `unbound-setup` playbook runs:
+When the `unbound_setup` playbook runs:
 
 1. **Global records are flattened**
    - IP→aliases map is converted to individual name/value pairs
@@ -145,7 +145,7 @@ dns_aliases:
 
 ## Validation
 
-The `unbound-setup` role validates all DNS records:
+The `unbound_setup` role validates all DNS records:
 
 - `name` field must be present and non-empty
 - `value` field must be present and non-empty
@@ -179,3 +179,4 @@ If validation fails, the playbook will error with details about the invalid reco
 - Ensure global records and host aliases don't create conflicts
 - Same name pointing to different IPs will cause last-write-wins behavior
 - Check logs for validation errors
+
