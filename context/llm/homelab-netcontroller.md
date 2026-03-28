@@ -2,8 +2,8 @@
 
 ## Current direction
 - Use a dedicated install play: `playbooks/install-netcontroller.yml`
-- DNS setup via `playbooks/roles/unbound_setup`
-- DHCP setup via `playbooks/roles/kea_install`
+- DNS setup via `playbooks/roles/add_unbound`
+- DHCP setup via `playbooks/roles/add_kea`
 - start with dns/unbound role, without dhcp/kea
 
 ## DNS rollout behavior

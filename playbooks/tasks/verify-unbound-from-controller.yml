@@ -10,14 +10,14 @@
       - >-
         {{
           item.name
-          if '.' ~ unbound_setup_local_tld in item.name or item.name.endswith('.' ~ unbound_setup_local_tld)
-          else item.name ~ '.' ~ unbound_setup_local_tld
+          if '.' ~ add_unbound_local_tld in item.name or item.name.endswith('.' ~ add_unbound_local_tld)
+          else item.name ~ '.' ~ add_unbound_local_tld
         }}
       - A
-  loop: "{{ unbound_setup_effective_dns_records }}"
+  loop: "{{ add_unbound_effective_dns_records }}"
   loop_control:
     label: "{{ item.name }} -> {{ item.value }}"
-  register: unbound_setup_controller_dig_results
+  register: add_unbound_controller_dig_results
   delegate_to: localhost
   become: false
   changed_when: false
@@ -32,11 +32,11 @@
       {{ item.stdout_lines | default([]) }} for
       {{
         item.item.name
-        if '.' ~ unbound_setup_local_tld in item.item.name or item.item.name.endswith('.' ~ unbound_setup_local_tld)
-        else item.item.name ~ '.' ~ unbound_setup_local_tld
+        if '.' ~ add_unbound_local_tld in item.item.name or item.item.name.endswith('.' ~ add_unbound_local_tld)
+        else item.item.name ~ '.' ~ add_unbound_local_tld
       }},
       expected '{{ item.item.value }}'.
-  loop: "{{ unbound_setup_controller_dig_results.results }}"
+  loop: "{{ add_unbound_controller_dig_results.results }}"
   loop_control:
     label: "{{ item.item.name }} -> {{ item.item.value }}"
   changed_when: false

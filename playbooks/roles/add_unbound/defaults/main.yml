@@ -1,0 +1,30 @@
+---
+add_unbound_packages:
+  - unbound
+  - curl
+
+add_unbound_service_name: unbound
+add_unbound_resolved_service_name: systemd-resolved
+add_unbound_user: unbound
+add_unbound_group: unbound
+
+add_unbound_include_dir: /etc/unbound/unbound.conf.d
+add_unbound_blocklist_state_dir: /var/lib/unbound
+add_unbound_blocklist_sources_file: "{{ add_unbound_blocklist_state_dir }}/homelab-blocklist.sources"
+add_unbound_blocklist_output_file: "{{ add_unbound_include_dir }}/homelab-blocklist.conf"
+add_unbound_local_records_file: "{{ add_unbound_include_dir }}/homelab-records.conf"
+add_unbound_forward_zone_file: "{{ add_unbound_include_dir }}/homelab-forwarders.conf"
+add_unbound_resolved_dropin_dir: /etc/systemd/resolved.conf.d
+add_unbound_resolved_dropin_file: "{{ add_unbound_resolved_dropin_dir }}/homelab.conf"
+
+add_unbound_blocklist_refresh_script_path: /usr/local/bin/unbound-refresh-blocklist
+add_unbound_blocklist_refresh_service_name: unbound-refresh-blocklist.service
+add_unbound_blocklist_refresh_timer_name: unbound-refresh-blocklist.timer
+add_unbound_blocklist_refresh_on_calendar: daily
+
+add_unbound_local_tld: "{{ homelab_dns_local_tld | default('lan') }}"
+add_unbound_inventory_dns_enabled: true
+add_unbound_blocklist_sources: "{{ homelab_dns_blocklist_sources | default([]) }}"
+add_unbound_manual_dns_records: "{{ homelab_dns_records | default([]) }}"
+add_unbound_server_config_file: "{{ add_unbound_include_dir }}/homelab-server.conf"
+add_unbound_forward_addrs: "{{ homelab_dns_forward_servers | default([]) }}"

@@ -5,10 +5,10 @@
 
 - name: Restart systemd-resolved
   ansible.builtin.service:
-    name: "{{ unbound_setup_resolved_service_name }}"
+    name: "{{ add_unbound_resolved_service_name }}"
     state: restarted
 
 - name: Restart Unbound
   ansible.builtin.service:
-    name: "{{ unbound_setup_service_name }}"
+    name: "{{ add_unbound_service_name }}"
     state: restarted
