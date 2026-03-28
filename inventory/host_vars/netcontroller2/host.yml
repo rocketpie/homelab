@@ -8,6 +8,12 @@ cores: 1
 memory_mb: 512
 os_disk_gb: 10
 
+# Optional DNS aliases (additional names that resolve to this host)
+# These will be registered in Unbound DNS
+# dns_aliases:
+#   - "dns2.lan"
+#   - "dhcp2.lan"
+
 host_users:
   - name: "networker"
     description: "dhcp / dns service account"

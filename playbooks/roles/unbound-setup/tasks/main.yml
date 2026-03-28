@@ -40,6 +40,41 @@
     mode: "0644"
   notify: Restart systemd-resolved
 
+- name: Build manual DNS records from IP->aliases structure
+  ansible.builtin.set_fact:
+    unbound_manual_dns_records: "{{ lookup('template', 'dns-records-flatten.j2') }}"
+  when: homelab_dns_records is defined and homelab_dns_records is mapping
+
+- name: Initialize to empty list if no global records
+  ansible.builtin.set_fact:
+    unbound_manual_dns_records: []
+  when: homelab_dns_records is not defined or homelab_dns_records is not mapping
+
+- name: Collect host-level DNS aliases
+  ansible.builtin.set_fact:
+    unbound_host_dns_records: >-
+      {%- set records = [] -%}
+      {%- for host_name in groups['all'] | default([]) -%}
+        {%- set host_aliases = hostvars[host_name].dns_aliases | default([]) -%}
+        {%- set host_ip = hostvars[host_name].ansible_host | default('') -%}
+        {%- if host_aliases and host_ip -%}
+          {%- for alias in host_aliases -%}
+            {{- records.append({'name': alias, 'value': host_ip}) -}}
+          {%- endfor -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{- records -}}
+  when: unbound_inventory_dns_enabled | bool
+
+- name: Initialize empty host records if not collecting
+  ansible.builtin.set_fact:
+    unbound_host_dns_records: []
+  when: not (unbound_inventory_dns_enabled | bool)
+
+- name: Merge manual records with host aliases
+  ansible.builtin.set_fact:
+    unbound_manual_dns_records: "{{ (unbound_manual_dns_records | default([])) + (unbound_host_dns_records | default([])) }}"
+
 - name: Validate local DNS record definitions
   ansible.builtin.assert:
     that:

@@ -10,10 +10,18 @@ homelab_dns_forward_servers:
 
 homelab_dns_local_tld: "lan"
 
+# Maps IP addresses to DNS aliases (names)
+# Each IP can have multiple names/aliases
 homelab_dns_records:
-  - name: "dockerhost1"
-    value: "192.168.178.55"
-  - name: "gateway.vpn"
-    value: "10.13.0.3"
-  - name: "dockerhost1.vpn"
-    value: "10.13.0.6"
+  "192.168.178.55":
+    - "dockerhost1"
+    - "immich"
+    - "paperless"
+    - "grafana"
+  "10.13.0.3":
+    - "gateway.vpn"
+  "10.13.0.6":
+    - "dockerhost1.vpn"
+    - "immich.vpn"
+    - "paperless.vpn"
+    - "grafana.vpn"

@@ -1,0 +1,9 @@
+{%- set records = [] -%}
+{%- for ip_record in (homelab_dns_records | default({}) | dict2items) -%}
+  {%- set ip_addr = ip_record.key -%}
+  {%- set aliases = ip_record.value | default([]) -%}
+  {%- for alias in aliases -%}
+    {{- records.append({'name': alias, 'value': ip_addr}) or '' -}}
+  {%- endfor -%}
+{%- endfor -%}
+{{ records | to_nice_json }}

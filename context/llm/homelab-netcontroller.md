@@ -1,4 +1,4 @@
-# DHCP Notes
+# Netcontroller Notes
 
 ## Current direction
 - Use a dedicated install play: `playbooks/install-netcontroller.yml`
@@ -14,5 +14,8 @@
 ## DNS status
 - Inventory owns:
   - `homelab_dns_blocklist_sources`
-  - `homelab_dns_records`
-- The `kea` inventory group is intentionally empty for now
+  - `homelab_dns_records` (see context/guides/dns-records-guide.md)
+  - `homelab_dns_local_tld` 
+  - Host-level `dns_aliases` in each host's host_vars
+
+See [DNS Records Guide](../guides/dns-records-guide.md) for details.

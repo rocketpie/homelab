@@ -15,6 +15,9 @@ extra_disks:
     fs_type: "ext4"
     mount_options: "defaults,nofail"
 
+dns_aliases:
+  - "backup.lan"
+
 host_users:
   - name: "archivar"
     description: "backup storage service account"
