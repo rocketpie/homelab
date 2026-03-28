@@ -181,9 +181,9 @@
   tasks:
     - name: Configure extra disks inside guest
       ansible.builtin.include_role:
-        name: guest_extra_disks
+        name: configure_disks
       vars:
-        guest_extra_disks_items: "{{ vm.extra_disks | default([]) }}"
+        configure_disks_items: "{{ vm.extra_disks | default([]) }}"
       when: vm.extra_disks | default([]) | length > 0
 
     - name: Reboot VM after guest disk configuration

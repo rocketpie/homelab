@@ -1,0 +1,13 @@
+configure_disks_items: "{{ vm.extra_disks | default([]) }}"
+
+configure_disks_fs_type_default: "ext4"
+configure_disks_mount_options_default: "defaults,nofail"
+
+# serial format used when attaching disks in Proxmox
+configure_disks_serial_prefix: "vm{{ vm.vmid }}-"
+
+# whether a pre-existing filesystem is allowed
+configure_disks_allow_existing_filesystem: true
+
+# whether to fail if filesystem exists but differs from desired fs_type
+configure_disks_fail_on_fs_type_mismatch: true

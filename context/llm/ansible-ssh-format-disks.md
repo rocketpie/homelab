@@ -228,7 +228,7 @@ Your current flow already supports this nicely:
 7. wait for SSH
 8. run guest configuration role
 
-That is the right place to add a role like `guest_extra_disks`.
+That is the right place to add a role like `configure_disks`.
 
 ### 3) Make the guest role explicitly conservative
 
@@ -294,7 +294,7 @@ After your second play can reach the guest, include the new role:
   gather_facts: true
 
   roles:
-    - role: guest_extra_disks
+    - role: configure_disks
 ```
 
 I would keep this separate from first-boot reachability tasks.
@@ -303,25 +303,25 @@ I would keep this separate from first-boot reachability tasks.
 
 ## Draft role contract
 
-### `roles/guest_extra_disks/defaults/main.yml`
+### `roles/configure_disks/defaults/main.yml`
 
 ```yaml
-guest_extra_disks_items: "{{ vm.extra_disks | default([]) }}"
+configure_disks_items: "{{ vm.extra_disks | default([]) }}"
 
-guest_extra_disks_fs_type_default: "ext4"
-guest_extra_disks_mount_options_default: "defaults,nofail"
+configure_disks_fs_type_default: "ext4"
+configure_disks_mount_options_default: "defaults,nofail"
 
 # serial format used when attaching disks in Proxmox
-guest_extra_disks_serial_prefix: "vm{{ vm.vmid }}-"
+configure_disks_serial_prefix: "vm{{ vm.vmid }}-"
 
 # whether a pre-existing filesystem is allowed
-guest_extra_disks_allow_existing_filesystem: true
+configure_disks_allow_existing_filesystem: true
 
 # whether to fail if filesystem exists but differs from desired fs_type
-guest_extra_disks_fail_on_fs_type_mismatch: true
+configure_disks_fail_on_fs_type_mismatch: true
 ```
 
-### `roles/guest_extra_disks/meta/main.yml`
+### `roles/configure_disks/meta/main.yml`
 
 ```yaml
 dependencies: []
@@ -349,13 +349,13 @@ collections:
 
 ## Draft task flow
 
-### `roles/guest_extra_disks/tasks/main.yml`
+### `roles/configure_disks/tasks/main.yml`
 
 ```yaml
 ---
 - name: Skip when no extra disks are defined
   ansible.builtin.meta: end_host
-  when: guest_extra_disks_items | length == 0
+  when: configure_disks_items | length == 0
 
 - name: Validate extra disk definitions
   ansible.builtin.assert:
@@ -367,78 +367,78 @@ collections:
       - item.mount_path is defined
       - item.mount_path | length > 1
     fail_msg: "Invalid extra_disks entry: {{ item | to_nice_yaml }}"
-  loop: "{{ guest_extra_disks_items }}"
+  loop: "{{ configure_disks_items }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
 - name: Validate disk_id uniqueness
   ansible.builtin.assert:
     that:
-      - (guest_extra_disks_items | map(attribute='disk_id') | list | unique | length)
-        == (guest_extra_disks_items | length)
+      - (configure_disks_items | map(attribute='disk_id') | list | unique | length)
+        == (configure_disks_items | length)
     fail_msg: "extra_disks[].disk_id values must be unique"
 
 - name: Validate mount_path uniqueness
   ansible.builtin.assert:
     that:
-      - (guest_extra_disks_items | map(attribute='mount_path') | list | unique | length)
-        == (guest_extra_disks_items | length)
+      - (configure_disks_items | map(attribute='mount_path') | list | unique | length)
+        == (configure_disks_items | length)
     fail_msg: "extra_disks[].mount_path values must be unique"
 
 - name: Build normalized extra disk list
   ansible.builtin.set_fact:
-    guest_extra_disks_normalized: >-
+    configure_disks_normalized: >-
       {{
-        guest_extra_disks_normalized | default([]) + [
+        configure_disks_normalized | default([]) + [
           item | combine({
-            'fs_type': item.fs_type | default(guest_extra_disks_fs_type_default),
-            'mount_options': item.mount_options | default(guest_extra_disks_mount_options_default),
-            'disk_serial': guest_extra_disks_serial_prefix ~ item.disk_id,
-            'disk_by_id_path': '/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_' ~ (guest_extra_disks_serial_prefix ~ item.disk_id)
+            'fs_type': item.fs_type | default(configure_disks_fs_type_default),
+            'mount_options': item.mount_options | default(configure_disks_mount_options_default),
+            'disk_serial': configure_disks_serial_prefix ~ item.disk_id,
+            'disk_by_id_path': '/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_' ~ (configure_disks_serial_prefix ~ item.disk_id)
           })
         ]
       }}
-  loop: "{{ guest_extra_disks_items }}"
+  loop: "{{ configure_disks_items }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
 - name: Check disk by-id paths exist
   ansible.builtin.stat:
     path: "{{ item.disk_by_id_path }}"
-  loop: "{{ guest_extra_disks_normalized }}"
+  loop: "{{ configure_disks_normalized }}"
   loop_control:
     label: "{{ item.disk_id }}"
-  register: guest_extra_disks_path_stats
+  register: configure_disks_path_stats
 
 - name: Fail when expected extra disk is missing in guest
   ansible.builtin.assert:
     that:
       - item.stat.exists
     fail_msg: "Expected disk path not found in guest: {{ item.item.disk_by_id_path }}"
-  loop: "{{ guest_extra_disks_path_stats.results }}"
+  loop: "{{ configure_disks_path_stats.results }}"
   loop_control:
     label: "{{ item.item.disk_id }}"
 
 - name: Resolve canonical disk device path
   ansible.builtin.command:
     cmd: "readlink -f {{ item.disk_by_id_path }}"
-  loop: "{{ guest_extra_disks_normalized }}"
+  loop: "{{ configure_disks_normalized }}"
   loop_control:
     label: "{{ item.disk_id }}"
-  register: guest_extra_disks_realpaths
+  register: configure_disks_realpaths
   changed_when: false
 
 - name: Build resolved disk map
   ansible.builtin.set_fact:
-    guest_extra_disks_resolved: >-
+    configure_disks_resolved: >-
       {{
-        guest_extra_disks_resolved | default([]) + [
+        configure_disks_resolved | default([]) + [
           item.item | combine({
             'disk_device': item.stdout
           })
         ]
       }}
-  loop: "{{ guest_extra_disks_realpaths.results }}"
+  loop: "{{ configure_disks_realpaths.results }}"
   loop_control:
     label: "{{ item.item.disk_id }}"
 
@@ -447,23 +447,23 @@ collections:
     cmd: >
       lsblk --json --output
       NAME,KNAME,PATH,PKNAME,TYPE,FSTYPE,UUID,MOUNTPOINTS,PTTYPE {{ item.disk_device }}
-  loop: "{{ guest_extra_disks_resolved }}"
+  loop: "{{ configure_disks_resolved }}"
   loop_control:
     label: "{{ item.disk_id }}"
-  register: guest_extra_disks_lsblk
+  register: configure_disks_lsblk
   changed_when: false
 
 - name: Parse lsblk output into disk facts
   ansible.builtin.set_fact:
-    guest_extra_disks_inspected: >-
+    configure_disks_inspected: >-
       {{
-        guest_extra_disks_inspected | default([]) + [
+        configure_disks_inspected | default([]) + [
           item.item | combine({
             'lsblk': (item.stdout | from_json).blockdevices[0]
           })
         ]
       }}
-  loop: "{{ guest_extra_disks_lsblk.results }}"
+  loop: "{{ configure_disks_lsblk.results }}"
   loop_control:
     label: "{{ item.item.disk_id }}"
 
@@ -475,7 +475,7 @@ collections:
     fail_msg: >-
       Disk {{ item.disk_device }} for {{ item.disk_id }} already appears mounted:
       {{ item.lsblk.mountpoints | default([]) }}
-  loop: "{{ guest_extra_disks_inspected }}"
+  loop: "{{ configure_disks_inspected }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
@@ -485,7 +485,7 @@ collections:
     label: gpt
     state: present
   when: item.lsblk.pttype | default('') == ''
-  loop: "{{ guest_extra_disks_inspected }}"
+  loop: "{{ configure_disks_inspected }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
@@ -502,7 +502,7 @@ collections:
     part_start: "1MiB"
     part_end: "100%"
   when: (item.lsblk.children | default([]) | length) == 0
-  loop: "{{ guest_extra_disks_inspected }}"
+  loop: "{{ configure_disks_inspected }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
@@ -511,17 +511,17 @@ collections:
     cmd: >
       lsblk --json --output
       NAME,KNAME,PATH,PKNAME,TYPE,FSTYPE,UUID,MOUNTPOINTS,PTTYPE {{ item.disk_device }}
-  loop: "{{ guest_extra_disks_inspected }}"
+  loop: "{{ configure_disks_inspected }}"
   loop_control:
     label: "{{ item.disk_id }}"
-  register: guest_extra_disks_postpart_lsblk
+  register: configure_disks_postpart_lsblk
   changed_when: false
 
 - name: Build final partition targets
   ansible.builtin.set_fact:
-    guest_extra_disks_final: >-
+    configure_disks_final: >-
       {{
-        guest_extra_disks_final | default([]) + [
+        configure_disks_final | default([]) + [
           item.item | combine({
             'partition': ((item.stdout | from_json).blockdevices[0].children[0].path),
             'partition_fstype': ((item.stdout | from_json).blockdevices[0].children[0].fstype | default('')),
@@ -529,7 +529,7 @@ collections:
           })
         ]
       }}
-  loop: "{{ guest_extra_disks_postpart_lsblk.results }}"
+  loop: "{{ configure_disks_postpart_lsblk.results }}"
   loop_control:
     label: "{{ item.item.disk_id }}"
 
@@ -537,14 +537,14 @@ collections:
   ansible.builtin.assert:
     that:
       - not (
-          guest_extra_disks_fail_on_fs_type_mismatch
+          configure_disks_fail_on_fs_type_mismatch
           and item.partition_fstype | length > 0
           and item.partition_fstype != item.fs_type
         )
     fail_msg: >-
       Disk {{ item.disk_id }} already has filesystem {{ item.partition_fstype }},
       expected {{ item.fs_type }}.
-  loop: "{{ guest_extra_disks_final }}"
+  loop: "{{ configure_disks_final }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
@@ -553,24 +553,24 @@ collections:
     dev: "{{ item.partition }}"
     fstype: "{{ item.fs_type }}"
   when: item.partition_fstype | length == 0
-  loop: "{{ guest_extra_disks_final }}"
+  loop: "{{ configure_disks_final }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
 - name: Read blkid UUID after filesystem creation
   ansible.builtin.command:
     cmd: "blkid -o export {{ item.partition }}"
-  loop: "{{ guest_extra_disks_final }}"
+  loop: "{{ configure_disks_final }}"
   loop_control:
     label: "{{ item.disk_id }}"
-  register: guest_extra_disks_blkid
+  register: configure_disks_blkid
   changed_when: false
 
 - name: Build mount definitions
   ansible.builtin.set_fact:
-    guest_extra_disks_mounts: >-
+    configure_disks_mounts: >-
       {{
-        guest_extra_disks_mounts | default([]) + [
+        configure_disks_mounts | default([]) + [
           item.item | combine({
             'mount_uuid': (
               item.stdout_lines
@@ -581,7 +581,7 @@ collections:
           })
         ]
       }}
-  loop: "{{ guest_extra_disks_blkid.results }}"
+  loop: "{{ configure_disks_blkid.results }}"
   loop_control:
     label: "{{ item.item.disk_id }}"
 
@@ -592,7 +592,7 @@ collections:
     owner: root
     group: root
     mode: "0755"
-  loop: "{{ guest_extra_disks_mounts }}"
+  loop: "{{ configure_disks_mounts }}"
   loop_control:
     label: "{{ item.disk_id }}"
 
@@ -603,7 +603,7 @@ collections:
     fstype: "{{ item.fs_type }}"
     opts: "{{ item.mount_options }}"
     state: mounted
-  loop: "{{ guest_extra_disks_mounts }}"
+  loop: "{{ configure_disks_mounts }}"
   loop_control:
     label: "{{ item.disk_id }}"
 ```
@@ -712,7 +712,7 @@ The exact `/dev/disk/by-id/...` naming for QEMU/Proxmox SCSI disks can vary a bi
 
 ```text
 roles/
-  guest_extra_disks/
+  configure_disks/
     defaults/
       main.yml
     tasks/
@@ -732,7 +732,7 @@ playbooks/provision-vm.yml
     - wait/reachability/add_host
 
   play 2: provisioned_vms
-    - guest_extra_disks
+    - configure_disks
 ```
 
 That keeps the boundary clean:
