@@ -103,6 +103,11 @@ function Ensure-AnsibleSshKeyLoaded {
         Start-SshAgent
     }
 
+    if (Test-SshAgentHasKey -PrivateKeyPath $defaultAnsibleSshKeyPath) {
+        Write-Host "SSH key already loaded in ssh-agent: $defaultAnsibleSshKeyPath"
+        return
+    }
+
     try {
         & ssh-add $defaultAnsibleSshKeyPath | Out-Null
         if ($LASTEXITCODE -eq 0) {
@@ -115,6 +120,34 @@ function Ensure-AnsibleSshKeyLoaded {
     catch {
         Write-Warning "Could not preload SSH key with ssh-add. Continuing without ssh-agent bootstrap."
     }
+}
+
+function Test-SshAgentHasKey([string]$PrivateKeyPath) {
+    $publicKeyPath = "{0}.pub" -f $PrivateKeyPath
+    if (-not (Test-Path $publicKeyPath)) {
+        return $false
+    }
+
+    if (-not (Get-Command "ssh-keygen" -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $loadedKeys = & ssh-add -l 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    $fingerprintOutput = & ssh-keygen -lf $publicKeyPath 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    $keyFingerprint = (($fingerprintOutput | Select-Object -First 1) -split '\s+')[1]
+    if ([string]::IsNullOrWhiteSpace($keyFingerprint)) {
+        return $false
+    }
+
+    return [bool]($loadedKeys | Where-Object { $_ -match [regex]::Escape($keyFingerprint) })
 }
 
 function Start-SshAgent {
