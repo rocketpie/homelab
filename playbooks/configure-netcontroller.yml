@@ -65,6 +65,17 @@
   roles:
     - role: add_kea
 
+  post_tasks:
+    - name: Record deployment history for DHCP configuration
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_kea
+        record_deployment_metadata:
+          service: kea
+
 - name: Install and verify DNS service components on passive resolvers
   hosts: unbound_rollout_passive
   order: inventory
@@ -80,6 +91,19 @@
     - name: Verify DNS from controller via passive resolver
       ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
 
+    - name: Record deployment history for passive DNS rollout
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_unbound
+        record_deployment_extra_paths:
+          - playbooks/tasks/test-unbound-from-controller.yml
+        record_deployment_metadata:
+          service: unbound
+          rollout_phase: passive
+
 - name: Install and verify DNS service components on active resolver
   hosts: unbound_rollout_active
   order: inventory
@@ -94,3 +118,16 @@
   post_tasks:
     - name: Verify DNS from controller via active resolver
       ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
+
+    - name: Record deployment history for active DNS rollout
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_unbound
+        record_deployment_extra_paths:
+          - playbooks/tasks/test-unbound-from-controller.yml
+        record_deployment_metadata:
+          service: unbound
+          rollout_phase: active

@@ -1,0 +1,9 @@
+---
+record_deployment_history_dir: /var/lib/homelab
+record_deployment_history_file: "{{ record_deployment_history_dir }}/deploy-history.yml"
+record_deployment_repo_root: "{{ playbook_dir }}/.."
+
+record_deployment_playbook: ""
+record_deployment_roles: []
+record_deployment_extra_paths: []
+record_deployment_metadata: {}

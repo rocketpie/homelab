@@ -224,3 +224,26 @@
       ansible.builtin.include_role:
         name: add_autoupdate
       when: vm.enable_autoupdate | default(true) | bool
+
+    - name: Record deployment history for provisioned VM
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: add-vm.yml
+        record_deployment_roles: >-
+          {{
+            ['export_autoinstall_seed', 'test_proxmox_api', 'add_proxmox_vm']
+            + (
+              ['configure_disks']
+              if (vm.extra_disks | default([]) | length > 0)
+              else []
+            )
+            + (
+              ['add_autoupdate']
+              if (vm.enable_autoupdate | default(true) | bool)
+              else []
+            )
+          }}
+        record_deployment_metadata:
+          vm_name: "{{ inventory_hostname }}"
+          vmid: "{{ vm.vmid }}"

@@ -1,0 +1,99 @@
+---
+- name: Assert required deployment metadata is set
+  ansible.builtin.assert:
+    that:
+      - record_deployment_playbook | trim | length > 0
+    fail_msg: "record_deployment_playbook must be set when using record_deployment"
+
+- name: Build tracked repository paths for deployment record
+  ansible.builtin.set_fact:
+    record_deployment_tracked_paths: >-
+      {{
+        (
+          ['playbooks/' ~ record_deployment_playbook]
+          + (
+            record_deployment_roles
+            | map('regex_replace', '^(.*)$', 'playbooks/roles/\\1')
+            | list
+          )
+          + (record_deployment_extra_paths | default([]))
+        )
+        | unique
+      }}
+
+- name: Capture repository state for deployment record
+  ansible.builtin.set_fact:
+    record_deployment_repo_commit: >-
+      {{
+        lookup(
+          'ansible.builtin.pipe',
+          'git -C ' ~ (record_deployment_repo_root | quote) ~ ' rev-parse HEAD'
+        ) | trim
+      }}
+    record_deployment_repo_dirty: >-
+      {{
+        (
+          lookup(
+            'ansible.builtin.pipe',
+            'git -C ' ~ (record_deployment_repo_root | quote) ~ ' status --porcelain'
+          ) | trim
+        ) != ''
+      }}
+
+- name: Initialize tracked path version list
+  ansible.builtin.set_fact:
+    record_deployment_path_versions: []
+
+- name: Capture latest git commit for tracked paths
+  ansible.builtin.set_fact:
+    record_deployment_path_versions: >-
+      {{
+        (record_deployment_path_versions | default([]))
+        + [
+            {
+              'path': item,
+              'commit': (
+                lookup(
+                  'ansible.builtin.pipe',
+                  'git -C ' ~ (record_deployment_repo_root | quote)
+                  ~ ' log -n 1 --format=%H -- ' ~ (item | quote)
+                ) | trim
+              ) or none
+            }
+          ]
+      }}
+  loop: "{{ record_deployment_tracked_paths }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Render deployment history entry
+  ansible.builtin.set_fact:
+    record_deployment_history_entry: >-
+      {{
+        lookup('ansible.builtin.template', 'deploy-history-entry.yml.j2')
+      }}
+
+- name: Ensure deployment history directory exists
+  ansible.builtin.file:
+    path: "{{ record_deployment_history_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure deployment history file exists
+  ansible.builtin.file:
+    path: "{{ record_deployment_history_file }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Append deployment history entry
+  ansible.builtin.command:
+    argv:
+      - tee
+      - -a
+      - "{{ record_deployment_history_file }}"
+    stdin: "{{ record_deployment_history_entry }}"
+  changed_when: true

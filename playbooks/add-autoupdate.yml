@@ -1,0 +1,17 @@
+---
+- name: Configure automatic security updates on Ubuntu hosts
+  hosts: ubuntu_auto_update
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: add_autoupdate
+
+  post_tasks:
+    - name: Record deployment history for automatic updates
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: add-autoupdate.yml
+        record_deployment_roles:
+          - add_autoupdate

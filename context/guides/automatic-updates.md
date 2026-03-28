@@ -18,3 +18,5 @@ Role defaults live under `playbooks/roles/add_autoupdate/defaults/main.yml`.
 Override the role variables if a host or group needs different origins, cleanup timing, or reboot behavior.
 
 Set `enable_autoupdate: false` in a VM's host vars to skip automatic update configuration during `playbooks/add-vm.yml`.
+
+Successful runs also append a deployment entry on the host in `/var/lib/homelab/deploy-history.yml`.
