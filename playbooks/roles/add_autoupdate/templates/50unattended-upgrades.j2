@@ -1,0 +1,10 @@
+Unattended-Upgrade::Allowed-Origins {
+{% for origin in add_autoupdate_allowed_origins %}
+        "{{ origin }}";
+{% endfor %}
+};
+
+Unattended-Upgrade::Remove-Unused-Dependencies "{{ add_autoupdate_remove_unused_dependencies | ternary('true', 'false') }}";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "{{ add_autoupdate_remove_unused_kernel_packages | ternary('true', 'false') }}";
+Unattended-Upgrade::Automatic-Reboot "{{ add_autoupdate_automatic_reboot | ternary('true', 'false') }}";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ add_autoupdate_automatic_reboot_time }}";

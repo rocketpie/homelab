@@ -38,4 +38,5 @@ Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a
 * remove any old SSH host key for that IP with ssh-keygen -R
 * adds VM to in-memory inventory with relaxed first-connect SSH options and the inventory-defined ansible_user
 * second play: connect over SSH, run ping to confirm
+* guest configuration then applies baseline roles such as disk setup and automatic Ubuntu security updates unless the VM opts out with enable_autoupdate: false
 

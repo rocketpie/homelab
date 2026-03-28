@@ -1,0 +1,20 @@
+---
+add_autoupdate_packages:
+  - unattended-upgrades
+
+add_autoupdate_cache_valid_time: 3600
+add_autoupdate_update_package_lists: 1
+add_autoupdate_unattended_upgrade_interval: 1
+add_autoupdate_autoclean_interval: 7
+
+add_autoupdate_allowed_origins:
+  - '${distro_id}:${distro_codename}-security'
+
+add_autoupdate_remove_unused_dependencies: true
+add_autoupdate_remove_unused_kernel_packages: true
+add_autoupdate_automatic_reboot: false
+add_autoupdate_automatic_reboot_time: "02:00"
+
+add_autoupdate_timers:
+  - apt-daily.timer
+  - apt-daily-upgrade.timer

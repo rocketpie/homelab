@@ -8,7 +8,16 @@ cores: 1
 memory_mb: 512
 os_disk_gb: 10
 
-# Optional DNS aliases (additional names that resolve to this host)
+# extra_disks:
+#  - disk_gb: 50
+#    pve_storage: "local-pve-rpool"
+#    mount_path: "/media/example-data"
+#    fs_type: "ext4"
+#    mount_options: "defaults,nofail"
+
+# enable_autoupdate: false
+
+# Optional DNS aliases
 # These will be registered in Unbound DNS
 # dns_aliases:
 #   - "dns2.lan"

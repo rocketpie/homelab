@@ -219,3 +219,8 @@
       loop_control:
         label: "{{ item.item.mount_path }}"
       when: vm.extra_disks | default([]) | length > 0
+
+    - name: Configure automatic security updates
+      ansible.builtin.include_role:
+        name: add_autoupdate
+      when: vm.enable_autoupdate | default(true) | bool

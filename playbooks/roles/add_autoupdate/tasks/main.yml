@@ -1,0 +1,39 @@
+---
+- name: Assert supported platform for automatic updates
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+      - ansible_distribution == 'Ubuntu'
+    fail_msg: "add_autoupdate currently supports Ubuntu hosts only"
+
+- name: Install unattended upgrade packages
+  ansible.builtin.apt:
+    name: "{{ add_autoupdate_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: "{{ add_autoupdate_cache_valid_time }}"
+
+- name: Configure apt periodic automatic updates
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure unattended-upgrades policy
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure apt automatic update timers are enabled and running
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ add_autoupdate_timers }}"
+  loop_control:
+    label: "{{ item }}"
