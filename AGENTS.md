@@ -58,6 +58,8 @@ If relevant, also inspect:
 - Follow existing Ansible and PowerShell patterns already used in the repo.
 - Use the repository naming convention:
   playbooks use PowerShell-style verb-noun names in kebab-case, roles use verb_noun snake_case, and role-local variables should be prefixed with the full role name.
+- When troubleshooting, guess at most once.
+  After the first guess, add explicit troubleshooting steps, name them with `troubleshoot`, capture the real output/log/response format, and use that evidence to drive the next change.
 - Prefer updating the relevant `context/` docs when you discover task-specific knowledge that should persist.
 - Do not overwrite unrelated user changes.
 - Treat inventory and host variable changes as sensitive, because they affect real infrastructure behavior.
