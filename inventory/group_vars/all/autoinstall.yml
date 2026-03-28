@@ -16,4 +16,4 @@ autoinstall_vm_ipv4_nameservers:
   - "192.168.178.1"
 
 # this is the default for all playbooks that target a single VM
-autoinstall_default_vm_name:  netcontroller1
+autoinstall_default_vm_name: restic1

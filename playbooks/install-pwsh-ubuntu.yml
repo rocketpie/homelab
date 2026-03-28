@@ -10,7 +10,10 @@
 
     - name: Add Microsoft apt repo
       ansible.builtin.apt_repository:
-        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod {{ ansible_distribution_release }} main"
+        repo: >-
+          deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
+          https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod
+          {{ ansible_distribution_release }} main
         filename: "microsoft-prod"
         state: present
 

@@ -125,10 +125,14 @@
     label: "{{ item.disk_id }}"
 
 - name: Create GPT label when missing
-  community.general.parted:
-    device: "{{ item.disk_device }}"
-    label: gpt
-    state: present
+  ansible.builtin.command:
+    argv:
+      - parted
+      - --script
+      - "{{ item.disk_device }}"
+      - mklabel
+      - gpt
+  changed_when: true
   when: item.lsblk.pttype | default('') == ''
   loop: "{{ guest_extra_disks_inspected }}"
   loop_control:

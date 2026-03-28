@@ -25,8 +25,21 @@ function Main {
 
     if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -InstallVenv." }
 
+    $vaultExcludes = Get-ChildItem -Path $PSScriptRoot -Recurse -Filter "vault.yml" -File |
+    ForEach-Object {
+        [System.IO.Path]::GetRelativePath($PSScriptRoot, $_.FullName)
+    } |
+    Sort-Object
+
+    $ansibleLintArgs = @()
+    foreach ($vaultExclude in $vaultExcludes) {
+        $ansibleLintArgs += "--exclude"
+        $ansibleLintArgs += $vaultExclude
+    }
+    $ansibleLintArgs += $PSScriptRoot
+
     Write-Host "Running ansible-lint..."
-    & $ansibleLint $PSScriptRoot
+    & $ansibleLint @ansibleLintArgs
 }
 
 

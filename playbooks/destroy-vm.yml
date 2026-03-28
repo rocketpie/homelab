@@ -97,7 +97,7 @@
         vmid: "{{ vm.vmid }}"
         state: stopped
         force: true
-      ignore_errors: true
+      when: (proxmox_vm_match.status | default('')) != 'stopped'
 
     - name: Destroy VM
       community.proxmox.proxmox_kvm:
