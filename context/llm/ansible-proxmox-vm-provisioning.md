@@ -33,11 +33,9 @@ Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a
 * Ansible polls Proxmox until VM is stopped
 * remove attached installer CD-ROM
 * boot the VM
-* poll qemu-guest-agent via Proxmox API until it reports a non-loopback IPv4
-* waits for SSH
-* remove any old SSH host key for that IP with ssh-keygen -R
-* adds VM to in-memory inventory with relaxed first-connect SSH options and the inventory-defined ansible_user
-* second play: connect over SSH, run ping to confirm
-* guest configuration then applies baseline roles such as disk setup and automatic Ubuntu security updates unless the VM opts out with enable_autoupdate: false
+* remove any old SSH host key for that address with ssh-keygen -R
+* adds VM to in-memory inventory with relaxed first-connect SSH options
+* second play: wait for a SSH connection
+* guest configuration then applies baseline roles such as disk setup (except no disks) and automatic Ubuntu security updates (except enable_autoupdate: false)
 * successful guest configuration appends a deployment record to /var/lib/homelab/deploy-history.yml on the VM
 

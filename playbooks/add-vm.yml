@@ -21,6 +21,15 @@
           - vm_name in hostvars
         fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
 
+    - name: Ensure target VM has a static ansible_host configured
+      ansible.builtin.assert:
+        that:
+          - hostvars[vm_name].ansible_host is defined
+          - hostvars[vm_name].ansible_host | string | trim | length > 0
+        fail_msg: >-
+          Host '{{ vm_name }}' must define ansible_host in inventory for static
+          post-provision SSH handoff.
+
     - name: Materialize selected VM vars with normalized extra disks
       ansible.builtin.set_fact:
         vm: >-
@@ -77,6 +86,7 @@
       ansible.builtin.debug:
         msg:
           - "vm_name: {{ vm_name }}"
+          - "vm.ansible_host: {{ vm.ansible_host }}"
           - "vm.vmid: {{ vm.vmid }}"
           - "vm.ansible_user: {{ vm.ansible_user }}"
           - "vm.host_users: {{ vm.host_users | default([]) | map(attribute='name') | list }}"
@@ -94,62 +104,9 @@
       ansible.builtin.include_role:
         name: add_proxmox_vm
 
-    - name: Wait for qemu-guest-agent to report a non-loopback IPv4
-      vars:
-        agent_url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ vm.proxmox_node }}/qemu/{{ vm.vmid }}/agent/network-get-interfaces"
-      ansible.builtin.uri:
-        url: "{{ agent_url }}"
-        method: GET
-        headers:
-          Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
-        validate_certs: "{{ proxmox_api_verify_ssl }}"
-        return_content: true
-      register: agent_net
-      changed_when: false
-      until: >
-        (
-          agent_net.json.data.result
-          | default([])
-          | rejectattr('name', 'equalto', 'lo')
-          | map(attribute='ip-addresses')
-          | flatten
-          | selectattr('ip-address-type', 'equalto', 'ipv4')
-          | rejectattr('ip-address', 'match', '^127\.')
-          | rejectattr('ip-address', 'match', '^169\.254\.')
-          | map(attribute='ip-address')
-          | list
-          | length
-        ) > 0
-      retries: 90
-      delay: 10
-
-    - name: Pick first non-local IPv4 from agent data
-      ansible.builtin.set_fact:
-        vm_ip: >-
-          {{
-            (
-              agent_net.json.data.result
-              | default([])
-              | rejectattr('name', 'equalto', 'lo')
-              | map(attribute='ip-addresses')
-              | flatten
-              | selectattr('ip-address-type', 'equalto', 'ipv4')
-              | rejectattr('ip-address', 'match', '^127\.')
-              | rejectattr('ip-address', 'match', '^169\.254\.')
-              | map(attribute='ip-address')
-              | first
-            )
-          }}
-
-    - name: Wait for SSH to come up
-      ansible.builtin.wait_for:
-        host: "{{ vm_ip }}"
-        port: 22
-        timeout: 1200
-
     - name: Remove old SSH host key for this IP
       ansible.builtin.command:
-        cmd: "ssh-keygen -R {{ vm_ip }}"
+        cmd: "ssh-keygen -R {{ vm.ansible_host }}"
       changed_when: false
       failed_when: false
 
@@ -157,7 +114,7 @@
       ansible.builtin.add_host:
         vm: "{{ vm }}"
         name: "{{ vm_name }}"
-        ansible_host: "{{ vm_ip }}"
+        ansible_host: "{{ vm.ansible_host }}"
         ansible_user: "{{ vm.ansible_user }}"
         ansible_python_interpreter: "{{ vm.ansible_python_interpreter }}"
         ansible_ssh_private_key_file: "{{ vm.ansible_ssh_private_key_file }}"
@@ -170,8 +127,11 @@
   hosts: provisioned_vms
   gather_facts: false
   tasks:
-    - name: Ping over SSH
-      ansible.builtin.ping:
+    - name: Wait for SSH connection
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+        connect_timeout: 5
+        sleep: 5
 
 - name: Configure provisioned VM
   hosts: provisioned_vms
@@ -188,7 +148,7 @@
 
     - name: Reboot VM after guest disk configuration
       ansible.builtin.reboot:
-        reboot_timeout: 1200
+        reboot_timeout: 120
         test_command: whoami
       when: vm.extra_disks | default([]) | length > 0
 
