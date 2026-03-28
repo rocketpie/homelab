@@ -1,0 +1,42 @@
+---
+- name: Query every effective DNS record via updated resolver
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +short
+      - +time=2
+      - +tries=1
+      - "@{{ ansible_host }}"
+      - >-
+        {{
+          item.name
+          if '.' ~ unbound_local_tld in item.name or item.name.endswith('.' ~ unbound_local_tld)
+          else item.name ~ '.' ~ unbound_local_tld
+        }}
+      - A
+  loop: "{{ unbound_effective_dns_records }}"
+  loop_control:
+    label: "{{ item.name }} -> {{ item.value }}"
+  register: unbound_controller_dig_results
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: Assert every effective DNS record resolves via updated resolver
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+      - item.stdout_lines | select('equalto', item.item.value) | list | length > 0
+    fail_msg: >-
+      Resolver '{{ inventory_hostname }}' at '{{ ansible_host }}' returned
+      {{ item.stdout_lines | default([]) }} for
+      {{
+        item.item.name
+        if '.' ~ unbound_local_tld in item.item.name or item.item.name.endswith('.' ~ unbound_local_tld)
+        else item.item.name ~ '.' ~ unbound_local_tld
+      }},
+      expected '{{ item.item.value }}'.
+  loop: "{{ unbound_controller_dig_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }} -> {{ item.item.value }}"
+  changed_when: false

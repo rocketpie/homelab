@@ -1,4 +1,62 @@
 ---
+- name: Build netcontroller rollout groups
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    unbound_rollout_hosts: "{{ groups['unbound'] | default([]) }}"
+    unbound_rollout_active_host: >-
+      {{
+        unbound_active_resolver_host
+        | default(unbound_rollout_hosts | last, true)
+      }}
+    unbound_rollout_passive_hosts: >-
+      {{
+        unbound_rollout_hosts
+        | reject('equalto', unbound_rollout_active_host)
+        | list
+      }}
+
+  tasks:
+    - name: Ensure dig is available on the controller
+      ansible.builtin.command:
+        cmd: which dig
+      changed_when: false
+
+    - name: Ensure at least one unbound host is defined
+      ansible.builtin.assert:
+        that:
+          - unbound_rollout_hosts | length > 0
+        fail_msg: "The 'unbound' inventory group is empty."
+
+    - name: Ensure active resolver host is part of the unbound group
+      ansible.builtin.assert:
+        that:
+          - unbound_rollout_active_host in unbound_rollout_hosts
+        fail_msg: >-
+          Active resolver '{{ unbound_rollout_active_host }}' is not part of the
+          'unbound' inventory group.
+
+    - name: Show DNS rollout order
+      ansible.builtin.debug:
+        msg:
+          - "passive resolvers first: {{ unbound_rollout_passive_hosts }}"
+          - "active resolver last: {{ unbound_rollout_active_host }}"
+        verbosity: 1
+
+    - name: Build passive resolver rollout group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: unbound_rollout_passive
+      loop: "{{ unbound_rollout_passive_hosts }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Build active resolver rollout group
+      ansible.builtin.add_host:
+        name: "{{ unbound_rollout_active_host }}"
+        groups: unbound_rollout_active
+
 - name: Install DHCP service components
   hosts: kea
   become: true
@@ -7,10 +65,32 @@
   roles:
     - role: kea-install
 
-- name: Install and configure DNS service components
-  hosts: unbound
+- name: Install and verify DNS service components on passive resolvers
+  hosts: unbound_rollout_passive
+  order: inventory
+  serial: 1
+  any_errors_fatal: true
   become: true
   gather_facts: true
 
   roles:
     - role: unbound-setup
+
+  post_tasks:
+    - name: Verify DNS from controller via passive resolver
+      ansible.builtin.include_tasks: tasks/verify-unbound-from-controller.yml
+
+- name: Install and verify DNS service components on active resolver
+  hosts: unbound_rollout_active
+  order: inventory
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: unbound-setup
+
+  post_tasks:
+    - name: Verify DNS from controller via active resolver
+      ansible.builtin.include_tasks: tasks/verify-unbound-from-controller.yml
