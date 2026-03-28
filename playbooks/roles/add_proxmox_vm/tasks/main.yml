@@ -162,7 +162,10 @@
     return_content: true
   register: add_proxmox_vm_migrate_status
   changed_when: false
-  until: add_proxmox_vm_migrate_status.json.data.status == 'stopped'
+  until: >-
+    (
+      add_proxmox_vm_migrate_status.content | from_json
+    ).data.status == 'stopped'
   retries: 60
   delay: 10
   when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
@@ -170,10 +173,10 @@
 - name: Assert Proxmox migration completed successfully
   ansible.builtin.assert:
     that:
-      - add_proxmox_vm_migrate_status.json.data.exitstatus == 'OK'
+      - (add_proxmox_vm_migrate_status.content | from_json).data.exitstatus == 'OK'
     fail_msg: >-
       Proxmox VM migration failed for {{ vm_name }}:
-      {{ add_proxmox_vm_migrate_status.json.data | to_nice_json }}
+      {{ (add_proxmox_vm_migrate_status.content | from_json).data | to_nice_json }}
   when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
 
 - name: Switch active Proxmox node to final target

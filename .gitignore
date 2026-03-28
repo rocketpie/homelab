@@ -7,3 +7,5 @@ __pycache__/
 
 .vault_pass
 vault.yml
+
+inventory/group_vars/all/autoinstall-target.yml
