@@ -45,8 +45,9 @@ Secrets belong in the host vault:
 
 The role warns when:
 
+- an enabled repository has no repository password configured yet
 - a configured repository does not exist yet
 - an existing on-disk repository has no retention configuration
 
-Configured but missing repositories are skipped by the runtime maintenance
-script until they appear on disk.
+Repositories without passwords and configured-but-missing repositories are
+skipped by the runtime maintenance script until they are fully ready.

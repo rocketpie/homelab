@@ -72,16 +72,60 @@
   loop_control:
     label: "{{ item.user }}/{{ item.repository }}"
 
-- name: Validate restic retention repository passwords exist for enabled repositories
-  ansible.builtin.assert:
-    that:
-      - item.key in add_restic_retention_repository_passwords
-      - add_restic_retention_repository_passwords[item.key] | string | trim | length > 0
-    fail_msg: >-
-      Missing add_restic_retention_repository_passwords entry for {{ item.key }}.
+- name: Initialize restic retention runnable and skipped repository lists
+  ansible.builtin.set_fact:
+    add_restic_retention_password_ready_repositories: []
+    add_restic_retention_missing_password_repositories: []
+
+- name: Split enabled restic retention repositories by password availability
+  ansible.builtin.set_fact:
+    add_restic_retention_password_ready_repositories: >-
+      {{
+        (add_restic_retention_password_ready_repositories | default([]))
+        + (
+            [item]
+            if (
+              item.key in add_restic_retention_repository_passwords
+              and
+              add_restic_retention_repository_passwords[item.key] | string | trim | length > 0
+            )
+            else []
+          )
+      }}
+    add_restic_retention_missing_password_repositories: >-
+      {{
+        (add_restic_retention_missing_password_repositories | default([]))
+        + (
+            [item]
+            if not (
+              item.key in add_restic_retention_repository_passwords
+              and
+              add_restic_retention_repository_passwords[item.key] | string | trim | length > 0
+            )
+            else []
+          )
+      }}
   loop: "{{ add_restic_retention_materialized_repositories }}"
   loop_control:
     label: "{{ item.key }}"
+
+- name: Warn about enabled restic retention repositories without repository passwords
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: enabled retention repository {{ item.key }} has no
+      add_restic_retention_repository_passwords entry and will be skipped.
+  loop: "{{ add_restic_retention_missing_password_repositories }}"
+  loop_control:
+    label: "{{ item.key }}"
+  changed_when: false
+
+- name: Warn when no enabled restic retention repositories are runnable yet
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: no enabled retention repositories currently have repository
+      passwords configured, so the timer will run but skip all repositories.
+  when: add_restic_retention_password_ready_repositories | length == 0
+  changed_when: false
 
 - name: Install restic retention package
   ansible.builtin.apt:
@@ -133,10 +177,18 @@
     owner: root
     group: "{{ add_restic_retention_service_group }}"
     mode: "0640"
-  loop: "{{ add_restic_retention_materialized_repositories }}"
+  loop: "{{ add_restic_retention_password_ready_repositories }}"
   loop_control:
     label: "{{ item.key }}"
   no_log: true
+
+- name: Remove stale restic retention env files for repositories without passwords
+  ansible.builtin.file:
+    path: "{{ item.env_file }}"
+    state: absent
+  loop: "{{ add_restic_retention_missing_password_repositories }}"
+  loop_control:
+    label: "{{ item.key }}"
 
 - name: Check whether restic retention root dir exists
   ansible.builtin.stat:

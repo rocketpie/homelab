@@ -5,7 +5,10 @@ failed=0
 
 echo "Starting restic retention run"
 
-{% for repository in add_restic_retention_materialized_repositories %}
+{% if add_restic_retention_password_ready_repositories | length == 0 %}
+echo "WARN: no enabled repositories have repository passwords configured"
+{% endif %}
+{% for repository in add_restic_retention_password_ready_repositories %}
 echo
 echo "==> {{ repository.key }}"
 
