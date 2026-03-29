@@ -5,6 +5,10 @@ Managed hosts can keep an append-only deployment history at `/var/lib/homelab/de
 The per-user `host-status` admin scripts can use that file for quick on-host
 status checks.
 
+`host-status` shows the first recorded deployment entry plus a recent summary of
+later entries, so the initial `add-vm` provisioning record stays visible even
+after many later deployments.
+
 The history is written by the `record_deployment` role and answers:
 
 - which playbook last touched this host

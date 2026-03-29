@@ -89,11 +89,29 @@
     group: root
     mode: "0644"
 
+- name: Check deployment history file size
+  ansible.builtin.stat:
+    path: "{{ record_deployment_history_file }}"
+  register: record_deployment_history_file_stat
+
+- name: Materialize append-safe deployment history entry
+  ansible.builtin.set_fact:
+    record_deployment_history_entry_to_append: >-
+      {{
+        (
+          '\n'
+          if (record_deployment_history_file_stat.stat.size | default(0) | int) > 0
+          else ''
+        )
+        ~ (record_deployment_history_entry | trim)
+        ~ '\n'
+      }}
+
 - name: Append deployment history entry
   ansible.builtin.command:
     argv:
       - tee
       - -a
       - "{{ record_deployment_history_file }}"
-    stdin: "{{ record_deployment_history_entry }}"
+    stdin: "{{ record_deployment_history_entry_to_append }}"
   changed_when: true

@@ -16,4 +16,6 @@
     -> focus on extending the config, like adding a new repo or changing retention
 
 
-# fix deployment history does not contain initial add-vm log
+# verify fix: deployment history does not contain initial add-vm log
+
+# host-status should summarize, offer `cat log-file-path`
