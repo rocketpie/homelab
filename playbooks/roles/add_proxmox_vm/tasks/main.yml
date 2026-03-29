@@ -149,12 +149,20 @@
   register: add_proxmox_vm_migrate_result
   when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
 
+- name: Materialize Proxmox migration task UPID
+  ansible.builtin.set_fact:
+    add_proxmox_vm_migrate_task_upid: >-
+      {{ add_proxmox_vm_migrate_result.json.data | string | trim }}
+  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
+
 - name: Wait for Proxmox migration task to finish
   ansible.builtin.uri:
     url: >-
-      https://{{ proxmox_api_host }}:8006/api2/json/nodes/
-      {{ add_proxmox_vm_provision_node }}/tasks/
-      {{ add_proxmox_vm_migrate_result.json.data | urlencode }}/status
+      {{
+        'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
+        (add_proxmox_vm_provision_node | trim) ~ '/tasks/' ~
+        (add_proxmox_vm_migrate_task_upid | urlencode) ~ '/status'
+      }}
     method: GET
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
@@ -163,9 +171,9 @@
   register: add_proxmox_vm_migrate_status
   changed_when: false
   until: >-
-    (
-      add_proxmox_vm_migrate_status.content | from_json
-    ).data.status == 'stopped'
+    add_proxmox_vm_migrate_status.content | default('') | regex_search(
+      '"status"\\s*:\\s*"stopped"'
+    )
   retries: 60
   delay: 10
   when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
@@ -173,10 +181,25 @@
 - name: Assert Proxmox migration completed successfully
   ansible.builtin.assert:
     that:
-      - (add_proxmox_vm_migrate_status.content | from_json).data.exitstatus == 'OK'
+      - add_proxmox_vm_migrate_status.content | default('') | regex_search(
+          '"exitstatus"\\s*:\\s*"OK"'
+        )
     fail_msg: >-
       Proxmox VM migration failed for {{ vm_name }}:
-      {{ (add_proxmox_vm_migrate_status.content | from_json).data | to_nice_json }}
+      {{
+        (
+          add_proxmox_vm_migrate_status.content
+          | default('', true)
+          | trim
+        )
+        if (
+          add_proxmox_vm_migrate_status.content
+          | default('', true)
+          | trim
+          | length
+        ) > 0
+        else (add_proxmox_vm_migrate_status | to_nice_json)
+      }}
   when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
 
 - name: Switch active Proxmox node to final target
