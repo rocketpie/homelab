@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+exec {{ add_rclone_binary_path | quote }} \
+  {{ add_rclone_operation | quote }} \
+  {{ add_rclone_source_path | quote }} \
+  {{ add_rclone_remote_path | quote }} \
+{% for flag in add_rclone_flags %}
+  {{ flag | quote }} \
+{% endfor %}
+  --config {{ add_rclone_config_file | quote }}

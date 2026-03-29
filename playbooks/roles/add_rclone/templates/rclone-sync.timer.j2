@@ -1,0 +1,11 @@
+[Unit]
+Description=Run configured rclone sync timer
+
+[Timer]
+OnBootSec={{ add_rclone_timer_on_boot_sec }}
+OnUnitActiveSec={{ add_rclone_timer_on_unit_active_sec }}
+Persistent=true
+Unit={{ add_rclone_service_name }}
+
+[Install]
+WantedBy=timers.target

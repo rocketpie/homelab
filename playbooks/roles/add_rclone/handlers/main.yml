@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Stop rclone timer
+  ansible.builtin.service:
+    name: "{{ add_rclone_timer_name }}"
+    enabled: false
+    state: stopped

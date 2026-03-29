@@ -1,0 +1,47 @@
+---
+add_rclone_version: "1.71.2"
+add_rclone_archive_filename: >-
+  rclone-v{{ add_rclone_version }}-linux-amd64.zip
+add_rclone_archive_url: >-
+  https://downloads.rclone.org/v{{ add_rclone_version }}/{{ add_rclone_archive_filename }}
+add_rclone_archive_path: >-
+  /var/tmp/{{ add_rclone_archive_filename }}
+add_rclone_extract_dir: >-
+  /usr/local/src/rclone-v{{ add_rclone_version }}-linux-amd64
+add_rclone_binary_source_path: "{{ add_rclone_extract_dir }}/rclone"
+add_rclone_binary_path: /usr/local/bin/rclone
+
+add_rclone_packages:
+  - ca-certificates
+  - unzip
+
+add_rclone_user: root
+add_rclone_group: root
+
+add_rclone_config_dir: /etc/rclone
+add_rclone_config_file: "{{ add_rclone_config_dir }}/rclone.conf"
+add_rclone_remote_config_content: ""
+
+add_rclone_cache_dir: /var/cache/rclone
+add_rclone_script_path: /usr/local/bin/rclone-sync
+
+add_rclone_service_name: rclone-sync.service
+add_rclone_service_unit_path: >-
+  /etc/systemd/system/{{ add_rclone_service_name }}
+add_rclone_timer_name: rclone-sync.timer
+add_rclone_timer_unit_path: >-
+  /etc/systemd/system/{{ add_rclone_timer_name }}
+
+add_rclone_source_path: ""
+add_rclone_remote_path: ""
+add_rclone_operation: sync
+add_rclone_flags:
+  - --fast-list
+  - --checksum
+  - --transfers=4
+  - --checkers=8
+  - --stats=1m
+  - --stats-one-line
+
+add_rclone_timer_on_boot_sec: 10m
+add_rclone_timer_on_unit_active_sec: 6h

@@ -1,0 +1,19 @@
+[Unit]
+Description=Run configured rclone sync job
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ add_rclone_user }}
+Group={{ add_rclone_group }}
+Environment=RCLONE_CONFIG={{ add_rclone_config_file }}
+Environment=RCLONE_CACHE_DIR={{ add_rclone_cache_dir }}
+ExecStart={{ add_rclone_script_path }}
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadOnlyPaths={{ add_rclone_source_path | regex_replace('/+$', '') }}
+ReadWritePaths={{ add_rclone_cache_dir }}

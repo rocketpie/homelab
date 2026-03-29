@@ -6,14 +6,18 @@
 
   roles:
     - role: add_restic_server
+    - role: add_rclone
 
   post_tasks:
-    - name: Record deployment history for rest-server
+    - name: Record deployment history for backup service stack
       ansible.builtin.include_role:
         name: record_deployment
       vars:
         record_deployment_playbook: add-rest-server.yml
         record_deployment_roles:
           - add_restic_server
+          - add_rclone
         record_deployment_metadata:
-          service: rest-server
+          services:
+            - rest-server
+            - rclone

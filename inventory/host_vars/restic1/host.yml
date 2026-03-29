@@ -20,9 +20,13 @@ extra_disks:
 dns_aliases:
   - "backup.lan"
 
-add_restic_server_data_dir: "/media/backups/restic"
+add_restic_server_data_dir: "/media/backups/restic-data"
 add_restic_server_listen_address: ":8000"
 
+add_rclone_user: "rest-server"
+add_rclone_group: "rest-server"
+add_rclone_source_path: "/media/backups/restic-data/"
+add_rclone_remote_path: "pCloud:homelab-restic1"
 
 host_users:
   - name: "archivar"
@@ -39,3 +43,9 @@ host_users:
 #     password: "REST_SERVER_PASSWORD_HERE"
 #   - name: "backup-user-2"
 #     password: "REST_SERVER_PASSWORD_HERE"
+
+# add_rclone_remote_config_content: |
+#   [pCloud]
+#   type = pcloud
+#   token = {"access_token":"...","token_type":"bearer","expiry":"0001-01-01T00:00:00Z"}
+#   hostname = eapi.pcloud.com

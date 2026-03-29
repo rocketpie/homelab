@@ -1,0 +1,156 @@
+---
+- name: Validate host platform for rclone install
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_architecture in ['x86_64', 'amd64']
+    fail_msg: "add_rclone currently supports Linux amd64 hosts only."
+
+- name: Validate rclone job configuration
+  ansible.builtin.assert:
+    that:
+      - add_rclone_source_path | string | trim | length > 0
+      - add_rclone_remote_path | string | trim | length > 0
+      - add_rclone_remote_config_content | string | trim | length > 0
+      - add_rclone_remote_path is match('^[^:]+:.+$')
+      - add_rclone_operation in ['copy', 'sync']
+    fail_msg: >-
+      add_rclone requires valid source, remote config, remote, and operation
+      settings.
+
+- name: Validate rclone remote configuration content
+  ansible.builtin.assert:
+    that:
+      - add_rclone_remote_config_content | regex_search('(?m)^\\[[^]]+\\]$')
+    fail_msg: >-
+      add_rclone_remote_config_content must contain a valid rclone remote stanza.
+
+- name: Materialize configured rclone remote name
+  ansible.builtin.set_fact:
+    add_rclone_remote_name: >-
+      {{ add_rclone_remote_path | regex_replace(':.*$', '') }}
+
+- name: Install rclone packages
+  ansible.builtin.apt:
+    name: "{{ add_rclone_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure rclone directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: /usr/local/src
+      owner: root
+      group: root
+      mode: "0755"
+    - path: "{{ add_rclone_config_dir }}"
+      owner: root
+      group: "{{ add_rclone_group }}"
+      mode: "0750"
+    - path: "{{ add_rclone_cache_dir }}"
+      owner: "{{ add_rclone_user }}"
+      group: "{{ add_rclone_group }}"
+      mode: "0750"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Download rclone archive
+  ansible.builtin.get_url:
+    url: "{{ add_rclone_archive_url }}"
+    dest: "{{ add_rclone_archive_path }}"
+    mode: "0644"
+
+- name: Unpack rclone archive
+  ansible.builtin.unarchive:
+    src: "{{ add_rclone_archive_path }}"
+    dest: /usr/local/src
+    remote_src: true
+    creates: "{{ add_rclone_binary_source_path }}"
+
+- name: Install rclone binary
+  ansible.builtin.copy:
+    src: "{{ add_rclone_binary_source_path }}"
+    dest: "{{ add_rclone_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Verify rclone binary
+  ansible.builtin.command:
+    argv:
+      - "{{ add_rclone_binary_path }}"
+      - version
+  changed_when: false
+
+- name: Install rclone remote config
+  ansible.builtin.copy:
+    content: "{{ add_rclone_remote_config_content }}"
+    dest: "{{ add_rclone_config_file }}"
+    owner: root
+    group: "{{ add_rclone_group }}"
+    mode: "0640"
+  no_log: true
+
+- name: Validate configured rclone remotes
+  ansible.builtin.command:
+    argv:
+      - "{{ add_rclone_binary_path }}"
+      - listremotes
+      - --config
+      - "{{ add_rclone_config_file }}"
+  register: add_rclone_listremotes_result
+  changed_when: false
+
+- name: Assert requested rclone remote exists
+  ansible.builtin.assert:
+    that:
+      - (add_rclone_remote_name ~ ':') in add_rclone_listremotes_result.stdout_lines
+    fail_msg: >-
+      rclone remote {{ add_rclone_remote_name }} is not present in
+      {{ add_rclone_config_file }}.
+
+- name: Install rclone sync script
+  ansible.builtin.template:
+    src: rclone-sync.sh.j2
+    dest: "{{ add_rclone_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Stop rclone timer
+
+- name: Install rclone sync service unit
+  ansible.builtin.template:
+    src: rclone-sync.service.j2
+    dest: "{{ add_rclone_service_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Stop rclone timer
+
+- name: Install rclone sync timer unit
+  ansible.builtin.template:
+    src: rclone-sync.timer.j2
+    dest: "{{ add_rclone_timer_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Stop rclone timer
+
+- name: Flush handlers before enforcing disabled timer state
+  ansible.builtin.meta: flush_handlers
+
+- name: Disable and stop rclone timer after install
+  ansible.builtin.service:
+    name: "{{ add_rclone_timer_name }}"
+    enabled: false
+    state: stopped
