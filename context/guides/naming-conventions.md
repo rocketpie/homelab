@@ -45,6 +45,20 @@ Examples:
 - `configure_disks_mounts`
 - `export_autoinstall_seed_vm_users`
 
+## Vault Variables
+
+Keep all secrets in a `vault.yml`.
+Add a template comment at the bottom of the relevant `host.yml` / `users.yml` or `any-other-yml`:
+
+eg. restic1/host.yml:
+```yaml
+...
+# vault.yml:
+# add_restic_server_htpasswd_entries:
+#   - name: "archivar"
+#     password: "REST_SERVER_PASSWORD_HERE"
+```
+
 ## General Notes
 
 - Keep file and directory paths relative to the repository root or the current file.

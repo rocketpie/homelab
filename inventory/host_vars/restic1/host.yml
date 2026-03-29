@@ -20,6 +20,10 @@ extra_disks:
 dns_aliases:
   - "backup.lan"
 
+add_restic_server_data_dir: "/media/backups/restic"
+add_restic_server_listen_address: ":8000"
+
+
 host_users:
   - name: "archivar"
     description: "backup storage service account"
@@ -29,3 +33,9 @@ host_users:
 # vault.yml:
 # host_user_passwords:
 #   archivar: "USER_PASSWORD_HERE"
+
+# add_restic_server_htpasswd_entries:
+#   - name: "backup-user-1"
+#     password: "REST_SERVER_PASSWORD_HERE"
+#   - name: "backup-user-2"
+#     password: "REST_SERVER_PASSWORD_HERE"

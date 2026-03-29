@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart rest-server
+  ansible.builtin.service:
+    name: "{{ add_restic_server_service_name }}"
+    state: restarted

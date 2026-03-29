@@ -1,0 +1,4 @@
+renaming:
+    'kea' inventory role -> 'dhcp'
+    'unbound' inventory rule -> 'dns-resolver'
+    

@@ -1,0 +1,19 @@
+---
+- name: Build and install rest-server on backup hosts
+  hosts: restic_server
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: add_restic_server
+
+  post_tasks:
+    - name: Record deployment history for rest-server
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_playbook: add-rest-server.yml
+        record_deployment_roles:
+          - add_restic_server
+        record_deployment_metadata:
+          service: rest-server

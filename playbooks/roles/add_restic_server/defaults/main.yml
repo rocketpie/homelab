@@ -1,0 +1,57 @@
+---
+add_restic_server_version: "0.14.0"
+add_restic_server_repo_url: "https://github.com/restic/rest-server.git"
+add_restic_server_repo_version: "v{{ add_restic_server_version }}"
+
+add_restic_server_go_version: "1.24.13"
+add_restic_server_go_archive_filename: >-
+  go{{ add_restic_server_go_version }}.linux-amd64.tar.gz
+add_restic_server_go_archive_url: >-
+  https://go.dev/dl/{{ add_restic_server_go_archive_filename }}
+add_restic_server_go_archive_checksum: >-
+  sha256:1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730
+add_restic_server_go_archive_path: >-
+  /var/tmp/{{ add_restic_server_go_archive_filename }}
+add_restic_server_go_root: /usr/local/go
+add_restic_server_go_bin: "{{ add_restic_server_go_root }}/bin/go"
+
+add_restic_server_packages:
+  - ca-certificates
+  - git
+  - python3-passlib
+  - tar
+
+add_restic_server_user: rest-server
+add_restic_server_group: rest-server
+
+add_restic_server_source_dir: /usr/local/src/rest-server
+add_restic_server_build_output_path: "{{ add_restic_server_source_dir }}/rest-server"
+add_restic_server_binary_path: /usr/local/bin/rest-server
+
+add_restic_server_service_name: rest-server
+add_restic_server_service_unit_path: >-
+  /etc/systemd/system/{{ add_restic_server_service_name }}.service
+
+add_restic_server_config_dir: /etc/rest-server
+add_restic_server_data_dir: /media/backups/restic
+add_restic_server_htpasswd_file: >-
+  {{ add_restic_server_config_dir }}/.htpasswd
+
+add_restic_server_listen_address: ":8000"
+add_restic_server_log_target: "-"
+add_restic_server_append_only: true
+add_restic_server_private_repos: true
+add_restic_server_group_accessible_repos: false
+add_restic_server_prometheus: false
+add_restic_server_prometheus_no_auth: false
+add_restic_server_no_verify_upload: false
+
+add_restic_server_no_auth: false
+add_restic_server_htpasswd_entries: []
+
+add_restic_server_tls: false
+add_restic_server_tls_min_ver: "1.2"
+add_restic_server_tls_cert_file: ""
+add_restic_server_tls_key_file: ""
+
+add_restic_server_extra_flags: []

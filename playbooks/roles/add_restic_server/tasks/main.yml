@@ -1,0 +1,285 @@
+---
+- name: Validate host platform for rest-server build
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_architecture in ['x86_64', 'amd64']
+    fail_msg: >-
+      add_restic_server currently supports Linux amd64 hosts only.
+
+- name: Validate rest-server authentication mode
+  ansible.builtin.assert:
+    that:
+      - add_restic_server_htpasswd_entries | length > 0
+    fail_msg: >-
+      provide add_restic_server_htpasswd_entries with usernames and plaintext passwords
+      from the host vault.
+
+- name: Validate rest-server htpasswd entries
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | string | trim | length > 0
+      - item.password is defined
+      - item.password | string | trim | length > 0
+    fail_msg: "Invalid add_restic_server_htpasswd_entries item: {{ item | to_nice_yaml }}"
+  loop: "{{ add_restic_server_htpasswd_entries }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed-user') }}"
+
+- name: Validate TLS inputs when enabled
+  ansible.builtin.assert:
+    that:
+      - add_restic_server_tls_cert_file | string | trim | length > 0
+      - add_restic_server_tls_key_file | string | trim | length > 0
+    fail_msg: >-
+      add_restic_server_tls requires add_restic_server_tls_cert_file and
+      add_restic_server_tls_key_file.
+  when: add_restic_server_tls | bool
+
+- name: Install rest-server build dependencies
+  ansible.builtin.apt:
+    name: "{{ add_restic_server_packages }}"
+    state: present
+    update_cache: true
+
+- name: Check installed Go toolchain version marker
+  ansible.builtin.stat:
+    path: "{{ add_restic_server_go_root }}/VERSION"
+  register: add_restic_server_go_version_file
+
+- name: Read installed Go toolchain version marker
+  ansible.builtin.slurp:
+    src: "{{ add_restic_server_go_root }}/VERSION"
+  register: add_restic_server_go_version_content
+  when: add_restic_server_go_version_file.stat.exists
+
+- name: Materialize installed Go toolchain version
+  ansible.builtin.set_fact:
+    add_restic_server_installed_go_version: >-
+      {{
+        (
+          add_restic_server_go_version_content.content
+          | b64decode
+          | regex_replace('\r', '')
+          | split('\n')
+          | first
+          | default('')
+          | regex_replace('^go', '')
+          | trim
+        )
+        if add_restic_server_go_version_file.stat.exists
+        else ''
+      }}
+
+- name: Download Go toolchain archive
+  ansible.builtin.get_url:
+    url: "{{ add_restic_server_go_archive_url }}"
+    dest: "{{ add_restic_server_go_archive_path }}"
+    checksum: "{{ add_restic_server_go_archive_checksum }}"
+    mode: "0644"
+
+- name: Remove outdated Go toolchain
+  ansible.builtin.file:
+    path: "{{ add_restic_server_go_root }}"
+    state: absent
+  when:
+    - add_restic_server_go_version_file.stat.exists
+    - add_restic_server_installed_go_version != add_restic_server_go_version
+
+- name: Install requested Go toolchain
+  ansible.builtin.unarchive:
+    src: "{{ add_restic_server_go_archive_path }}"
+    dest: /usr/local
+    remote_src: true
+  when:
+    - (not add_restic_server_go_version_file.stat.exists)
+      or add_restic_server_installed_go_version != add_restic_server_go_version
+  register: add_restic_server_go_install_result
+
+- name: Ensure rest-server group exists
+  ansible.builtin.group:
+    name: "{{ add_restic_server_group }}"
+    system: true
+
+- name: Ensure rest-server user exists
+  ansible.builtin.user:
+    name: "{{ add_restic_server_user }}"
+    group: "{{ add_restic_server_group }}"
+    home: "{{ add_restic_server_data_dir }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+    system: true
+
+- name: Ensure rest-server directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ add_restic_server_source_dir }}"
+      owner: root
+      group: root
+      mode: "0755"
+    - path: "{{ add_restic_server_config_dir }}"
+      owner: root
+      group: "{{ add_restic_server_group }}"
+      mode: "0750"
+    - path: "{{ add_restic_server_data_dir }}"
+      owner: "{{ add_restic_server_user }}"
+      group: "{{ add_restic_server_group }}"
+      mode: "0750"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Check installed rest-server binary
+  ansible.builtin.stat:
+    path: "{{ add_restic_server_binary_path }}"
+  register: add_restic_server_binary_stat
+
+- name: Checkout rest-server source
+  ansible.builtin.git:
+    repo: "{{ add_restic_server_repo_url }}"
+    dest: "{{ add_restic_server_source_dir }}"
+    version: "{{ add_restic_server_repo_version }}"
+    single_branch: true
+    update: true
+  register: add_restic_server_repo_result
+
+- name: Decide whether rest-server needs rebuilding
+  ansible.builtin.set_fact:
+    add_restic_server_rebuild_required: >-
+      {{
+        (
+          add_restic_server_go_install_result is defined
+          and add_restic_server_go_install_result.changed
+        )
+        or add_restic_server_repo_result.changed
+        or not add_restic_server_binary_stat.stat.exists
+      }}
+
+- name: Build rest-server binary
+  ansible.builtin.command:
+    argv:
+      - "{{ add_restic_server_go_bin }}"
+      - build
+      - -trimpath
+      - -o
+      - "{{ add_restic_server_build_output_path }}"
+      - ./cmd/rest-server
+  args:
+    chdir: "{{ add_restic_server_source_dir }}"
+  environment:
+    CGO_ENABLED: "0"
+  when: add_restic_server_rebuild_required | bool
+  register: add_restic_server_build_result
+  changed_when: true
+
+- name: Install rest-server binary
+  ansible.builtin.copy:
+    src: "{{ add_restic_server_build_output_path }}"
+    dest: "{{ add_restic_server_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: add_restic_server_rebuild_required | bool
+  notify: Restart rest-server
+
+- name: Check existing rest-server htpasswd file
+  ansible.builtin.stat:
+    path: "{{ add_restic_server_htpasswd_file }}"
+  register: add_restic_server_htpasswd_stat
+
+- name: Read existing rest-server htpasswd file
+  ansible.builtin.slurp:
+    src: "{{ add_restic_server_htpasswd_file }}"
+  register: add_restic_server_htpasswd_content
+  when:
+    - add_restic_server_htpasswd_stat.stat.exists
+
+- name: Materialize rest-server htpasswd usernames
+  ansible.builtin.set_fact:
+    add_restic_server_current_htpasswd_usernames: >-
+      {{
+        (
+          add_restic_server_htpasswd_content.content
+          | b64decode
+          | regex_replace('\r', '')
+          | split('\n')
+          | map('regex_replace', ':.*$', '')
+          | reject('equalto', '')
+          | list
+        )
+        if add_restic_server_htpasswd_stat.stat.exists
+        else []
+      }}
+    add_restic_server_desired_htpasswd_usernames: >-
+      {{
+        add_restic_server_htpasswd_entries
+        | map(attribute='name')
+        | map('trim')
+        | list
+      }}
+
+- name: Remove stale rest-server htpasswd users
+  community.general.htpasswd:
+    path: "{{ add_restic_server_htpasswd_file }}"
+    name: "{{ item }}"
+    state: absent
+  loop: >-
+    {{
+      add_restic_server_current_htpasswd_usernames
+      | difference(add_restic_server_desired_htpasswd_usernames)
+    }}
+  loop_control:
+    label: "{{ item }}"
+  notify: Restart rest-server
+
+- name: Install rest-server htpasswd users
+  community.general.htpasswd:
+    path: "{{ add_restic_server_htpasswd_file }}"
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    crypt_scheme: bcrypt
+    state: present
+  loop: "{{ add_restic_server_htpasswd_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Restart rest-server
+
+- name: Set rest-server htpasswd file permissions
+  ansible.builtin.file:
+    path: "{{ add_restic_server_htpasswd_file }}"
+    owner: root
+    group: "{{ add_restic_server_group }}"
+    mode: "0640"
+    state: file
+
+- name: Remove managed htpasswd file when auth is disabled
+  ansible.builtin.file:
+    path: "{{ add_restic_server_htpasswd_file }}"
+    state: absent
+  notify: Restart rest-server
+
+- name: Install rest-server systemd unit
+  ansible.builtin.template:
+    src: rest-server.service.j2
+    dest: "{{ add_restic_server_service_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart rest-server
+
+- name: Flush handlers before enabling rest-server
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start rest-server
+  ansible.builtin.service:
+    name: "{{ add_restic_server_service_name }}"
+    enabled: true
+    state: started
