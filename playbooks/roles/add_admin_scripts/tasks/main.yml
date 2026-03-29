@@ -53,27 +53,71 @@
   register: add_admin_scripts_user_getent_result
   changed_when: false
 
+- name: Assert admin script user exists
+  ansible.builtin.assert:
+    that:
+      - add_admin_scripts_user_getent_result.rc == 0
+      - add_admin_scripts_user_getent_result.stdout | string | trim | length > 0
+    fail_msg: >-
+      Could not resolve add_admin_scripts_user {{ add_admin_scripts_user }}
+      on the target host.
+
 - name: Materialize admin script user home
   ansible.builtin.set_fact:
-    add_admin_scripts_user_home: >-
-      {{
-        add_admin_scripts_user_getent_result.stdout
-        | regex_replace('^[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:]*):.*$', '\\1')
-      }}
-    add_admin_scripts_dir: >-
-      {{
-        add_admin_scripts_user_getent_result.stdout
-        | regex_replace('^[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:]*):.*$', '\\1')
-      }}
+    add_admin_scripts_user_passwd_fields: "{{ add_admin_scripts_user_getent_result.stdout.split(':') }}"
+    add_admin_scripts_user_home: "{{ add_admin_scripts_user_getent_result.stdout.split(':')[5] | trim }}"
+    add_admin_scripts_dir: "{{ add_admin_scripts_user_getent_result.stdout.split(':')[5] | trim }}"
 
 - name: Assert admin script user home was resolved
   ansible.builtin.assert:
     that:
+      - add_admin_scripts_user_passwd_fields | length >= 7
       - add_admin_scripts_user_home | string | trim | length > 0
+      - add_admin_scripts_user_home.startswith('/')
       - add_admin_scripts_dir | string | trim | length > 0
+      - add_admin_scripts_dir.startswith('/')
     fail_msg: >-
       Could not determine a home directory for add_admin_scripts_user
       {{ add_admin_scripts_user }}.
+
+- name: Check whether connection user exists for admin script cleanup
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ ansible_user }}"
+  register: add_admin_scripts_connection_user_getent_result
+  changed_when: false
+  when:
+    - ansible_user is defined
+    - ansible_user | string | trim | length > 0
+    - ansible_user != add_admin_scripts_user
+
+- name: Materialize legacy broken admin script path
+  ansible.builtin.set_fact:
+    add_admin_scripts_legacy_broken_dir: >-
+      {{
+        (add_admin_scripts_connection_user_getent_result.stdout.split(':')[5] | trim)
+        ~ '/\\1'
+      }}
+  when:
+    - add_admin_scripts_connection_user_getent_result is defined
+    - add_admin_scripts_connection_user_getent_result.rc == 0
+    - add_admin_scripts_connection_user_getent_result.stdout | string | trim | length > 0
+
+- name: Check whether legacy broken admin script path exists
+  ansible.builtin.stat:
+    path: "{{ add_admin_scripts_legacy_broken_dir }}"
+  register: add_admin_scripts_legacy_broken_dir_stat
+  when: add_admin_scripts_legacy_broken_dir is defined
+
+- name: Remove legacy broken admin script path
+  ansible.builtin.file:
+    path: "{{ add_admin_scripts_legacy_broken_dir }}"
+    state: absent
+  when:
+    - add_admin_scripts_legacy_broken_dir_stat is defined
+    - add_admin_scripts_legacy_broken_dir_stat.stat.exists
 
 - name: Ensure admin script directory exists
   ansible.builtin.file:
