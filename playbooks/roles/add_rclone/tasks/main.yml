@@ -50,11 +50,11 @@
       mode: "0755"
     - path: "{{ add_rclone_config_dir }}"
       owner: root
-      group: "{{ add_rclone_group }}"
+      group: "{{ add_rclone_service_group }}"
       mode: "0750"
     - path: "{{ add_rclone_cache_dir }}"
-      owner: "{{ add_rclone_user }}"
-      group: "{{ add_rclone_group }}"
+      owner: "{{ add_rclone_service_user }}"
+      group: "{{ add_rclone_service_group }}"
       mode: "0750"
   loop_control:
     label: "{{ item.path }}"
@@ -93,7 +93,7 @@
     content: "{{ add_rclone_remote_config_content }}"
     dest: "{{ add_rclone_config_file }}"
     owner: root
-    group: "{{ add_rclone_group }}"
+    group: "{{ add_rclone_service_group }}"
     mode: "0640"
   no_log: true
 

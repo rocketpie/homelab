@@ -12,8 +12,8 @@ Git repository on the target host and manages it as a systemd service.
   `/media/backups/restic` for `restic1`
 - the systemd service writes logs to journald by default via `--log -`
 - on `restic1`, the service stack is intended to run as `archivar`, and the
-  role preserves that existing user instead of trying to convert it into a
-  dedicated system account
+  role preserves the existing `add_restic_server_service_user` instead of
+  trying to convert it into a dedicated system account
 
 ## Auth required
 

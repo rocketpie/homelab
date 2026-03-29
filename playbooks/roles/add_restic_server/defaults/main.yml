@@ -21,8 +21,8 @@ add_restic_server_packages:
   - python3-passlib
   - tar
 
-add_restic_server_user: rest-server
-add_restic_server_group: "{{ add_restic_server_user }}"
+add_restic_server_service_user: rest-server
+add_restic_server_service_group: "{{ add_restic_server_service_user }}"
 
 add_restic_server_source_dir: /usr/local/src/rest-server
 add_restic_server_build_output_path: "{{ add_restic_server_source_dir }}/rest-server"
@@ -54,3 +54,15 @@ add_restic_server_tls_cert_file: ""
 add_restic_server_tls_key_file: ""
 
 add_restic_server_extra_flags: []
+
+add_restic_server_admin_scripts_service_groups:
+  - key: "restic-server"
+    label: "rest-server"
+    status_units:
+      - "{{ add_restic_server_service_name }}.service"
+    start_enable_units:
+      - "{{ add_restic_server_service_name }}.service"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_restic_server_service_name }}.service"
+    stop_stop_units: []

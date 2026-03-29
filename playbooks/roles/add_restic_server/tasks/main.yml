@@ -102,14 +102,14 @@
     argv:
       - getent
       - group
-      - "{{ add_restic_server_group }}"
+      - "{{ add_restic_server_service_group }}"
   register: add_restic_server_group_getent_result
   changed_when: false
   failed_when: false
 
 - name: Ensure rest-server group exists
   ansible.builtin.group:
-    name: "{{ add_restic_server_group }}"
+    name: "{{ add_restic_server_service_group }}"
     system: true
   when: add_restic_server_group_getent_result.rc != 0
 
@@ -118,15 +118,15 @@
     argv:
       - getent
       - passwd
-      - "{{ add_restic_server_user }}"
+      - "{{ add_restic_server_service_user }}"
   register: add_restic_server_user_getent_result
   changed_when: false
   failed_when: false
 
 - name: Ensure rest-server user exists
   ansible.builtin.user:
-    name: "{{ add_restic_server_user }}"
-    group: "{{ add_restic_server_group }}"
+    name: "{{ add_restic_server_service_user }}"
+    group: "{{ add_restic_server_service_group }}"
     home: "{{ add_restic_server_data_dir }}"
     shell: /usr/sbin/nologin
     create_home: false
@@ -147,11 +147,11 @@
       mode: "0755"
     - path: "{{ add_restic_server_config_dir }}"
       owner: root
-      group: "{{ add_restic_server_group }}"
+      group: "{{ add_restic_server_service_group }}"
       mode: "0750"
     - path: "{{ add_restic_server_data_dir }}"
-      owner: "{{ add_restic_server_user }}"
-      group: "{{ add_restic_server_group }}"
+      owner: "{{ add_restic_server_service_user }}"
+      group: "{{ add_restic_server_service_group }}"
       mode: "0750"
   loop_control:
     label: "{{ item.path }}"
@@ -276,7 +276,7 @@
   ansible.builtin.file:
     path: "{{ add_restic_server_htpasswd_file }}"
     owner: root
-    group: "{{ add_restic_server_group }}"
+    group: "{{ add_restic_server_service_group }}"
     mode: "0640"
     state: file
 

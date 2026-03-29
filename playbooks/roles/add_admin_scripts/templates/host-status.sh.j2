@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./homelab-admin-lib.sh
+source "$script_dir/homelab-admin-lib.sh"
+
+echo "== Host =="
+hostnamectl --static 2>/dev/null || hostname
+echo
+printf '%-28s %-12s %-12s\n' "UNIT" "ENABLED" "ACTIVE"
+printf '%-28s %-12s %-12s\n' "----" "-------" "------"
+
+{% for group in add_admin_scripts_service_groups %}
+echo
+echo "== {{ group.label }} =="
+{%   for unit in group.status_units %}
+homelab_admin_print_unit_summary "{{ unit }}"
+{%   endfor %}
+{% endfor %}
+
+homelab_admin_show_deployment_history "{{ add_admin_scripts_deployment_history_file }}" "{{ add_admin_scripts_deployment_history_lines }}"

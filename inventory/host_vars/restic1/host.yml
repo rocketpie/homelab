@@ -22,8 +22,8 @@ dns_aliases:
 
 add_restic_server_data_dir: "/media/backups/restic-data"
 add_restic_server_listen_address: ":8000"
-add_restic_server_user: "archivar"
-add_restic_server_group: "archivar"
+add_restic_server_service_user: "archivar"
+add_restic_server_service_group: "archivar"
 
 add_restic_retention_user: "archivar"
 add_restic_retention_repositories:
@@ -39,10 +39,12 @@ add_restic_retention_repositories:
       - "12m"
       - "--prune"
 
-add_rclone_user: "archivar"
-add_rclone_group: "archivar"
+add_rclone_service_user: "archivar"
+add_rclone_service_group: "archivar"
 add_rclone_source_path: "/media/backups/restic-data/"
 add_rclone_remote_path: "pCloud:homelab-restic1"
+
+add_admin_scripts_user: "archivar"
 
 host_users:
   - name: "archivar"

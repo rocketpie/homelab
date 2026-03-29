@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+homelab_admin_unit_exists() {
+  local unit="$1"
+  systemctl list-unit-files "$unit" --no-legend --plain 2>/dev/null | grep -Fq "$unit"
+}
+
+homelab_admin_print_unit_summary() {
+  local unit="$1"
+  local enabled
+  local active
+
+  if homelab_admin_unit_exists "$unit"; then
+    enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+    active="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    printf '%-28s %-12s %-12s\n' "$unit" "${enabled:-unknown}" "${active:-unknown}"
+  else
+    printf '%-28s %-12s %-12s\n' "$unit" "missing" "missing"
+  fi
+}
+
+homelab_admin_enable_and_start_units() {
+  local unit
+
+  for unit in "$@"; do
+    if homelab_admin_unit_exists "$unit"; then
+      echo "==> enabling and starting $unit"
+      sudo systemctl enable --now "$unit"
+    else
+      echo "WARN: $unit is not installed on this host"
+    fi
+  done
+}
+
+homelab_admin_start_units() {
+  local unit
+
+  for unit in "$@"; do
+    if homelab_admin_unit_exists "$unit"; then
+      echo "==> starting $unit"
+      sudo systemctl start "$unit"
+    else
+      echo "WARN: $unit is not installed on this host"
+    fi
+  done
+}
+
+homelab_admin_disable_and_stop_units() {
+  local unit
+
+  for unit in "$@"; do
+    if homelab_admin_unit_exists "$unit"; then
+      echo "==> disabling and stopping $unit"
+      sudo systemctl disable --now "$unit"
+    else
+      echo "WARN: $unit is not installed on this host"
+    fi
+  done
+}
+
+homelab_admin_stop_units() {
+  local unit
+
+  for unit in "$@"; do
+    if homelab_admin_unit_exists "$unit"; then
+      echo "==> stopping $unit"
+      sudo systemctl stop "$unit"
+    else
+      echo "WARN: $unit is not installed on this host"
+    fi
+  done
+}
+
+homelab_admin_show_deployment_history() {
+  local history_file="$1"
+  local history_lines="$2"
+
+  echo
+  echo "== Deployment History =="
+  echo "File: $history_file"
+
+  if [[ -f "$history_file" ]]; then
+    sudo tail -n "$history_lines" "$history_file"
+  else
+    echo "No deployment history found."
+  fi
+}

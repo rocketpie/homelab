@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./homelab-admin-lib.sh
+source "$script_dir/homelab-admin-lib.sh"
+
+echo "Starting {{ item.label }}"
+
+{% if item.start_enable_units | length > 0 %}
+start_enable_units=(
+{%   for unit in item.start_enable_units %}
+  "{{ unit }}"
+{%   endfor %}
+)
+homelab_admin_enable_and_start_units "${start_enable_units[@]}"
+{% endif %}
+{% if item.start_start_units | length > 0 %}
+start_start_units=(
+{%   for unit in item.start_start_units %}
+  "{{ unit }}"
+{%   endfor %}
+)
+homelab_admin_start_units "${start_start_units[@]}"
+{% endif %}
+"$script_dir/host-status"

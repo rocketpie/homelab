@@ -1,0 +1,7 @@
+---
+add_admin_scripts_user: ""
+add_admin_scripts_group: "{{ add_admin_scripts_user }}"
+add_admin_scripts_deployment_history_file: /var/lib/homelab/deploy-history.yml
+add_admin_scripts_deployment_history_lines: 80
+add_admin_scripts_service_groups: []
+add_admin_scripts_extra_scripts: []

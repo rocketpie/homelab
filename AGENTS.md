@@ -63,6 +63,7 @@ If relevant, also inspect:
 - Prefer updating the relevant `context/` docs when you discover task-specific knowledge that should persist.
 - Do not overwrite unrelated user changes.
 - Treat inventory and host variable changes as sensitive, because they affect real infrastructure behavior.
+- When adding new roles, servers, or services, check if `service-admin-scripts.yml` applies.
 
 ## Key Areas
 

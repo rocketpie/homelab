@@ -2,6 +2,9 @@
 
 Managed hosts can keep an append-only deployment history at `/var/lib/homelab/deploy-history.yml`.
 
+The per-user `host-status` admin scripts can use that file for quick on-host
+status checks.
+
 The history is written by the `record_deployment` role and is intended to answer:
 
 - which playbook last touched this host
@@ -16,4 +19,5 @@ Current playbooks using deployment history:
 
 - `playbooks/add-vm.yml`
 - `playbooks/add-autoupdate.yml`
+- `playbooks/add-rest-server.yml`
 - `playbooks/configure-netcontroller.yml`

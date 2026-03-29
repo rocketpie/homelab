@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User={{ add_rclone_user }}
-Group={{ add_rclone_group }}
+User={{ add_rclone_service_user }}
+Group={{ add_rclone_service_group }}
 Environment=RCLONE_CONFIG={{ add_rclone_config_file }}
 Environment=RCLONE_CACHE_DIR={{ add_rclone_cache_dir }}
 ExecStart={{ add_rclone_script_path }}

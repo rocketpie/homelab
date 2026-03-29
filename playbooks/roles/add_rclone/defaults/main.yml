@@ -15,8 +15,8 @@ add_rclone_packages:
   - ca-certificates
   - unzip
 
-add_rclone_user: root
-add_rclone_group: "{{ add_rclone_user }}"
+add_rclone_service_user: root
+add_rclone_service_group: "{{ add_rclone_service_user }}"
 
 add_rclone_config_dir: /etc/rclone
 add_rclone_config_file: "{{ add_rclone_config_dir }}/rclone.conf"
@@ -45,3 +45,37 @@ add_rclone_flags:
 
 add_rclone_timer_on_boot_sec: 10m
 add_rclone_timer_on_unit_active_sec: 6h
+
+add_rclone_admin_scripts_service_groups:
+  - key: "rclone-sync"
+    label: "rclone sync"
+    status_units:
+      - "{{ add_rclone_service_name }}"
+      - "{{ add_rclone_timer_name }}"
+    start_enable_units:
+      - "{{ add_rclone_timer_name }}"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_rclone_timer_name }}"
+    stop_stop_units:
+      - "{{ add_rclone_service_name }}"
+
+add_rclone_admin_scripts_extra_scripts:
+  - name: "pull-rclone-remote"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      echo "Pulling from {{ add_rclone_remote_path }} to {{ add_rclone_source_path }}"
+      echo "This performs a one-shot recovery copy from the remote to the local path."
+      echo "Existing local files are not deleted."
+
+      exec sudo --user "{{ add_rclone_service_user }}" -- \
+        {{ add_rclone_binary_path | quote }} \
+        copy \
+        {{ add_rclone_remote_path | quote }} \
+        {{ add_rclone_source_path | quote }} \
+      {% for flag in add_rclone_flags %}
+        {{ flag | quote }} \
+      {% endfor %}
+        --config {{ add_rclone_config_file | quote }}

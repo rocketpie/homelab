@@ -10,8 +10,8 @@ It also installs the vaulted `rclone.conf` content for the selected remote.
 - `rclone` is installed from the official upstream Linux binary archive
 - the role is generic and does not assume any particular backup tool or remote
 - the timer is intentionally left disabled and stopped after install
-- the job runs as `add_rclone_user`, so choose a user that already has the
-  right filesystem access to the local source path and the cache/config
+- the job runs as `add_rclone_service_user`, so choose a user that already has
+  the right filesystem access to the local source path and the cache/config
   directories
 
 ## Recovery-first workflow
@@ -21,6 +21,10 @@ The timer is installed only as prepared infrastructure.
 Do not enable it during initial provisioning. First recover data from the
 remote, verify the restored state, and only then enable the timer when the host
 is ready to publish new syncs again.
+
+On `restic1`, the admin script set also includes `~/pull-rclone-remote` for a
+one-shot recovery copy from the configured remote back to the local source
+path. It uses `rclone copy`, so it does not delete existing local files.
 
 ## Remote config pattern
 

@@ -6,8 +6,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User={{ add_restic_server_user }}
-Group={{ add_restic_server_group }}
+User={{ add_restic_server_service_user }}
+Group={{ add_restic_server_service_group }}
 WorkingDirectory={{ add_restic_server_data_dir }}
 UMask=0077
 {% set add_restic_server_exec_args = [

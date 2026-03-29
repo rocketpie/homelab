@@ -1,0 +1,133 @@
+---
+- name: Validate admin script inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - add_admin_scripts_user | string | trim | length > 0
+      - >-
+        (
+          (add_admin_scripts_service_groups | default([]) | length) > 0
+          or
+          (add_admin_scripts_extra_scripts | default([]) | length) > 0
+        )
+    fail_msg: >-
+      add_admin_scripts requires a Linux host, a target user, and at least one
+      service group or extra script.
+
+- name: Validate configured admin script service groups
+  ansible.builtin.assert:
+    that:
+      - item.key is defined
+      - item.key | string | trim | length > 0
+      - item.label is defined
+      - item.label | string | trim | length > 0
+      - item.status_units is defined
+      - item.status_units | length > 0
+      - item.start_enable_units is defined
+      - item.start_start_units is defined
+      - item.stop_disable_units is defined
+      - item.stop_stop_units is defined
+    fail_msg: "Invalid add_admin_scripts_service_groups item: {{ item | to_nice_yaml }}"
+  loop: "{{ add_admin_scripts_service_groups }}"
+  loop_control:
+    label: "{{ item.key | default('unnamed-group') }}"
+
+- name: Validate configured admin extra scripts
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.name | string | trim | length > 0
+      - item.content is defined
+      - item.content | string | trim | length > 0
+    fail_msg: "Invalid add_admin_scripts_extra_scripts item: {{ item | to_nice_yaml }}"
+  loop: "{{ add_admin_scripts_extra_scripts }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed-script') }}"
+
+- name: Check whether admin script user exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ add_admin_scripts_user }}"
+  register: add_admin_scripts_user_getent_result
+  changed_when: false
+
+- name: Materialize admin script user home
+  ansible.builtin.set_fact:
+    add_admin_scripts_user_home: >-
+      {{
+        add_admin_scripts_user_getent_result.stdout
+        | regex_replace('^[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:]*):.*$', '\\1')
+      }}
+    add_admin_scripts_dir: >-
+      {{
+        add_admin_scripts_user_getent_result.stdout
+        | regex_replace('^[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:([^:]*):.*$', '\\1')
+      }}
+
+- name: Assert admin script user home was resolved
+  ansible.builtin.assert:
+    that:
+      - add_admin_scripts_user_home | string | trim | length > 0
+      - add_admin_scripts_dir | string | trim | length > 0
+    fail_msg: >-
+      Could not determine a home directory for add_admin_scripts_user
+      {{ add_admin_scripts_user }}.
+
+- name: Ensure admin script directory exists
+  ansible.builtin.file:
+    path: "{{ add_admin_scripts_dir }}"
+    state: directory
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+
+- name: Install shared homelab admin helper
+  ansible.builtin.template:
+    src: homelab-admin-lib.sh.j2
+    dest: "{{ add_admin_scripts_dir }}/homelab-admin-lib.sh"
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+
+- name: Install host status script
+  ansible.builtin.template:
+    src: host-status.sh.j2
+    dest: "{{ add_admin_scripts_dir }}/host-status"
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+
+- name: Install start scripts for configured service groups
+  ansible.builtin.template:
+    src: service-start.sh.j2
+    dest: "{{ add_admin_scripts_dir }}/start-{{ item.key }}"
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+  loop: "{{ add_admin_scripts_service_groups }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Install stop scripts for configured service groups
+  ansible.builtin.template:
+    src: service-stop.sh.j2
+    dest: "{{ add_admin_scripts_dir }}/stop-{{ item.key }}"
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+  loop: "{{ add_admin_scripts_service_groups }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Install extra admin scripts
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ add_admin_scripts_dir }}/{{ item.name }}"
+    owner: "{{ add_admin_scripts_user }}"
+    group: "{{ add_admin_scripts_group }}"
+    mode: "0750"
+  loop: "{{ add_admin_scripts_extra_scripts }}"
+  loop_control:
+    label: "{{ item.name }}"
