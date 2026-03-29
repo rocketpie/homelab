@@ -46,7 +46,6 @@ add_restic_server_prometheus: false
 add_restic_server_prometheus_no_auth: false
 add_restic_server_no_verify_upload: false
 
-add_restic_server_no_auth: false
 add_restic_server_htpasswd_entries: []
 
 add_restic_server_tls: false

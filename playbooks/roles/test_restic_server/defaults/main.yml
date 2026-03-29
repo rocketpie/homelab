@@ -1,0 +1,29 @@
+---
+test_restic_server_service_name: >-
+  {{ add_restic_server_service_name | default('rest-server') }}
+test_restic_server_auth_entry: >-
+  {{
+    add_restic_server_htpasswd_entries | default([]) | first
+  }}
+test_restic_server_tls: "{{ add_restic_server_tls | default(false) | bool }}"
+test_restic_server_validate_certs: false
+test_restic_server_host: "{{ ansible_host }}"
+test_restic_server_listen_address: >-
+  {{ add_restic_server_listen_address | default(':8000') }}
+test_restic_server_port: >-
+  {{
+    test_restic_server_listen_address
+    | regex_replace('^:+', '')
+    | regex_replace('^.*:(\\d+)$', '\\1')
+  }}
+test_restic_server_scheme: >-
+  {{ 'https' if (test_restic_server_tls | bool) else 'http' }}
+test_restic_server_base_url: >-
+  {{
+    test_restic_server_scheme ~ '://' ~ test_restic_server_host ~ ':'
+    ~ test_restic_server_port ~ '/'
+  }}
+test_restic_server_authenticated_probe_path: >-
+  {{ test_restic_server_auth_entry.name | string | trim ~ '/' }}
+test_restic_server_authenticated_probe_url: >-
+  {{ test_restic_server_base_url ~ test_restic_server_authenticated_probe_path }}

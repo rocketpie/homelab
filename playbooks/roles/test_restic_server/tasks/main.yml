@@ -1,0 +1,165 @@
+---
+- name: Validate rest-server test inputs
+  ansible.builtin.assert:
+    that:
+      - test_restic_server_port | string | trim | length > 0
+      - test_restic_server_port | string | trim is match('^[0-9]+$')
+      - test_restic_server_base_url | string | trim | length > 0
+      - test_restic_server_authenticated_probe_url | string | trim | length > 0
+      - test_restic_server_auth_entry.name is defined
+      - test_restic_server_auth_entry.name | string | trim | length > 0
+      - test_restic_server_auth_entry.password is defined
+      - test_restic_server_auth_entry.password | string | trim | length > 0
+    fail_msg: "Missing required vars for test_restic_server"
+
+- name: Verify rest-server health and HTTP behavior
+  block:
+    - name: Check whether rest-server service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - "{{ test_restic_server_service_name }}"
+      register: test_restic_server_is_active_result
+      changed_when: false
+
+    - name: Assert rest-server service is active
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_is_active_result.stdout | trim == 'active'
+        fail_msg: >-
+          Service {{ test_restic_server_service_name }} is not active:
+          {{ test_restic_server_is_active_result.stdout | default('(no output)') }}
+
+    - name: Check whether rest-server port is listening
+      ansible.builtin.shell: >-
+        ss -H -ltn | awk '$4 ~ /:{{ test_restic_server_port }}$/'
+      args:
+        executable: /bin/bash
+      register: test_restic_server_ss_result
+      changed_when: false
+
+    - name: Assert rest-server port is listening
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_ss_result.stdout | trim | length > 0
+        fail_msg: >-
+          Port {{ test_restic_server_port }} is not listening for
+          {{ test_restic_server_service_name }}.
+
+    - name: Probe rest-server without authentication from controller
+      ansible.builtin.uri:
+        url: "{{ test_restic_server_base_url }}"
+        method: GET
+        validate_certs: "{{ test_restic_server_validate_certs }}"
+        return_content: true
+        status_code:
+          - 200
+          - 401
+          - 403
+          - 404
+          - 405
+      register: test_restic_server_http_unauthenticated_result
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Assert unauthenticated rest-server HTTP response
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_http_unauthenticated_result.status == 401
+        fail_msg: >-
+          Unexpected unauthenticated response from {{ test_restic_server_base_url }}:
+          status={{ test_restic_server_http_unauthenticated_result.status }}
+          content={{ test_restic_server_http_unauthenticated_result.content | default('(no content)') }}
+
+    - name: Probe rest-server with authentication from controller
+      ansible.builtin.uri:
+        url: "{{ test_restic_server_authenticated_probe_url }}"
+        method: GET
+        url_username: "{{ test_restic_server_auth_entry.name }}"
+        url_password: "{{ test_restic_server_auth_entry.password }}"
+        force_basic_auth: true
+        validate_certs: "{{ test_restic_server_validate_certs }}"
+        return_content: true
+        status_code:
+          - 200
+          - 401
+          - 403
+          - 404
+          - 405
+      register: test_restic_server_http_authenticated_result
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Assert authenticated rest-server HTTP response is not unauthorized
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_http_authenticated_result.status != 401
+        fail_msg: >-
+          Authenticated request to {{ test_restic_server_authenticated_probe_url }} was still unauthorized:
+          status={{ test_restic_server_http_authenticated_result.status }}
+          content={{ test_restic_server_http_authenticated_result.content | default('(no content)') }}
+
+    - name: Show rest-server test summary
+      ansible.builtin.debug:
+        msg:
+          service_name: "{{ test_restic_server_service_name }}"
+          port: "{{ test_restic_server_port }}"
+          base_url: "{{ test_restic_server_base_url }}"
+          authenticated_probe_url: "{{ test_restic_server_authenticated_probe_url }}"
+          unauthenticated_status: "{{ test_restic_server_http_unauthenticated_result.status }}"
+          authenticated_status: "{{ test_restic_server_http_authenticated_result.status }}"
+      changed_when: false
+
+  rescue:
+    - name: troubleshoot capture rest-server service status
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - status
+          - "{{ test_restic_server_service_name }}"
+          - --no-pager
+          - --full
+      register: test_restic_server_status_result
+      changed_when: false
+      failed_when: false
+
+    - name: troubleshoot capture recent rest-server journal entries
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - "{{ test_restic_server_service_name }}"
+          - -n
+          - "100"
+          - --no-pager
+      register: test_restic_server_journal_result
+      changed_when: false
+      failed_when: false
+
+    - name: troubleshoot capture listening TCP sockets for rest-server port
+      ansible.builtin.shell: >-
+        ss -H -ltnp | awk '$4 ~ /:{{ test_restic_server_port }}$/' || true
+      args:
+        executable: /bin/bash
+      register: test_restic_server_port_result
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with rest-server diagnostics
+      ansible.builtin.fail:
+        msg: |
+          rest-server validation failed for {{ inventory_hostname }}.
+          base_url: {{ test_restic_server_base_url }}
+          authenticated_probe_url: {{ test_restic_server_authenticated_probe_url }}
+
+          systemctl status:
+          {{ test_restic_server_status_result.stdout | default('(no output)') }}
+
+          journalctl:
+          {{ test_restic_server_journal_result.stdout | default('(no output)') }}
+
+          listening sockets:
+          {{ test_restic_server_port_result.stdout | default('(no output)') }}

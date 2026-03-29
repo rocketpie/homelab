@@ -10,23 +10,23 @@ User={{ add_restic_server_user }}
 Group={{ add_restic_server_group }}
 WorkingDirectory={{ add_restic_server_data_dir }}
 UMask=0077
-ExecStart={{ add_restic_server_binary_path }} \
-  --listen {{ add_restic_server_listen_address }} \
-  --path {{ add_restic_server_data_dir }} \
-  --log {{ add_restic_server_log_target }}{% if add_restic_server_append_only | bool %} \
-  --append-only{% endif %}{% if add_restic_server_private_repos | bool %} \
-  --private-repos{% endif %}{% if add_restic_server_group_accessible_repos | bool %} \
-  --group-accessible-repos{% endif %}{% if add_restic_server_prometheus | bool %} \
-  --prometheus{% endif %}{% if add_restic_server_prometheus_no_auth | bool %} \
-  --prometheus-no-auth{% endif %}{% if add_restic_server_no_verify_upload | bool %} \
-  --no-verify-upload{% endif %}{% if add_restic_server_no_auth | bool %} \
-  --no-auth{% else %} \
-  --htpasswd-file {{ add_restic_server_htpasswd_file }}{% endif %}{% if add_restic_server_tls | bool %} \
-  --tls \
-  --tls-cert {{ add_restic_server_tls_cert_file }} \
-  --tls-key {{ add_restic_server_tls_key_file }} \
-  --tls-min-ver {{ add_restic_server_tls_min_ver }}{% endif %}{% for flag in add_restic_server_extra_flags %} \
-  {{ flag }}{% endfor %}
+{% set add_restic_server_exec_args = [
+  add_restic_server_binary_path,
+  '--listen', add_restic_server_listen_address,
+  '--path', add_restic_server_data_dir,
+  '--log', add_restic_server_log_target
+] %}
+{% if add_restic_server_append_only | bool %}{% set _ = add_restic_server_exec_args.append('--append-only') %}{% endif %}
+{% if add_restic_server_private_repos | bool %}{% set _ = add_restic_server_exec_args.append('--private-repos') %}{% endif %}
+{% if add_restic_server_group_accessible_repos | bool %}{% set _ = add_restic_server_exec_args.append('--group-accessible-repos') %}{% endif %}
+{% if add_restic_server_prometheus | bool %}{% set _ = add_restic_server_exec_args.append('--prometheus') %}{% endif %}
+{% if add_restic_server_prometheus_no_auth | bool %}{% set _ = add_restic_server_exec_args.append('--prometheus-no-auth') %}{% endif %}
+{% if add_restic_server_no_verify_upload | bool %}{% set _ = add_restic_server_exec_args.append('--no-verify-upload') %}{% endif %}
+{% set _ = add_restic_server_exec_args.append('--htpasswd-file') %}
+{% set _ = add_restic_server_exec_args.append(add_restic_server_htpasswd_file) %}
+{% if add_restic_server_tls | bool %}{% set _ = add_restic_server_exec_args.extend(['--tls', '--tls-cert', add_restic_server_tls_cert_file, '--tls-key', add_restic_server_tls_key_file, '--tls-min-ver', add_restic_server_tls_min_ver]) %}{% endif %}
+{% for flag in add_restic_server_extra_flags %}{% set _ = add_restic_server_exec_args.append(flag) %}{% endfor %}
+ExecStart={{ add_restic_server_exec_args | join(' ') }}
 Restart=on-failure
 RestartSec=5s
 NoNewPrivileges=true

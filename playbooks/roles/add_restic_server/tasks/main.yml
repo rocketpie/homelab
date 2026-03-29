@@ -12,8 +12,8 @@
     that:
       - add_restic_server_htpasswd_entries | length > 0
     fail_msg: >-
-      provide add_restic_server_htpasswd_entries with usernames and plaintext passwords
-      from the host vault.
+      provide add_restic_server_htpasswd_entries with usernames and plaintext
+      passwords from the host vault.
 
 - name: Validate rest-server htpasswd entries
   ansible.builtin.assert:
@@ -257,12 +257,6 @@
     group: "{{ add_restic_server_group }}"
     mode: "0640"
     state: file
-
-- name: Remove managed htpasswd file when auth is disabled
-  ansible.builtin.file:
-    path: "{{ add_restic_server_htpasswd_file }}"
-    state: absent
-  notify: Restart rest-server
 
 - name: Install rest-server systemd unit
   ansible.builtin.template:
