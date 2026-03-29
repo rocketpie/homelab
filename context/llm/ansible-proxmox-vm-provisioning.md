@@ -17,10 +17,10 @@ Provisioning approach:
 ISO-only unattended installs (no VM templates) using Ubuntu autoinstall (cloud-init NoCloud).
 
 A remastered Ubuntu 24.04 live-server ISO boots with kernel params:
-autoinstall ds=nocloud-net;s=http://<workstation>:8080/ubuntu2404/ ---
+autoinstall ds=nocloud-net;s=http://<workstation-fqdn>:8080/ubuntu2404/ ---
 
 Workstation runs a minimal Caddy HTTP server, serving:
-/srv/autoinstall/ubuntu2404/user-data and /srv/autoinstall/ubuntu2404/meta-data
+/srv/http_root/ubuntu2404/user-data and /srv/http_root/ubuntu2404/meta-data
 
 Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a shared ansible admin user with a locked password + key-only SSH + passwordless sudo, optionally creates host-specific users with their own SSH keys and vault-backed passwords, uses DHCP, shutdown: poweroff
 

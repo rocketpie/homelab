@@ -40,3 +40,70 @@
   loop_control:
     label: "{{ item.item.name }} -> {{ item.item.value }}"
   changed_when: false
+
+- name: Resolve autoinstall seed hostname from configured base URL
+  ansible.builtin.set_fact:
+    add_unbound_autoinstall_seed_hostname: >-
+      {{
+        autoinstall_base_url
+        | regex_replace('^https?://', '')
+        | regex_replace('/.*$', '')
+        | regex_replace(':.*$', '')
+      }}
+  when:
+    - autoinstall_base_url is defined
+    - autoinstall_base_url | string | length > 0
+
+- name: Query autoinstall seed hostname via router authoritative DNS
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +short
+      - +time=2
+      - +tries=1
+      - "@{{ autoinstall_vm_ipv4_gateway }}"
+      - "{{ add_unbound_autoinstall_seed_hostname }}"
+      - A
+  register: add_unbound_autoinstall_seed_router_dig
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  when:
+    - add_unbound_autoinstall_seed_hostname is defined
+    - add_unbound_autoinstall_seed_hostname.endswith('.fritz.box')
+
+- name: Query autoinstall seed hostname via updated resolver
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +short
+      - +time=2
+      - +tries=1
+      - "@{{ ansible_host }}"
+      - "{{ add_unbound_autoinstall_seed_hostname }}"
+      - A
+  register: add_unbound_autoinstall_seed_resolver_dig
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  when:
+    - add_unbound_autoinstall_seed_hostname is defined
+    - add_unbound_autoinstall_seed_hostname.endswith('.fritz.box')
+
+- name: Assert autoinstall seed hostname resolves like the router answer
+  ansible.builtin.assert:
+    that:
+      - add_unbound_autoinstall_seed_router_dig.rc == 0
+      - add_unbound_autoinstall_seed_router_dig.stdout_lines | length > 0
+      - add_unbound_autoinstall_seed_resolver_dig.rc == 0
+      - (add_unbound_autoinstall_seed_resolver_dig.stdout_lines | sort) == (add_unbound_autoinstall_seed_router_dig.stdout_lines | sort)
+    fail_msg: >-
+      Resolver '{{ inventory_hostname }}' at '{{ ansible_host }}' returned
+      {{ add_unbound_autoinstall_seed_resolver_dig.stdout_lines | default([]) }}
+      for autoinstall seed host '{{ add_unbound_autoinstall_seed_hostname }}',
+      but router '{{ autoinstall_vm_ipv4_gateway }}' returned
+      {{ add_unbound_autoinstall_seed_router_dig.stdout_lines | default([]) }}.
+  changed_when: false
+  when:
+    - add_unbound_autoinstall_seed_hostname is defined
+    - add_unbound_autoinstall_seed_hostname.endswith('.fritz.box')

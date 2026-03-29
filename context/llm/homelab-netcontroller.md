@@ -10,6 +10,7 @@
 - `playbooks/configure-netcontroller.yml` rolls Unbound updates one resolver at a time
 - passive resolvers are updated first, then the active resolver last
 - after each resolver update, the controller verifies every effective DNS A record with `dig`
+- the rollout also verifies that the autoinstall seed host under `fritz.box` resolves the same way through Unbound as it does through the router DNS
 - set `unbound_active_resolver_host` to pin which resolver should be treated as active
 - if `unbound_active_resolver_host` is not set, the last host in the `unbound` inventory group is treated as active
 

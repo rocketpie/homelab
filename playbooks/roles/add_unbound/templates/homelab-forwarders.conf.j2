@@ -1,6 +1,7 @@
+{% for zone in add_unbound_forward_zones %}
 forward-zone:
-  name: "."
-{% for addr in add_unbound_forward_addrs %}
+  name: {{ zone.name | to_json }}
+{% for addr in zone.forward_addrs %}
   forward-addr: {{ addr }}
 {% endfor %}
-
+{% endfor %}

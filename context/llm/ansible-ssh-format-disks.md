@@ -10,7 +10,7 @@ Goal: use Ansible for
 
 Current autoinstall design
 * A remastered Ubuntu server ISO boots directly into autoinstall.
-* The autoinstall seed is served from the workstation via http://lc3win:8080/ubuntu2404/
+* The autoinstall seed is served from the workstation via http://lc3win.fritz.box:8080/ubuntu2404/
 Inventory / vars model
 VM selection
 * The play prompts for vm_name
@@ -45,8 +45,8 @@ group_vars layout
 group_vars/all/autoinstall.yml
 Autoinstall-related global vars were moved to all, because the role runs on localhost and should not depend on a special inventory group.
 Important vars include:
-* autoinstall_export_directory: "{{ playbook_dir }}/../srv/autoinstall/ubuntu2404"
-* autoinstall_base_url: "http://lc3win:8080/ubuntu2404"
+* autoinstall_export_directory: "{{ playbook_dir }}/../srv/http_root/ubuntu2404"
+* autoinstall_base_url: "http://lc3win.fritz.box:8080/ubuntu2404"
 * autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
 roles/export_autoinstall_seed/defaults/main.yml
 
@@ -80,13 +80,13 @@ Current behavior:
         vendor-data
     starts Caddy if controller-side probe says seed is not being served
 Important nuance:
-    WSL cannot reach the Windows-hosted service via lc3win, but can via 127.0.0.1
+    WSL should not depend on the workstation hostname for readiness checks and can use 127.0.0.1
     so the role’s internal probe should use autoinstall_controller_probe_url
 Caddy startup:
     calling the Windows exe from WSL works
     caddy start blocked
     command with async/poll: 0 was used to launch Caddy
-    controller-side readiness should be checked against 127.0.0.1, not lc3win
+    controller-side readiness should be checked against 127.0.0.1, not lc3win.fritz.box
 Proxmox preflight role
 test_proxmox_api
 Purpose:

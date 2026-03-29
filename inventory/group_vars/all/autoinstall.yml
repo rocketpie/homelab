@@ -4,7 +4,7 @@ autoinstall_provision_cores: 2
 autoinstall_provision_memory_mb: 3072
 
 # what the Autoinstall VM uses to access the seed files
-autoinstall_base_url: "http://lc3win:8080/ubuntu2404"
+autoinstall_base_url: "http://lc3win.fritz.box:8080/ubuntu2404"
 # what ansible uses to test if the seed files are being served
 autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
 

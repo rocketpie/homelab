@@ -57,6 +57,7 @@ linux  /casper/vmlinuz ... autoinstall ds=nocloud-net;s=http://{{caddy-hostname}
 
 **Important:**
     The URL must end with a trailing slash.
+    Prefer a fully qualified local hostname such as lc3win.fritz.box instead of a bare short name.
     Keep the final --- (it separates kernel params cleanly).
 
 Repack ISO:
