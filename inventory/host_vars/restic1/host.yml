@@ -31,6 +31,8 @@ add_rclone_remote_path: "pCloud:homelab-restic1"
 host_users:
   - name: "archivar"
     description: "backup storage service account"
+    groups:
+      - sudo
     ssh_authorized_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
 

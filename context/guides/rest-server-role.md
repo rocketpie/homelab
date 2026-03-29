@@ -26,6 +26,8 @@ The role intentionally requires authentication and refuses to start
 Use `playbooks/test-restic-server.yml` for the first non-destructive validation
 pass.
 
+For client usage after the server is up, see `context/guides/use-restic-server.md`.
+
 The `test_restic_server` role currently checks:
 
 - the `rest-server` systemd unit is active
