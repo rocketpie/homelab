@@ -55,7 +55,7 @@ eg. restic1/host.yml:
 ...
 # vault.yml:
 # add_restic_server_htpasswd_entries:
-#   - name: "archivar"
+#   - user: "archivar"
 #     password: "REST_SERVER_PASSWORD_HERE"
 ```
 

@@ -18,14 +18,14 @@
 - name: Validate rest-server htpasswd entries
   ansible.builtin.assert:
     that:
-      - item.name is defined
-      - item.name | string | trim | length > 0
+      - item.user is defined
+      - item.user | string | trim | length > 0
       - item.password is defined
       - item.password | string | trim | length > 0
     fail_msg: "Invalid add_restic_server_htpasswd_entries item: {{ item | to_nice_yaml }}"
   loop: "{{ add_restic_server_htpasswd_entries }}"
   loop_control:
-    label: "{{ item.name | default('unnamed-user') }}"
+    label: "{{ item.user | default('unnamed-user') }}"
 
 - name: Validate TLS inputs when enabled
   ansible.builtin.assert:
@@ -97,10 +97,31 @@
       or add_restic_server_installed_go_version != add_restic_server_go_version
   register: add_restic_server_go_install_result
 
+- name: Check whether rest-server group already exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - group
+      - "{{ add_restic_server_group }}"
+  register: add_restic_server_group_getent_result
+  changed_when: false
+  failed_when: false
+
 - name: Ensure rest-server group exists
   ansible.builtin.group:
     name: "{{ add_restic_server_group }}"
     system: true
+  when: add_restic_server_group_getent_result.rc != 0
+
+- name: Check whether rest-server user already exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ add_restic_server_user }}"
+  register: add_restic_server_user_getent_result
+  changed_when: false
+  failed_when: false
 
 - name: Ensure rest-server user exists
   ansible.builtin.user:
@@ -110,6 +131,7 @@
     shell: /usr/sbin/nologin
     create_home: false
     system: true
+  when: add_restic_server_user_getent_result.rc != 0
 
 - name: Ensure rest-server directories exist
   ansible.builtin.file:
@@ -219,7 +241,7 @@
     add_restic_server_desired_htpasswd_usernames: >-
       {{
         add_restic_server_htpasswd_entries
-        | map(attribute='name')
+        | map(attribute='user')
         | map('trim')
         | list
       }}
@@ -241,13 +263,13 @@
 - name: Install rest-server htpasswd users
   community.general.htpasswd:
     path: "{{ add_restic_server_htpasswd_file }}"
-    name: "{{ item.name }}"
+    name: "{{ item.user }}"
     password: "{{ item.password }}"
     crypt_scheme: bcrypt
     state: present
   loop: "{{ add_restic_server_htpasswd_entries }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.user }}"
   notify: Restart rest-server
 
 - name: Set rest-server htpasswd file permissions

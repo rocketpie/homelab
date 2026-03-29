@@ -11,12 +11,14 @@ Git repository on the target host and manages it as a systemd service.
 - repository data lives under `add_restic_server_data_dir`, which defaults to
   `/media/backups/restic` for `restic1`
 - the systemd service writes logs to journald by default via `--log -`
+- on `restic1`, the service stack is intended to run as `archivar`, and the
+  role preserves that existing user instead of trying to convert it into a
+  dedicated system account
 
 ## Auth required
 
 Before running `playbooks/add-rest-server.yml`, provide
-`add_restic_server_htpasswd_entries` in the host vault with plaintext
-passwords.
+`add_restic_server_htpasswd_entries` in the host vault with plaintext `user` and `password` keys.
 
 The role intentionally requires authentication and refuses to start
 `rest-server` without htpasswd entries.

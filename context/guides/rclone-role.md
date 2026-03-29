@@ -10,6 +10,9 @@ It also installs the vaulted `rclone.conf` content for the selected remote.
 - `rclone` is installed from the official upstream Linux binary archive
 - the role is generic and does not assume any particular backup tool or remote
 - the timer is intentionally left disabled and stopped after install
+- the job runs as `add_rclone_user`, so choose a user that already has the
+  right filesystem access to the local source path and the cache/config
+  directories
 
 ## Recovery-first workflow
 

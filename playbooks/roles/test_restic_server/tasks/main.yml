@@ -6,8 +6,8 @@
       - test_restic_server_port | string | trim is match('^[0-9]+$')
       - test_restic_server_base_url | string | trim | length > 0
       - test_restic_server_authenticated_probe_url | string | trim | length > 0
-      - test_restic_server_auth_entry.name is defined
-      - test_restic_server_auth_entry.name | string | trim | length > 0
+      - test_restic_server_auth_entry.user is defined
+      - test_restic_server_auth_entry.user | string | trim | length > 0
       - test_restic_server_auth_entry.password is defined
       - test_restic_server_auth_entry.password | string | trim | length > 0
     fail_msg: "Missing required vars for test_restic_server"
@@ -77,7 +77,7 @@
       ansible.builtin.uri:
         url: "{{ test_restic_server_authenticated_probe_url }}"
         method: GET
-        url_username: "{{ test_restic_server_auth_entry.name }}"
+        url_username: "{{ test_restic_server_auth_entry.user }}"
         url_password: "{{ test_restic_server_auth_entry.password }}"
         force_basic_auth: true
         validate_certs: "{{ test_restic_server_validate_certs }}"

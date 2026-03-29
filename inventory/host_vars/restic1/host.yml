@@ -22,9 +22,25 @@ dns_aliases:
 
 add_restic_server_data_dir: "/media/backups/restic-data"
 add_restic_server_listen_address: ":8000"
+add_restic_server_user: "archivar"
+add_restic_server_group: "archivar"
 
-add_rclone_user: "rest-server"
-add_rclone_group: "rest-server"
+add_restic_retention_user: "archivar"
+add_restic_retention_repositories:
+  - user: "restic-server-test"
+    repository: "repo1"
+    enabled: true
+    forget_args:
+      - "--keep-within-daily"
+      - "14d"
+      - "--keep-within-weekly"
+      - "8w"
+      - "--keep-within-monthly"
+      - "12m"
+      - "--prune"
+
+add_rclone_user: "archivar"
+add_rclone_group: "archivar"
 add_rclone_source_path: "/media/backups/restic-data/"
 add_rclone_remote_path: "pCloud:homelab-restic1"
 
@@ -41,10 +57,13 @@ host_users:
 #   archivar: "USER_PASSWORD_HERE"
 
 # add_restic_server_htpasswd_entries:
-#   - name: "backup-user-1"
+#   - user: "backup-user-1"
 #     password: "REST_SERVER_PASSWORD_HERE"
-#   - name: "backup-user-2"
+#   - user: "backup-user-2"
 #     password: "REST_SERVER_PASSWORD_HERE"
+
+# add_restic_retention_repository_passwords:
+#   "backup-user-1/repo1": "RESTIC_REPO_PASSWORD"
 
 # add_rclone_remote_config_content: |
 #   [pCloud]

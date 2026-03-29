@@ -16,7 +16,7 @@ add_rclone_packages:
   - unzip
 
 add_rclone_user: root
-add_rclone_group: root
+add_rclone_group: "{{ add_rclone_user }}"
 
 add_rclone_config_dir: /etc/rclone
 add_rclone_config_file: "{{ add_rclone_config_dir }}/rclone.conf"

@@ -24,6 +24,6 @@ test_restic_server_base_url: >-
     ~ test_restic_server_port ~ '/'
   }}
 test_restic_server_authenticated_probe_path: >-
-  {{ test_restic_server_auth_entry.name | string | trim ~ '/' }}
+  {{ test_restic_server_auth_entry.user | string | trim ~ '/' }}
 test_restic_server_authenticated_probe_url: >-
   {{ test_restic_server_base_url ~ test_restic_server_authenticated_probe_path }}

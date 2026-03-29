@@ -22,7 +22,7 @@ add_restic_server_packages:
   - tar
 
 add_restic_server_user: rest-server
-add_restic_server_group: rest-server
+add_restic_server_group: "{{ add_restic_server_user }}"
 
 add_restic_server_source_dir: /usr/local/src/rest-server
 add_restic_server_build_output_path: "{{ add_restic_server_source_dir }}/rest-server"

@@ -3,8 +3,7 @@
 This guide covers how to connect a `restic` client to the homelab
 `rest-server` deployment after `playbooks/add-rest-server.yml` has completed.
 
-
-## rest-server users
+## Rest-Server Users
 
 `rest-server` access users are managed through
 `add_restic_server_htpasswd_entries`.
@@ -15,6 +14,8 @@ in that host's `vault.yml`.
 For `restic1`, see the template comment at the bottom of
 `inventory/host_vars/restic1/host.yml`.
 
+see [Retention in append-only mode](#Retention in append-only mode)
+
 After adding, removing, or changing users, rerun:
 
 ```powershell
@@ -24,11 +25,7 @@ After adding, removing, or changing users, rerun:
 That play updates the managed htpasswd file and restarts `rest-server` if
 needed.
 
-`playbooks/test-restic-server.yml` is only a validation play. It does not
-apply user changes.
-
-
-## Repository names
+## Repository Names
 
 This homelab `rest-server` runs with private repositories enabled.
 
@@ -52,15 +49,10 @@ backend type names:
 - `index`
 - `config`
 
-For example, this is a bad repository path:
-
-```text
-rest:http://restic1.lan:8000/test-user/data
-```
-
-That collides with the REST backend's internal route structure and can produce
+For example, this bad repository path:
+`rest:http://restic1.lan:8000/test-user/data`
+collides with the REST backend's internal route structure and can produce
 `405 Method Not Allowed` during `restic init`.
-
 
 ## Append-only mode
 
@@ -82,22 +74,15 @@ This is intentional. It reduces the damage a compromised backup client can do.
 ### Retention in append-only mode
 
 Retention still works, but not from the normal append-only backup client.
-
 To actually remove old snapshots and reclaim space, `restic forget` and
 `restic prune` need full read, write, and delete access to the repository.
-The recommended pattern is to use a separate, well-secured maintenance client
-for retention and repository maintenance.
+
+Here, we use a separate maintenance service on the server.
 
 For append-only repositories, upstream `restic` recommends using
 `--keep-within` based retention rules when forgetting snapshots.
 
-Example:
-
-```powershell
-restic forget --keep-within-daily 7d --keep-within-weekly 1m --keep-within-monthly 1y --prune
-```
-
-Why this matters:
+Why?
 
 - calendar-style rules like `--keep-daily`, `--keep-weekly`, or `--keep-last`
   can be tricked by attacker-created snapshots with manipulated timestamps
@@ -105,13 +90,56 @@ Why this matters:
   all snapshots within the time window instead of only the newest one in each
   bucket
 
-So the safe mental model is:
+### Planned server-side retention config
 
-- everyday backup clients write to the append-only `rest-server`
-- retention is run separately from a more trusted maintenance environment
+The intended server-side retention model is one scheduled maintenance service
+that loops over every configured repository on `restic1`.
 
+Non-secret repository metadata should live in
+`inventory/host_vars/restic1/host.yml`.
 
-## Client side Environment variables
+Example shape:
+
+```yaml
+add_restic_retention_user: "archivar"
+add_restic_retention_repositories:
+  - user: "archivar"
+    repository: "repo1"
+    enabled: true
+    forget_args:
+      - "--keep-within-daily"
+      - "14d"
+      - "--keep-within-weekly"
+      - "8w"
+      - "--keep-within-monthly"
+      - "12m"
+      - "--prune"
+```
+
+The `user` here matches `add_restic_server_htpasswd_entries`
+`user`s.
+
+Repository passwords should live in the host vault, keyed by
+`<user>/<repository>`.
+
+Example vault shape:
+
+```yaml
+# add_restic_retention_repository_passwords:
+#   "archivar/repo1": "RESTIC_REPO_PASSWORD"
+```
+
+The service should operate against the local on-disk repository path derived
+from `add_restic_server_data_dir`, not through the append-only HTTP endpoint.
+
+Expected behavior:
+
+- warn and skip when a configured repository does not exist yet
+- warn when a discovered on-disk repository has no matching retention config
+- run as `archivar`, which matches the current service-account model on
+  `restic1`
+
+## Client-Side Environment Variables
 
 You can either:
 
@@ -142,7 +170,6 @@ There are two different passwords involved:
 These are independent. A working server login does not replace the repository
 password, and a valid repository password does not authenticate you to
 `rest-server`.
-
 
 ## Troubleshooting
 
