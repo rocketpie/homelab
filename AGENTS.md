@@ -64,6 +64,7 @@ If relevant, also inspect:
 - Do not overwrite unrelated user changes.
 - Treat inventory and host variable changes as sensitive, because they affect real infrastructure behavior.
 - When adding new roles, servers, or services, check if `service-admin-scripts.yml` applies.
+- With every change, recommend a commit message at the very end of the output.
 
 ## Key Areas
 
