@@ -63,3 +63,7 @@ eg. restic1/host.yml:
 
 - Keep file and directory paths relative to the repository root or the current file.
 - Prefer consistent verb choice across related playbooks and roles.
+- Guides and human-facing documentation under `context/guides/` should be
+  timeless and written without session-specific history.
+- Session history, temporary investigation notes, and LLM-oriented running
+  context belong under `context/llm/`.

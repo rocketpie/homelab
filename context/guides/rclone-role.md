@@ -4,7 +4,7 @@ The `add_rclone` role installs `rclone`, writes a reusable sync script, and
 installs a systemd service plus timer for a generic `rclone` transfer job.
 It also installs the vaulted `rclone.conf` content for the selected remote.
 
-## Current assumptions
+## Assumptions
 
 - the role runs on Linux `amd64`
 - `rclone` is installed from the official upstream Linux binary archive

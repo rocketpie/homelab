@@ -54,6 +54,3 @@ covering:
 
 `playbooks/add-rest-server.yml` currently assembles those script groups from the
 service roles it installs.
-
-When a future `add_restic_retention` role exists, that playbook can add the
-`restic-retention` script group at the same integration point.

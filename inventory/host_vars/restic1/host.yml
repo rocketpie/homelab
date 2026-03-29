@@ -25,7 +25,7 @@ add_restic_server_listen_address: ":8000"
 add_restic_server_service_user: "archivar"
 add_restic_server_service_group: "archivar"
 
-add_restic_retention_user: "archivar"
+add_restic_retention_service_user: "archivar"
 add_restic_retention_repositories:
   - user: "restic-server-test"
     repository: "repo1"

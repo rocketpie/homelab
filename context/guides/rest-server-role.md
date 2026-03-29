@@ -3,7 +3,7 @@
 The `add_restic_server` role builds and installs `rest-server` from the upstream
 Git repository on the target host and manages it as a systemd service.
 
-## Current assumptions
+## Assumptions
 
 - target host is Linux `amd64`
 - Go is installed from the official upstream tarball because `rest-server`
@@ -11,7 +11,7 @@ Git repository on the target host and manages it as a systemd service.
 - repository data lives under `add_restic_server_data_dir`, which defaults to
   `/media/backups/restic` for `restic1`
 - the systemd service writes logs to journald by default via `--log -`
-- on `restic1`, the service stack is intended to run as `archivar`, and the
+- on `restic1`, the service stack runs as `archivar`, and the
   role preserves the existing `add_restic_server_service_user` instead of
   trying to convert it into a dedicated system account
 
@@ -42,9 +42,3 @@ That path works for the auth-only validation we want here, and avoids relying
 on `add_restic_server` role defaults being in scope during a standalone
 `test_restic_server` run. An authenticated request to `/` can still return
 `401` when private repositories are enabled.
-
-## TODO
-
-- add a second-stage smoke test that uses the `restic` CLI to create a
-  disposable repository, write one backup, list snapshots, and restore it
-  again once this repo has a proper way to install `restic` for tests

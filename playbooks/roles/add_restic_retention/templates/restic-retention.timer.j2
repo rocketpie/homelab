@@ -1,0 +1,11 @@
+[Unit]
+Description=Run restic retention timer
+
+[Timer]
+OnCalendar={{ add_restic_retention_timer_on_calendar }}
+RandomizedDelaySec={{ add_restic_retention_timer_randomized_delay_sec }}
+Persistent=true
+Unit={{ add_restic_retention_service_name }}
+
+[Install]
+WantedBy=timers.target

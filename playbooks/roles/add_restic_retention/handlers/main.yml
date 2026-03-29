@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart restic retention timer
+  ansible.builtin.service:
+    name: "{{ add_restic_retention_timer_name }}"
+    state: restarted
+  failed_when: false

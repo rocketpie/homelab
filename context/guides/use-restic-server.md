@@ -14,8 +14,6 @@ in that host's `vault.yml`.
 For `restic1`, see the template comment at the bottom of
 `inventory/host_vars/restic1/host.yml`.
 
-see [Retention in append-only mode](#Retention in append-only mode)
-
 After adding, removing, or changing users, rerun:
 
 ```powershell
@@ -90,10 +88,10 @@ Why?
   all snapshots within the time window instead of only the newest one in each
   bucket
 
-### Planned server-side retention config
+### Server-side retention config
 
-The intended server-side retention model is one scheduled maintenance service
-that loops over every configured repository on `restic1`.
+`restic1` runs one scheduled maintenance service that loops over every
+configured repository.
 
 Non-secret repository metadata should live in
 `inventory/host_vars/restic1/host.yml`.
@@ -101,7 +99,7 @@ Non-secret repository metadata should live in
 Example shape:
 
 ```yaml
-add_restic_retention_user: "archivar"
+add_restic_retention_service_user: "archivar"
 add_restic_retention_repositories:
   - user: "archivar"
     repository: "repo1"
@@ -129,10 +127,10 @@ Example vault shape:
 #   "archivar/repo1": "RESTIC_REPO_PASSWORD"
 ```
 
-The service should operate against the local on-disk repository path derived
-from `add_restic_server_data_dir`, not through the append-only HTTP endpoint.
+The service operates against the local on-disk repository path derived from
+`add_restic_server_data_dir`, not through the append-only HTTP endpoint.
 
-Expected behavior:
+Runtime behavior:
 
 - warn and skip when a configured repository does not exist yet
 - warn when a discovered on-disk repository has no matching retention config

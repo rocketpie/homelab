@@ -1,4 +1,17 @@
-renaming:
+# renaming:
     'kea' inventory role -> 'dhcp'
     'unbound' inventory rule -> 'dns-resolver'
     
+
+# rest-server-role.md TODO
+- add a second-stage smoke test that uses the `restic` CLI to create a
+  disposable repository, write one backup, list snapshots, and restore it
+  again once this repo has a proper way to install `restic` for tests
+
+
+# duplicate documentation 
+- restic-retention-role.md
+    -> focus on role function details
+- use-restic-server.md / Server-side retention config
+    -> focus on extending the config, like adding a new repo or changing retention
+
