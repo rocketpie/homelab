@@ -41,3 +41,18 @@ add_unbound_forward_zones: >-
         true
       )
   }}
+
+add_unbound_admin_scripts_service_groups:
+  - key: "unbound"
+    label: "unbound dns"
+    status_units:
+      - "{{ add_unbound_service_name }}.service"
+      - "{{ add_unbound_blocklist_refresh_timer_name }}"
+    start_enable_units:
+      - "{{ add_unbound_service_name }}.service"
+      - "{{ add_unbound_blocklist_refresh_timer_name }}"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_unbound_blocklist_refresh_timer_name }}"
+    stop_stop_units:
+      - "{{ add_unbound_service_name }}.service"

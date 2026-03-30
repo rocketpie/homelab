@@ -15,7 +15,3 @@
 - use-restic-server.md / Server-side retention config
     -> focus on extending the config, like adding a new repo or changing retention
 
-
-# verify fix: deployment history does not contain initial add-vm log
-
-# host-status should summarize, offer `cat log-file-path`

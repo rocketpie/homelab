@@ -6,3 +6,18 @@ add_kea_packages:
 add_kea_services:
   - kea-dhcp4-server
   - kea-ctrl-agent
+
+add_kea_admin_scripts_service_groups:
+  - key: "kea"
+    label: "kea dhcp"
+    status_units:
+      - kea-dhcp4-server.service
+      - kea-ctrl-agent.service
+    start_enable_units:
+      - kea-dhcp4-server.service
+      - kea-ctrl-agent.service
+    start_start_units: []
+    stop_disable_units:
+      - kea-dhcp4-server.service
+      - kea-ctrl-agent.service
+    stop_stop_units: []

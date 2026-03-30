@@ -22,6 +22,9 @@ homelab_dns_records:
     - "dockerhost1"
     - "immich"
     - "paperless"
+  "192.168.178.34":
+    - "james"
+    - "licht"
     - "grafana"
   "10.13.0.3":
     - "gateway.vpn"

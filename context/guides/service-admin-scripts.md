@@ -42,6 +42,11 @@ The service-specific scripts should:
 - stop scripts should disable and/or stop the relevant units
 - warn cleanly if a referenced unit is not installed yet
 
+`configure-netcontroller.yml` should install these scripts for the
+`networker` host user on netcontroller hosts. The `add_kea` and `add_unbound`
+roles should expose their script bundles via role defaults so the playbook can
+assemble them with `add_admin_scripts` without duplicating unit lists.
+
 ## Example: restic1
 
 On `restic1`, the `add_admin_scripts` role installs scripts for `archivar`

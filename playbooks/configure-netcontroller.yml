@@ -71,11 +71,15 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_kea
+          - add_admin_scripts
         record_deployment_metadata:
           service: kea
 
   roles:
     - role: add_kea
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: "{{ add_kea_admin_scripts_service_groups }}"
 
   post_tasks:
     - name: Record successful deployment history for DHCP configuration
@@ -86,6 +90,7 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_kea
+          - add_admin_scripts
         record_deployment_metadata:
           service: kea
 
@@ -106,12 +111,16 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
+          - add_admin_scripts
         record_deployment_metadata:
           service: unbound
           rollout_phase: passive
 
   roles:
     - role: add_unbound
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: "{{ add_unbound_admin_scripts_service_groups }}"
 
   post_tasks:
     - name: Verify DNS from controller via passive resolver
@@ -125,6 +134,7 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
+          - add_admin_scripts
         record_deployment_metadata:
           service: unbound
           rollout_phase: passive
@@ -146,12 +156,16 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
+          - add_admin_scripts
         record_deployment_metadata:
           service: unbound
           rollout_phase: active
 
   roles:
     - role: add_unbound
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: "{{ add_unbound_admin_scripts_service_groups }}"
 
   post_tasks:
     - name: Verify DNS from controller via active resolver
@@ -165,6 +179,7 @@
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
+          - add_admin_scripts
         record_deployment_metadata:
           service: unbound
           rollout_phase: active
