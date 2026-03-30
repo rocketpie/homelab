@@ -9,7 +9,7 @@ memory_mb: 2048
 os_disk_gb: 20
 
 extra_disks:
-  - disk_gb: 50
+  - disk_gb: 700
     pve_storage: "local-pve-rpool"
     mount_path: "/media/backups"
     fs_type: "ext4"
@@ -31,12 +31,43 @@ add_restic_retention_repositories:
     repository: "repo1"
     enabled: true
     forget_args:
-      - "--keep-within-daily"
+      - "--keep-within"
+      - "2d"
+      - "--keep-weekly"
+      - "1"
+      - "--prune"
+  - user: "lc3win"
+    repository: "d"
+    enabled: true
+    forget_args:
+      - "--keep-within"
       - "14d"
-      - "--keep-within-weekly"
-      - "8w"
-      - "--keep-within-monthly"
-      - "12m"
+      - "--keep-weekly"
+      - "4"
+      - "--keep-monthly"
+      - "4"
+      - "--prune"
+  - user: "lc3win"
+    repository: "documents"
+    enabled: true
+    forget_args:
+      - "--keep-within"
+      - "14d"
+      - "--keep-weekly"
+      - "4"
+      - "--keep-monthly"
+      - "4"
+      - "--prune"
+  - user: "lc3win"
+    repository: "scans"
+    enabled: true
+    forget_args:
+      - "--keep-within"
+      - "14d"
+      - "--keep-weekly"
+      - "4"
+      - "--keep-monthly"
+      - "4"
       - "--prune"
 
 add_rclone_service_user: "archivar"

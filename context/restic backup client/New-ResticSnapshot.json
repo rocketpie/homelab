@@ -1,0 +1,16 @@
+{
+    "log": {
+        "path": "C:\\ProgramData\\backuplog\\",
+        "retainLogs": "30:00:00:00"
+    },
+    "snapshot": [
+        {
+            "path": "D:\\",
+            "resticRepository": "rest:http://backup.lan:8000/lc3win/d",
+            "repositoryPassword": "",
+            "resticBackupOptions": [
+                "--skip-if-unchanged"
+            ]
+        }
+    ]
+}
