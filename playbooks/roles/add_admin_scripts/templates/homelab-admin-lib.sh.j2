@@ -142,7 +142,7 @@ homelab_admin_show_deployment_history() {
     echo "First entry:"
     printf '%s\n' "${history_entries[0]}"
 
-    if [[ "${#history_entries[@]}" -gt 1 ]]; then
+    if [[ -n "${history_entries[1]:-}" ]]; then
       echo
       echo "Recent entries:"
       printf '%s\n' "${history_entries[@]}" | tail -n "$history_entries_to_show"
