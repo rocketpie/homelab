@@ -96,6 +96,7 @@
     method: GET
     return_content: false
     status_code: 200
+    timeout: 4    
   register: export_autoinstall_seed_http_check
   failed_when: false
   changed_when: false
