@@ -4,6 +4,24 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Record incomplete deployment history for backup service stack
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-rest-server.yml
+        record_deployment_roles:
+          - add_restic_server
+          - add_restic_retention
+          - add_rclone
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - rest-server
+            - restic-retention
+            - rclone
+
   roles:
     - role: add_restic_server
     - role: add_restic_retention
@@ -23,10 +41,11 @@
           }}
 
   post_tasks:
-    - name: Record deployment history for backup service stack
+    - name: Record successful deployment history for backup service stack
       ansible.builtin.include_role:
         name: record_deployment
       vars:
+        record_deployment_phase: finish
         record_deployment_playbook: add-rest-server.yml
         record_deployment_roles:
           - add_restic_server

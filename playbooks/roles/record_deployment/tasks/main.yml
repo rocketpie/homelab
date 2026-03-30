@@ -3,68 +3,51 @@
   ansible.builtin.assert:
     that:
       - record_deployment_playbook | trim | length > 0
+      - record_deployment_phase in ['start', 'finish']
     fail_msg: "record_deployment_playbook must be set when using record_deployment"
 
-- name: Build tracked repository paths for deployment record
-  ansible.builtin.set_fact:
-    record_deployment_tracked_paths: >-
-      {{
-        (
-          ['playbooks/' ~ record_deployment_playbook]
-          + (
-            record_deployment_roles
-            | map('regex_replace', '^(.*)$', 'playbooks/roles/\\1')
-            | list
-          )
-          + (record_deployment_extra_paths | default([]))
-        )
-        | unique
-      }}
-
-- name: Capture repository state for deployment record
+- name: Materialize immutable deployment history values
   ansible.builtin.set_fact:
     record_deployment_repo_commit: >-
       {{
-        lookup(
-          'ansible.builtin.pipe',
-          'git -C ' ~ (record_deployment_repo_root | quote) ~ ' rev-parse HEAD'
-        ) | trim
+        record_deployment_repo_commit
+        | default(
+            lookup(
+              'ansible.builtin.pipe',
+              'git -C ' ~ (record_deployment_repo_root | quote) ~ ' rev-parse HEAD'
+            ) | trim
+          )
       }}
     record_deployment_repo_dirty: >-
       {{
-        (
-          lookup(
-            'ansible.builtin.pipe',
-            'git -C ' ~ (record_deployment_repo_root | quote) ~ ' status --porcelain'
-          ) | trim
-        ) != ''
+        record_deployment_repo_dirty
+        | default(
+            (
+              lookup(
+                'ansible.builtin.pipe',
+                'git -C ' ~ (record_deployment_repo_root | quote) ~ ' status --porcelain'
+              ) | trim
+            ) != ''
+          )
       }}
+    record_deployment_entry_recorded_at: "{{ record_deployment_entry_recorded_at | default(ansible_date_time.iso8601) }}"
 
-- name: Initialize tracked path version list
+- name: Materialize deployment history start status for completion update
   ansible.builtin.set_fact:
-    record_deployment_path_versions: []
+    record_deployment_entry_status: incomplete
+  when: record_deployment_phase == 'finish'
 
-- name: Capture latest git commit for tracked paths
+- name: Render incomplete deployment history entry
   ansible.builtin.set_fact:
-    record_deployment_path_versions: >-
+    record_deployment_history_incomplete_entry: >-
       {{
-        (record_deployment_path_versions | default([]))
-        + [
-            {
-              'path': item,
-              'commit': (
-                lookup(
-                  'ansible.builtin.pipe',
-                  'git -C ' ~ (record_deployment_repo_root | quote)
-                  ~ ' log -n 1 --format=%H -- ' ~ (item | quote)
-                ) | trim
-              ) or none
-            }
-          ]
+        lookup('ansible.builtin.template', 'deploy-history-entry.yml.j2')
       }}
-  loop: "{{ record_deployment_tracked_paths }}"
-  loop_control:
-    label: "{{ item }}"
+  when: record_deployment_phase == 'finish'
+
+- name: Materialize deployment history status
+  ansible.builtin.set_fact:
+    record_deployment_entry_status: "{{ 'incomplete' if record_deployment_phase == 'start' else 'success' }}"
 
 - name: Render deployment history entry
   ansible.builtin.set_fact:
@@ -96,16 +79,11 @@
 
 - name: Materialize append-safe deployment history entry
   ansible.builtin.set_fact:
-    record_deployment_history_entry_to_append: >-
-      {{
-        (
-          '\n'
-          if (record_deployment_history_file_stat.stat.size | default(0) | int) > 0
-          else ''
-        )
-        ~ (record_deployment_history_entry | trim)
-        ~ '\n'
-      }}
+    record_deployment_history_entry_to_append: |-
+      {% if (record_deployment_history_file_stat.stat.size | default(0) | int) > 0 %}
+
+      {% endif %}
+      {{ record_deployment_history_entry | trim }}
 
 - name: Append deployment history entry
   ansible.builtin.command:
@@ -115,3 +93,51 @@
       - "{{ record_deployment_history_file }}"
     stdin: "{{ record_deployment_history_entry_to_append }}"
   changed_when: true
+  when: record_deployment_phase == 'start'
+
+- name: Read deployment history file for completion update
+  ansible.builtin.slurp:
+    path: "{{ record_deployment_history_file }}"
+  register: record_deployment_history_file_raw
+  when: record_deployment_phase == 'finish'
+
+- name: Materialize completed deployment history file content
+  ansible.builtin.set_fact:
+    record_deployment_history_updated_content: >-
+      {{
+        (
+          record_deployment_history_file_raw.content
+          | b64decode
+        )
+        | replace(
+            (record_deployment_history_incomplete_entry | trim) ~ '\n',
+            record_deployment_history_entry | trim
+          )
+        | replace(
+            record_deployment_history_incomplete_entry | trim,
+            record_deployment_history_entry | trim
+          )
+      }}
+  when: record_deployment_phase == 'finish'
+
+- name: Assert deployment history start entry exists before completion update
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          record_deployment_history_file_raw.content
+          | b64decode
+        ) != record_deployment_history_updated_content
+    fail_msg: >-
+      Could not find an incomplete deployment history entry for
+      {{ record_deployment_playbook }} on {{ inventory_hostname }}.
+  when: record_deployment_phase == 'finish'
+
+- name: Update deployment history entry to success
+  ansible.builtin.copy:
+    content: "{{ record_deployment_history_updated_content }}"
+    dest: "{{ record_deployment_history_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: record_deployment_phase == 'finish'

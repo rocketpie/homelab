@@ -1,12 +1,33 @@
 ---
-{{ {
-  'host': inventory_hostname,
-  'playbook': record_deployment_playbook,
-  'play_name': ansible_play_name,
-  'recorded_at': ansible_date_time.iso8601,
-  'repo_commit': record_deployment_repo_commit,
-  'repo_dirty': record_deployment_repo_dirty,
-  'roles': record_deployment_roles,
-  'tracked_paths': record_deployment_path_versions | default([]),
-  'metadata': record_deployment_metadata
-} | to_nice_yaml(indent=2) | trim }}
+{{
+  {
+    'host': inventory_hostname,
+    'playbook': record_deployment_playbook,
+    'recorded_at': record_deployment_entry_recorded_at,
+    'status': record_deployment_entry_status,
+    'repo_commit': record_deployment_repo_commit,
+    'repo_dirty': record_deployment_repo_dirty
+  }
+  | combine(
+      (
+        {
+          'roles': record_deployment_roles
+        }
+        if (record_deployment_roles | default([]) | length) > 0
+        else {}
+      ),
+      recursive=True
+    )
+  | combine(
+      (
+        {
+          'metadata': record_deployment_metadata
+        }
+        if (record_deployment_metadata | default({}) | length) > 0
+        else {}
+      ),
+      recursive=True
+    )
+  | to_nice_yaml(indent=2)
+  | trim
+}}

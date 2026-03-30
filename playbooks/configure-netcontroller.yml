@@ -62,14 +62,27 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Record incomplete deployment history for DHCP configuration
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_kea
+        record_deployment_metadata:
+          service: kea
+
   roles:
     - role: add_kea
 
   post_tasks:
-    - name: Record deployment history for DHCP configuration
+    - name: Record successful deployment history for DHCP configuration
       ansible.builtin.include_role:
         name: record_deployment
       vars:
+        record_deployment_phase: finish
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_kea
@@ -84,6 +97,19 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Record incomplete deployment history for passive DNS rollout
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_unbound
+        record_deployment_metadata:
+          service: unbound
+          rollout_phase: passive
+
   roles:
     - role: add_unbound
 
@@ -91,15 +117,14 @@
     - name: Verify DNS from controller via passive resolver
       ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
 
-    - name: Record deployment history for passive DNS rollout
+    - name: Record successful deployment history for passive DNS rollout
       ansible.builtin.include_role:
         name: record_deployment
       vars:
+        record_deployment_phase: finish
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
-        record_deployment_extra_paths:
-          - playbooks/tasks/test-unbound-from-controller.yml
         record_deployment_metadata:
           service: unbound
           rollout_phase: passive
@@ -112,6 +137,19 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Record incomplete deployment history for active DNS rollout
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: configure-netcontroller.yml
+        record_deployment_roles:
+          - add_unbound
+        record_deployment_metadata:
+          service: unbound
+          rollout_phase: active
+
   roles:
     - role: add_unbound
 
@@ -119,15 +157,14 @@
     - name: Verify DNS from controller via active resolver
       ansible.builtin.include_tasks: tasks/test-unbound-from-controller.yml
 
-    - name: Record deployment history for active DNS rollout
+    - name: Record successful deployment history for active DNS rollout
       ansible.builtin.include_role:
         name: record_deployment
       vars:
+        record_deployment_phase: finish
         record_deployment_playbook: configure-netcontroller.yml
         record_deployment_roles:
           - add_unbound
-        record_deployment_extra_paths:
-          - playbooks/tasks/test-unbound-from-controller.yml
         record_deployment_metadata:
           service: unbound
           rollout_phase: active

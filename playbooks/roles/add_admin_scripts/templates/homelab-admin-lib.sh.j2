@@ -87,23 +87,24 @@ homelab_admin_show_deployment_history() {
       sudo awk '
         function flush_entry() {
           if (in_entry && recorded_at != "" && playbook != "") {
-            printf "%s | %s | %s | %s\n", recorded_at, playbook, host, play_name
+            if (status == "") {
+              status = "unknown"
+            }
+            printf "%s | %s | %s\n", recorded_at, playbook, status
           }
         }
         BEGIN {
           in_entry = 0
           recorded_at = ""
           playbook = ""
-          host = ""
-          play_name = ""
+          status = ""
         }
-        /^---[[:space:]]*$/ {
+        /^(\\n)?---[[:space:]]*$/ {
           flush_entry()
           in_entry = 1
           recorded_at = ""
           playbook = ""
-          host = ""
-          play_name = ""
+          status = ""
           next
         }
         /^recorded_at:[[:space:]]*/ {
@@ -116,14 +117,9 @@ homelab_admin_show_deployment_history() {
           sub(/^playbook:[[:space:]]*/, "", playbook)
           next
         }
-        /^host:[[:space:]]*/ {
-          host = $0
-          sub(/^host:[[:space:]]*/, "", host)
-          next
-        }
-        /^play_name:[[:space:]]*/ {
-          play_name = $0
-          sub(/^play_name:[[:space:]]*/, "", play_name)
+        /^status:[[:space:]]*/ {
+          status = $0
+          sub(/^status:[[:space:]]*/, "", status)
           next
         }
         END {
@@ -134,20 +130,22 @@ homelab_admin_show_deployment_history() {
 
     if [[ -z "$history_entries_output" ]]; then
       echo "No readable deployment entries found."
-      return
-    fi
+    else
+      mapfile -t history_entries < <(printf '%s\n' "$history_entries_output")
 
-    mapfile -t history_entries < <(printf '%s\n' "$history_entries_output")
+      echo "First entry:"
+      printf '%s\n' "${history_entries[0]}"
 
-    echo "First entry:"
-    printf '%s\n' "${history_entries[0]}"
-
-    if [[ -n "${history_entries[1]:-}" ]]; then
-      echo
-      echo "Recent entries:"
-      printf '%s\n' "${history_entries[@]}" | tail -n "$history_entries_to_show"
+      if [[ -n "${history_entries[1]:-}" ]]; then
+        echo
+        echo "Recent entries:"
+        printf '%s\n' "${history_entries[@]}" | tail -n "$history_entries_to_show"
+      fi
     fi
   else
     echo "No deployment history found."
   fi
+
+  echo
+  echo "Full log: cat $history_file"
 }

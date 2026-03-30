@@ -4,14 +4,25 @@
   become: true
   gather_facts: true
 
+  pre_tasks:
+    - name: Record incomplete deployment history for automatic updates
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-autoupdate.yml
+        record_deployment_roles:
+          - add_autoupdate
+
   roles:
     - role: add_autoupdate
 
   post_tasks:
-    - name: Record deployment history for automatic updates
+    - name: Record successful deployment history for automatic updates
       ansible.builtin.include_role:
         name: record_deployment
       vars:
+        record_deployment_phase: finish
         record_deployment_playbook: add-autoupdate.yml
         record_deployment_roles:
           - add_autoupdate
