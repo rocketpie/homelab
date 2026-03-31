@@ -16,7 +16,7 @@ if ($PSBoundParameters['Debug']) {
 }
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.2"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.3"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -147,8 +147,17 @@ function Invoke-ResticBackup {
     )
 
     $resticArguments = @('backup', $SnapshotItem.path)
+    $resticIgnoreFiles = Get-ResticIgnoreFiles -Path $SnapshotItem.path
+    foreach ($resticIgnoreFile in $resticIgnoreFiles) {
+        $resticArguments += '--iexclude-file'
+        $resticArguments += $resticIgnoreFile
+    }
     if ($null -ne $SnapshotItem.resticBackupOptions) {
         $resticArguments += @($SnapshotItem.resticBackupOptions)
+    }
+
+    if ($resticIgnoreFiles.Count -gt 0) {
+        "using .backupignore files: $($resticIgnoreFiles -join ', ')" | Out-Logged -LogfilePath $LogFilePath
     }
 
     $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
@@ -190,6 +199,17 @@ function Invoke-ResticBackup {
     finally {
         $process.Dispose()
     }
+}
+
+function Get-ResticIgnoreFiles {
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    $ignoreFiles = Get-ChildItem -Path $Path -File -Filter '.backupignore' -Depth 1
+    Write-Debug "found $($ignoreFiles.Count) .backupignore files in '$($Path)'"
+    return $ignoreFiles    
 }
 
 function Test-ReadAccess {
