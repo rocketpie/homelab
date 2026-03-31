@@ -16,7 +16,7 @@ if ($PSBoundParameters['Debug']) {
 }
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.1"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.2"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -31,13 +31,12 @@ function Main {
         try {
             Test-ReadAccess -Path $item.path
 
-            "starting backup of '$($item.path)' to repository '$($item.resticRepository)'..."
-            $env:RESTIC_REPOSITORY = $item.resticRepository
-            $env:RESTIC_PASSWORD = $item.repositoryPassword
-            & restic backup $item.path $item.resticBackupOptions *>&1 | Out-Logged -LogfilePath $logFilePath
+            "starting backup of '$($item.path)' to repository '$($item.resticRepository)'..." | Out-Logged -LogfilePath $logFilePath
+            Invoke-ResticBackup -SnapshotItem $item -LogFilePath $logFilePath
         }
         catch {
-            "backup failed! path:'$($item.path)' exception:$($_.Exception)" | Out-Logged -LogfilePath $logFilePath
+            "backup failed! path:'$($item.path)'" | Out-Logged -LogfilePath $logFilePath
+            Write-LoggedErrorDetails -ErrorRecord $_ -LogFilePath $logFilePath
         }
     }
 
@@ -101,6 +100,96 @@ function Out-Logged {
     
     $InputObject
     Add-Content -LiteralPath $LogFilePath -Encoding utf8NoBOM -Value $InputObject | Out-Null
+}
+
+function Write-LoggedText {
+    [CmdletBinding()]
+    param(
+        [string]$LogFilePath,
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return
+    }
+
+    foreach ($line in ($Text -split "\r?\n")) {
+        if ($line.Length -eq 0) {
+            continue
+        }
+
+        $line | Out-Logged -LogfilePath $LogFilePath
+    }
+}
+
+function Write-LoggedErrorDetails {
+    [CmdletBinding()]
+    param(
+        [string]$LogFilePath,
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+
+    if ($null -ne $ErrorRecord.Exception) {
+        Write-LoggedText -LogFilePath $LogFilePath -Text $ErrorRecord.Exception.ToString()
+    }
+    else {
+        $formattedError = $ErrorRecord | Format-List * -Force | Out-String
+        Write-LoggedText -LogFilePath $LogFilePath -Text $formattedError
+    }
+}
+
+function Invoke-ResticBackup {
+    [CmdletBinding()]
+    param(
+        [object]$SnapshotItem,
+        [string]$LogFilePath
+    )
+
+    $resticArguments = @('backup', $SnapshotItem.path)
+    if ($null -ne $SnapshotItem.resticBackupOptions) {
+        $resticArguments += @($SnapshotItem.resticBackupOptions)
+    }
+
+    $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processStartInfo.FileName = 'restic'
+    $processStartInfo.UseShellExecute = $false
+    $processStartInfo.RedirectStandardOutput = $true
+    $processStartInfo.RedirectStandardError = $true
+    $processStartInfo.CreateNoWindow = $true
+    $processStartInfo.Environment['RESTIC_REPOSITORY'] = [string]$SnapshotItem.resticRepository
+    $processStartInfo.Environment['RESTIC_PASSWORD'] = [string]$SnapshotItem.repositoryPassword
+
+    foreach ($argument in $resticArguments) {
+        $processStartInfo.ArgumentList.Add([string]$argument) | Out-Null
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $processStartInfo
+
+    try {
+        if (-not $process.Start()) {
+            throw "unable to start restic"
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        $process.WaitForExit()
+
+        $stdoutText = $stdoutTask.GetAwaiter().GetResult()
+        $stderrText = $stderrTask.GetAwaiter().GetResult()
+
+        Write-LoggedText -LogFilePath $LogFilePath -Text $stdoutText
+        Write-LoggedText -LogFilePath $LogFilePath -Text $stderrText
+
+        if ($process.ExitCode -ne 0) {
+            throw "restic exited with code $($process.ExitCode)"
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
 }
 
 function Test-ReadAccess {
