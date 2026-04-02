@@ -29,6 +29,14 @@
           and
           item.backup_options is not string
         )
+      - >-
+        (
+          item.backup_pre_command is not defined
+        )
+        or
+        (
+          item.backup_pre_command | string | trim | length > 0
+        )
     fail_msg: "Invalid add_restic_client_repositories item: {{ item | to_nice_yaml }}"
   loop: "{{ add_restic_client_repositories }}"
   loop_control:
@@ -245,6 +253,9 @@
                     item.backup_options
                     if item.backup_options is defined
                     else []
+                  ),
+                  'backup_pre_command_resolved': (
+                    item.backup_pre_command | default('')
                   ),
                   'backup_path_resolved': (
                     item.path | string | trim

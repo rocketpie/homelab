@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd {{ add_paperless_project_dir | quote }}
+
+find {{ add_paperless_export_dir | quote }} -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+
+exec {{ add_paperless_docker_binary_path | quote }} compose exec -T webserver document_exporter ../export

@@ -29,6 +29,7 @@ add_paperless_secret_key: ""
 
 add_paperless_service_name: paperless.service
 add_paperless_service_unit_path: "/etc/systemd/system/{{ add_paperless_service_name }}"
+add_paperless_export_backup_script_path: /usr/local/bin/paperless-export-backup
 
 add_paperless_admin_scripts_service_groups:
   - key: "paperless"
@@ -51,3 +52,9 @@ add_paperless_admin_scripts_extra_scripts:
 
       cd {{ add_paperless_project_dir | quote }}
       exec sudo {{ add_paperless_docker_binary_path | quote }} compose run --rm webserver createsuperuser
+  - name: "paperless-export-backup"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      exec sudo {{ add_paperless_export_backup_script_path | quote }} "$@"

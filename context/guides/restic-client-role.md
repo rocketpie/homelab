@@ -38,6 +38,10 @@ Each configured repository gets:
 The scripts load `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, and the restore target
 path from a root-managed env file.
 
+If needed, a repository can also run one `backup_pre_command` before `restic
+backup`. This is useful for applications like Paperless that need to refresh an
+export directory before the filesystem backup runs.
+
 The restore script prompts for confirmation and restores in place with:
 `restic restore <snapshot> --target / --include <path>`
 
@@ -51,6 +55,16 @@ restic-backup-paperless
 restic-restore-paperless
 restic-restore-paperless latest
 restic-restore-paperless 7c9c4f15
+```
+
+Example pre-backup hook:
+
+```yaml
+add_restic_client_repositories:
+  - name: "paperless"
+    path: "/media/paperless-data/export"
+    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
+    backup_pre_command: "/usr/local/bin/paperless-export-backup"
 ```
 
 If the repository URL contains `{rest_username}` and `{rest_password}`, the role

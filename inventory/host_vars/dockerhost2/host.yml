@@ -35,6 +35,7 @@ add_restic_client_repositories:
   - name: "paperless"
     path: "/media/paperless-data/export"
     repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
+    backup_pre_command: "/usr/local/bin/paperless-export-backup"
     backup_schedule_enabled: false
 
 host_users:

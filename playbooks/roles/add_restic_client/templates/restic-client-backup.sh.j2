@@ -15,5 +15,9 @@ set +a
 
 echo "Repository: {{ item.repository_display }}"
 echo "Backup path: {{ item.backup_path_resolved }}"
+{% if item.backup_pre_command_resolved | length > 0 %}
+echo "Running pre-backup command"
+{{ item.backup_pre_command_resolved }}
+{% endif %}
 
 exec "$RESTIC_CLIENT_BINARY" backup{% for backup_option in item.backup_options_resolved %} {{ backup_option | quote }}{% endfor %} {{ item.backup_path_resolved | quote }} "$@"

@@ -19,3 +19,7 @@
     - process runtime output live streaming to the console
     - DEBUG_LOG=restic-debug.log
 
+# restic server play
+    - add extensive testing, including restic repository access / restore and backup
+    since this is frequently re-run when adding htaccess users.
+    maybe handle user changes differently?

@@ -89,6 +89,14 @@
     group: "{{ add_paperless_owner_group }}"
     mode: "0640"
 
+- name: Install Paperless export backup helper
+  ansible.builtin.template:
+    src: paperless-export-backup.sh.j2
+    dest: "{{ add_paperless_export_backup_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Install Paperless systemd unit
   ansible.builtin.template:
     src: paperless.service.j2

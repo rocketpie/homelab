@@ -44,3 +44,11 @@ the compose stack and enables it on boot. `add_admin_scripts` installs
 
 For export-based recovery after a rebuild or data loss, see
 `context/guides/paperless-recovery.md`.
+
+## Backups
+
+For Paperless, the practical backup input is usually the exported data under
+`/media/paperless-data/export`, not the live database internals. The
+`add_paperless` role installs `/usr/local/bin/paperless-export-backup`, and the
+`add_restic_client` role can call that script via a repository-local
+`backup_pre_command` immediately before the restic snapshot starts.
