@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RESTIC_RESTORE_ENV_FILE={{ item.env_file | quote }}
+RESTIC_RESTORE_BINARY={{ add_restic_client_binary_path | quote }}
+
+if [[ ! -f "$RESTIC_RESTORE_ENV_FILE" ]]; then
+  echo "Missing restic restore env file: $RESTIC_RESTORE_ENV_FILE" >&2
+  exit 1
+fi
+
+set -a
+source "$RESTIC_RESTORE_ENV_FILE"
+set +a
+
+SNAPSHOT="latest"
+
+if [[ "${1:-}" != "" ]]; then
+  SNAPSHOT="$1"
+  shift
+fi
+
+echo "Repository: {{ item.repository_display }}"
+echo "Restore path: $RESTIC_RESTORE_PATH"
+echo "Snapshot: $SNAPSHOT"
+echo
+echo "This restores files back into the live target path using:"
+echo "  restic restore $SNAPSHOT --target / --include $RESTIC_RESTORE_PATH"
+echo
+read -r -p "Continue restore into $RESTIC_RESTORE_PATH? [y/N] " RESTIC_RESTORE_CONFIRM
+
+if [[ ! "$RESTIC_RESTORE_CONFIRM" =~ ^[Yy]$ ]]; then
+  echo "Restore cancelled."
+  exit 1
+fi
+
+mkdir -p "$RESTIC_RESTORE_PATH"
+
+exec "$RESTIC_RESTORE_BINARY" restore "$SNAPSHOT" --target / --include "$RESTIC_RESTORE_PATH" "$@"

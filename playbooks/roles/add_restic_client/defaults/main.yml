@@ -1,0 +1,21 @@
+---
+add_restic_client_packages:
+  - restic
+
+add_restic_client_service_user: "{{ add_admin_scripts_user | default('root') }}"
+add_restic_client_service_group: "{{ add_restic_client_service_user }}"
+
+add_restic_client_binary_path: /usr/bin/restic
+add_restic_client_config_dir: /etc/restic-client
+add_restic_client_env_dir: "{{ add_restic_client_config_dir }}/repos.d"
+add_restic_client_script_dir: /usr/local/bin
+
+add_restic_client_repositories: []
+add_restic_client_repository_credentials: {}
+
+add_restic_client_backup_schedule_enabled: false
+add_restic_client_backup_timer_on_calendar: daily
+add_restic_client_backup_timer_randomized_delay_sec: 30m
+
+add_restic_client_admin_scripts_service_groups: []
+add_restic_client_admin_scripts_extra_scripts: []

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RESTIC_CLIENT_ENV_FILE={{ item.env_file | quote }}
+RESTIC_CLIENT_BINARY={{ add_restic_client_binary_path | quote }}
+
+if [[ ! -f "$RESTIC_CLIENT_ENV_FILE" ]]; then
+  echo "Missing restic client env file: $RESTIC_CLIENT_ENV_FILE" >&2
+  exit 1
+fi
+
+set -a
+source "$RESTIC_CLIENT_ENV_FILE"
+set +a
+
+echo "Repository: {{ item.repository_display }}"
+echo "Backup path: {{ item.backup_path_resolved }}"
+
+exec "$RESTIC_CLIENT_BINARY" backup{% for backup_option in item.backup_options_resolved %} {{ backup_option | quote }}{% endfor %} {{ item.backup_path_resolved | quote }} "$@"

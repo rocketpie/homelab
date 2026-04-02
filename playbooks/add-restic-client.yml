@@ -1,0 +1,46 @@
+---
+- name: Install restic client scripts and backup timers
+  hosts: restic_client
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for restic client
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-restic-client.yml
+        record_deployment_roles:
+          - add_restic_client
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - restic-client
+
+  roles:
+    - role: add_restic_client
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: >-
+          {{
+            add_restic_client_admin_scripts_service_groups | default([])
+          }}
+        add_admin_scripts_extra_scripts: >-
+          {{
+            add_restic_client_admin_scripts_extra_scripts | default([])
+          }}
+
+  post_tasks:
+    - name: Record successful deployment history for restic client
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-restic-client.yml
+        record_deployment_roles:
+          - add_restic_client
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - restic-client

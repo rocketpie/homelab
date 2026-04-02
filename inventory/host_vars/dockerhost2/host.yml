@@ -31,6 +31,12 @@ add_paperless_ocr_language: "deu"
 
 add_admin_scripts_user: "captain"
 
+add_restic_client_repositories:
+  - name: "paperless"
+    path: "/media/paperless-data/export"
+    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
+    backup_schedule_enabled: false
+
 host_users:
   - name: "captain"
     description: "container service account"
@@ -45,3 +51,9 @@ host_users:
 #
 # add_paperless_db_password: "PAPERLESS_DB_PASSWORD_HERE"
 # add_paperless_secret_key: "PAPERLESS_SECRET_KEY_HERE"
+#
+# add_restic_client_repository_credentials:
+#   paperless:
+#     rest_username: "REST_SERVER_USERNAME_HERE"
+#     rest_password: "REST_SERVER_ACCESS_PASSWORD_HERE"
+#     repository_password: "RESTIC_REPOSITORY_PASSWORD_HERE"
