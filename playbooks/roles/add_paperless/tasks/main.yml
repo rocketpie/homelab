@@ -107,28 +107,11 @@
   ansible.builtin.systemd_service:
     daemon_reload: true
 
-- name: Pull Paperless compose images
-  ansible.builtin.command:
-    argv:
-      - "{{ add_paperless_docker_binary_path }}"
-      - compose
-      - pull
-    chdir: "{{ add_paperless_project_dir }}"
+- name: Note manual Paperless startup requirement
+  ansible.builtin.debug:
+    msg: >-
+      Paperless files and service definitions were installed, but the stack was
+      not pulled or started automatically. Use start-paperless, systemctl start
+      {{ add_paperless_service_name }}, or docker compose up -d when you are
+      ready to bring it up.
   changed_when: false
-
-- name: Apply Paperless compose stack
-  ansible.builtin.command:
-    argv:
-      - "{{ add_paperless_docker_binary_path }}"
-      - compose
-      - up
-      - -d
-      - --remove-orphans
-    chdir: "{{ add_paperless_project_dir }}"
-  changed_when: false
-
-- name: Ensure Paperless service is enabled and started
-  ansible.builtin.systemd_service:
-    name: "{{ add_paperless_service_name }}"
-    enabled: true
-    state: started

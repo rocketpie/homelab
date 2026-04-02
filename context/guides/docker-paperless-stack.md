@@ -36,9 +36,24 @@ add_paperless_secret_key: "PAPERLESS_SECRET_KEY_HERE"
 ## Service Management
 
 The `add_paperless` role installs a `paperless.service` systemd unit that runs
-the compose stack and enables it on boot. `add_admin_scripts` installs
-`start-paperless`, `stop-paperless`, `host-status`, and
-`paperless-create-superuser` for the configured admin user.
+the compose stack, but it does not pull images or start the stack
+automatically. This avoids surprising restarts during repeat playbook runs.
+`add_admin_scripts` installs `start-paperless`, `stop-paperless`,
+`host-status`, `paperless-create-superuser`, and `paperless-export-backup` for
+the configured admin user.
+
+Bring the stack up explicitly when you are ready:
+
+```bash
+start-paperless
+```
+
+Or:
+
+```bash
+cd ~/paperless
+docker compose up --detach --remove-orphans
+```
 
 ## Recovery
 
