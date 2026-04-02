@@ -53,8 +53,8 @@ function Main([string]$PlaybookName) {
 
     $vaultPassword = $env:ANSIBLE_VAULT_PASSWORD
     if ([string]::IsNullOrWhiteSpace($vaultPassword)) {
-        $vaultPassword = Read-Host -Prompt "Ansible Vault password?"
-        $env:ANSIBLE_VAULT_PASSWORD = $vaultPassword
+        $vaultPassword = Read-Host -Prompt "Ansible Vault password?" -AsSecureString
+        $env:ANSIBLE_VAULT_PASSWORD = [pscredential]::new('dummy', $vaultPassword).GetNetworkCredential().Password
     }
 
     Write-Host "Running: $playbookPath (inventory: $inventory)"
