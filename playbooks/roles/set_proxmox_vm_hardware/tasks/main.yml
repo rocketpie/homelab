@@ -269,7 +269,11 @@
       {%- set guest = job.guest | default(none) -%}
       {%- if guest is not none and (guest | int) == (vm.vmid | int) -%}
       {%- set _ = result.append({
-            'id': job.id | string,
+            'id': (
+              job.id
+              | string
+              | regex_replace('^local:', '')
+            ),
             'target': job.target | string,
             'schedule': job.schedule | default(set_proxmox_vm_hardware_replication_schedule) | string,
             'rate': (
@@ -293,8 +297,8 @@
       {%- if job.target | length > 0 -%}
       {%- set _ = existing_ids_by_target.update({ job.target: job.id }) -%}
       {%- endif -%}
-      {%- if job.id is match('^local:' ~ (vm.vmid | string) ~ '-\\d+$') -%}
-      {%- set _ = used_suffixes.append((job.id | regex_replace('^local:' ~ (vm.vmid | string) ~ '-', '')) | int) -%}
+      {%- if job.id is match('^' ~ (vm.vmid | string) ~ '-\\d+$') -%}
+      {%- set _ = used_suffixes.append((job.id | regex_replace('^' ~ (vm.vmid | string) ~ '-', '')) | int) -%}
       {%- endif -%}
       {%- endfor -%}
       {%- set available_suffixes = range(0, 1000) | list | difference(used_suffixes) | sort -%}
@@ -303,7 +307,7 @@
       {%- if target in existing_ids_by_target -%}
       {%- set job_id = existing_ids_by_target[target] -%}
       {%- else -%}
-      {%- set job_id = 'local:' ~ (vm.vmid | string) ~ '-' ~ (available_suffixes[ns.next_new_index] | string) -%}
+      {%- set job_id = (vm.vmid | string) ~ '-' ~ (available_suffixes[ns.next_new_index] | string) -%}
       {%- set ns.next_new_index = ns.next_new_index + 1 -%}
       {%- endif -%}
       {%- set _ = ns.result.append({
@@ -411,6 +415,7 @@
     body: >-
       {{
         {
+          'type': 'local',
           'id': item.id,
           'target': item.target,
           'schedule': item.schedule,
