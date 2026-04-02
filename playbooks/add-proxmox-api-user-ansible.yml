@@ -1,5 +1,5 @@
 ---
-- name: Bootstrap Proxmox API user + token + ACLs (run once)
+- name: Bootstrap Proxmox API user + token + ACLs
   hosts: proxmox
   become: true
   gather_facts: false
@@ -37,53 +37,44 @@
           - provision_nodes | length > 0
         fail_msg: "Inventory group 'proxmox' is empty; can't grant node ACLs everywhere."
 
-    - name: Fail if user already exists
-      ansible.builtin.shell: |
-        set -euo pipefail
-        pveum user list | awk 'NR>1 {print $1}' | grep -Fx "{{ pve_userid }}"
-      register: user_exists
-      changed_when: false
-      failed_when: user_exists.rc == 0  # found -> not a clean slate
-
-    - name: Fail if token already exists
-      ansible.builtin.shell: |
-        set -euo pipefail
-        pveum user token list "{{ pve_userid }}" | awk 'NR>1 {print $1}' | grep -Fx "{{ pve_token_id }}"
-      register: token_exists
-      changed_when: false
-      failed_when: token_exists.rc == 0  # found -> not a clean slate
-
-    - name: Fail if ACL entries for this user exist
-      ansible.builtin.shell: |
-        set -euo pipefail
-        pveum acl list | grep -F " {{ pve_userid }} " >/dev/null
-      register: acl_exists_any
-      changed_when: false
-      failed_when: acl_exists_any.rc == 0
-
-    - name: Create user
+    - name: Create user when missing
       ansible.builtin.command: >
         pveum user add {{ pve_userid }}
         --comment "{{ pve_user_comment }}"
       register: user_add
-      changed_when: true
+      changed_when: user_add.rc == 0
+      failed_when:
+        - user_add.rc != 0
+        - "'already exists' not in (user_add.stderr | default('') | lower)"
 
-    - name: Create token (JSON)
+    - name: Materialize whether Proxmox user already existed
+      ansible.builtin.set_fact:
+        pve_user_exists: "{{ user_add.rc != 0 }}"
+
+    - name: Create token when missing (JSON)
       ansible.builtin.command: >
         pveum user token add {{ pve_userid }} {{ pve_token_id }}
         --privsep {{ pve_token_privsep }}
         --output-format json
       register: token_add
-      changed_when: true
+      changed_when: token_add.rc == 0
+      failed_when:
+        - token_add.rc != 0
+        - "'already exists' not in (token_add.stderr | default('') | lower)"
       no_log: true
 
-    - name: Extract token secret from JSON
+    - name: Materialize whether Proxmox token already existed
+      ansible.builtin.set_fact:
+        pve_token_exists: "{{ token_add.rc != 0 }}"
+
+    - name: Extract token secret from JSON when token was created
       ansible.builtin.set_fact:
         # example {"full-tokenid":"ansible@pve!token-test","info":{"privsep":"0"},"value":"00000000-0000-guid-0000-000000000000"}
         pve_token_secret: "{{ (token_add.stdout | from_json).value }}"
       no_log: true
+      when: not pve_token_exists
 
-    - name: Fail with token command output if secret not found
+    - name: Fail with token command output if new token secret was not found
       ansible.builtin.fail:
         msg: |
           Could not parse token secret from pveum output.
@@ -91,7 +82,9 @@
           {{ token_add.stdout | default('') }}
           stderr:
           {{ token_add.stderr | default('') }}
-      when: pve_token_secret | length == 0
+      when:
+        - not pve_token_exists
+        - pve_token_secret | default('') | length == 0
 
     - name: Grant VM allocation scope on /vms
       ansible.builtin.command: "pveum aclmod /vms -user {{ pve_userid }} -role {{ node_role }}"
@@ -130,10 +123,20 @@
       register: eff_perms
       changed_when: false
 
-    - name: Print credentials to store securely (shown only once)
+    - name: Print credentials to store securely when token was created
       ansible.builtin.debug:
         msg:
           - "SAVE THESE NOW (you cannot retrieve the secret later):"
           - "proxmox_api_user: {{ pve_userid }}"
           - "proxmox_api_token_id: {{ pve_token_id }}"
           - "proxmox_api_token_secret: {{ pve_token_secret }}"
+      when: not pve_token_exists
+
+    - name: Show rerun summary when user or token already existed
+      ansible.builtin.debug:
+        msg:
+          - "Proxmox API bootstrap converged without creating a new token secret."
+          - "user_exists: {{ pve_user_exists }}"
+          - "token_exists: {{ pve_token_exists }}"
+          - "If you need the token secret again, create a new token and update inventory."
+      when: pve_user_exists or pve_token_exists
