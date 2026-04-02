@@ -21,7 +21,6 @@ homelab_dns_records:
   "192.168.178.55":
     - "dockerhost1"
     - "immich"
-    - "paperless"
   "192.168.178.34":
     - "james"
     - "licht"

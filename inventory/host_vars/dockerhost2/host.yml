@@ -1,0 +1,37 @@
+vmid: 22012
+proxmox_node: "n2"
+proxmox_replica_nodes:
+  - "n5"
+
+proxmox_ostype: "l26"
+proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
+
+cores: 4
+memory_mb: 4096
+os_disk_gb: 40
+
+extra_disks:
+  - disk_gb: 20
+    pve_storage: "local-pve-rpool"
+    mount_path: "/media/paperless-data"
+    fs_type: "ext4"
+    mount_options: "defaults,nofail"
+
+# enable_autoupdate: false
+
+dns_aliases:
+  - "paperless.lan"
+
+add_admin_scripts_user: "captain"
+
+host_users:
+  - name: "captain"
+    description: "container service account"
+    groups:
+      - sudo
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
+
+# vault.yml:
+# host_user_passwords:
+#   captain: "USER_PASSWORD_HERE"
