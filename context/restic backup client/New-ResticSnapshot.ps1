@@ -16,7 +16,7 @@ if ($PSBoundParameters['Debug']) {
 }
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.4"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.5"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -195,7 +195,7 @@ function Invoke-ResticBackup {
     )
 
     $resticArguments = @('backup', $SnapshotItem.path)
-    $resticIgnoreFiles = Get-ResticIgnoreFiles -Path $SnapshotItem.path
+    $resticIgnoreFiles = @(Get-ResticIgnoreFiles -Path $SnapshotItem.path)
     foreach ($resticIgnoreFile in $resticIgnoreFiles) {
         $resticArguments += '--iexclude-file'
         $resticArguments += $resticIgnoreFile
@@ -255,7 +255,7 @@ function Get-ResticIgnoreFiles {
         [string]$Path
     )
 
-    $ignoreFiles = Get-ChildItem -Path $Path -File -Filter '.backupignore' -Depth 1
+    $ignoreFiles = @(Get-ChildItem -Path $Path -File -Filter '.backupignore' -Depth 1)
     Write-Debug "found $($ignoreFiles.Count) .backupignore files in '$($Path)'"
     return $ignoreFiles    
 }
@@ -270,7 +270,7 @@ function Test-ReadAccess {
             Write-Error "'$($Path)' does not exist"
             return
         }
-        Get-ChildItem -Recurse -LiteralPath $Path -ErrorAction Stop | Out-Null
+        Get-ChildItem -LiteralPath $Path -ErrorAction Stop | Out-Null
     }
     catch {
         Write-Error "cannot read from '$($Path)': $($_.Exception)"
