@@ -37,8 +37,22 @@
     that:
       - item.name is defined
       - item.name | string | trim | length > 0
-      - item.content is defined
-      - item.content | string | trim | length > 0
+      - >-
+        (
+          (
+            item.content is defined
+            and
+            item.content | string | trim | length > 0
+          )
+          or
+          (
+            item.link_target is defined
+            and
+            item.link_target | string | trim | length > 0
+            and
+            item.link_target.startswith('/')
+          )
+        )
     fail_msg: "Invalid add_admin_scripts_extra_scripts item: {{ item | to_nice_yaml }}"
   loop: "{{ add_admin_scripts_extra_scripts }}"
   loop_control:
@@ -175,3 +189,19 @@
   loop: "{{ add_admin_scripts_extra_scripts }}"
   loop_control:
     label: "{{ item.name }}"
+  when:
+    - item.content is defined
+    - item.content | string | trim | length > 0
+
+- name: Install extra admin script links
+  ansible.builtin.file:
+    src: "{{ item.link_target }}"
+    dest: "{{ add_admin_scripts_dir }}/{{ item.name }}"
+    state: link
+    force: true
+  loop: "{{ add_admin_scripts_extra_scripts }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.link_target is defined
+    - item.link_target | string | trim | length > 0

@@ -53,8 +53,4 @@ add_paperless_admin_scripts_extra_scripts:
       cd {{ add_paperless_project_dir | quote }}
       exec sudo {{ add_paperless_docker_binary_path | quote }} compose run --rm webserver createsuperuser
   - name: "paperless-export-backup"
-    content: |
-      #!/usr/bin/env bash
-      set -euo pipefail
-
-      exec sudo {{ add_paperless_export_backup_script_path | quote }} "$@"
+    link_target: "{{ add_paperless_export_backup_script_path }}"

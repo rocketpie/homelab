@@ -445,19 +445,11 @@
         + [
             {
               'name': item.backup_script_name,
-              'content': (
-                '#!/usr/bin/env bash\n'
-                ~ 'set -euo pipefail\n\n'
-                ~ 'exec ' ~ (item.backup_script_path | quote) ~ ' "$@"\n'
-              )
+              'link_target': item.backup_script_path
             },
             {
               'name': item.restore_script_name,
-              'content': (
-                '#!/usr/bin/env bash\n'
-                ~ 'set -euo pipefail\n\n'
-                ~ 'exec ' ~ (item.restore_script_path | quote) ~ ' "$@"\n'
-              )
+              'link_target': item.restore_script_path
             }
           ]
       }}
