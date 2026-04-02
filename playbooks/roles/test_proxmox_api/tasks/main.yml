@@ -20,6 +20,18 @@
       iso_storage: "{{ proxmox_api_iso_storage }}"
     verbosity: 1
 
+- name: Materialize whether replication management is requested
+  ansible.builtin.set_fact:
+    test_proxmox_api_replication_requested: >-
+      {{
+        (
+          vm.proxmox_replica_nodes | default([])
+          | reject('equalto', '')
+          | list
+          | length
+        ) > 0
+      }}
+
 - name: Query Proxmox API permissions for current token user
   ansible.builtin.uri:
     url: "https://{{ proxmox_api_host }}:8006/api2/json/access/permissions?userid={{ proxmox_api_user }}"
@@ -66,3 +78,15 @@
       - test_proxmox_api_permissions_response.json.data['/vms']['VM.PowerMgmt'] | default(0) | int == 1
 
     fail_msg: "Proxmox API token is missing one or more permissions required for VM creation"
+
+- name: Assert token has required permissions for replication job management
+  ansible.builtin.assert:
+    that:
+      - test_proxmox_api_permissions_response.json.data['/storage'] is defined
+      - test_proxmox_api_permissions_response.json.data['/storage']['Datastore.Allocate'] | default(0) | int == 1
+      - test_proxmox_api_permissions_response.json.data['/storage']['Datastore.Audit'] | default(0) | int == 1
+    fail_msg: >-
+      Proxmox API token is missing one or more permissions required for VM
+      replication job management. Grant a datastore role with Datastore.Allocate
+      on /storage, for example by rerunning playbooks/add-proxmox-api-user-ansible.yml.
+  when: test_proxmox_api_replication_requested | bool

@@ -1,0 +1,34 @@
+---
+- name: Reconcile VM hardware and placement on Proxmox
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Prompt for VM to update when not provided
+      ansible.builtin.pause:
+        prompt: "VM to update? must match inventory hostname [{{ autoinstall_default_vm_name }}]"
+      register: set_vm_hardware_name_prompt
+
+    - name: Resolve VM name for hardware update
+      ansible.builtin.set_fact:
+        vm_name: "{{ (set_vm_hardware_name_prompt.user_input | default('', true) | trim) or autoinstall_default_vm_name }}"
+      when: vm_name is not defined
+
+    - name: Ensure target VM exists in inventory
+      ansible.builtin.assert:
+        that:
+          - vm_name in hostvars
+        fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
+
+    - name: Materialize selected VM vars
+      ansible.builtin.set_fact:
+        vm: "{{ hostvars[vm_name] }}"
+
+    - name: Run Proxmox API preflight checks
+      ansible.builtin.include_role:
+        name: test_proxmox_api
+
+    - name: Reconcile desired VM hardware, placement, and replication
+      ansible.builtin.include_role:
+        name: set_proxmox_vm_hardware

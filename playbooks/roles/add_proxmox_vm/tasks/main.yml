@@ -40,7 +40,6 @@
     add_proxmox_vm_bridge: "{{ vm.proxmox_bridge | default(proxmox_api_default_bridge) }}"
     add_proxmox_vm_agent: "{{ vm.proxmox_qemu_agent | default(add_proxmox_vm_qemu_agent) }}"
     add_proxmox_vm_provision_node: "{{ autoinstall_provision_proxmox_node }}"
-    add_proxmox_vm_target_node: "{{ vm.proxmox_node }}"
     add_proxmox_vm_active_node: "{{ autoinstall_provision_proxmox_node }}"
 
 - name: Show VM create inputs
@@ -49,7 +48,7 @@
       vm_name: "{{ vm_name }}"
       vmid: "{{ vm.vmid }}"
       provision_node: "{{ add_proxmox_vm_provision_node }}"
-      target_node: "{{ add_proxmox_vm_target_node }}"
+      target_node: "{{ vm.proxmox_node }}"
       ostype: "{{ vm.proxmox_ostype }}"
       cores: "{{ vm.cores }}"
       memory_mb: "{{ vm.memory_mb }}"
@@ -132,98 +131,6 @@
     return_content: true
   register: add_proxmox_vm_remove_iso_result
 
-- name: Migrate stopped VM to target Proxmox node
-  ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ add_proxmox_vm_provision_node }}/qemu/{{ vm.vmid }}/migrate"
-    method: POST
-    headers:
-      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
-    validate_certs: "{{ proxmox_api_verify_ssl }}"
-    body_format: form-urlencoded
-    body:
-      target: "{{ add_proxmox_vm_target_node }}"
-      online: 0
-      "with-local-disks": 1
-      targetstorage: "{{ proxmox_api_vm_storage }}"
-    return_content: true
-  register: add_proxmox_vm_migrate_result
-  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
-
-- name: Materialize Proxmox migration task UPID
-  ansible.builtin.set_fact:
-    add_proxmox_vm_migrate_task_upid: >-
-      {{ add_proxmox_vm_migrate_result.json.data | string | trim }}
-  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
-
-- name: Wait for Proxmox migration task to finish
-  ansible.builtin.uri:
-    url: >-
-      {{
-        'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
-        (add_proxmox_vm_provision_node | trim) ~ '/tasks/' ~
-        (add_proxmox_vm_migrate_task_upid | urlencode) ~ '/status'
-      }}
-    method: GET
-    headers:
-      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
-    validate_certs: "{{ proxmox_api_verify_ssl }}"
-    return_content: true
-  register: add_proxmox_vm_migrate_status
-  changed_when: false
-  until: >-
-    add_proxmox_vm_migrate_status.content | default('') | regex_search(
-      '"status"\\s*:\\s*"stopped"'
-    )
-  retries: 60
-  delay: 10
-  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
-
-- name: Assert Proxmox migration completed successfully
-  ansible.builtin.assert:
-    that:
-      - add_proxmox_vm_migrate_status.content | default('') | regex_search(
-          '"exitstatus"\\s*:\\s*"OK"'
-        )
-    fail_msg: >-
-      Proxmox VM migration failed for {{ vm_name }}:
-      {{
-        (
-          add_proxmox_vm_migrate_status.content
-          | default('', true)
-          | trim
-        )
-        if (
-          add_proxmox_vm_migrate_status.content
-          | default('', true)
-          | trim
-          | length
-        ) > 0
-        else (add_proxmox_vm_migrate_status | to_nice_json)
-      }}
-  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
-
-- name: Switch active Proxmox node to final target
-  ansible.builtin.set_fact:
-    add_proxmox_vm_active_node: "{{ add_proxmox_vm_target_node }}"
-  when: add_proxmox_vm_provision_node != add_proxmox_vm_target_node
-
-- name: Apply final CPU and memory after autoinstall shutdown
-  community.proxmox.proxmox_kvm:
-    api_host: "{{ proxmox_api_host }}"
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ add_proxmox_vm_active_node }}"
-    vmid: "{{ vm.vmid }}"
-    cores: "{{ vm.cores }}"
-    memory: "{{ vm.memory_mb }}"
-    state: present
-    update: true
-  when: >
-    (vm.cores | int) != (autoinstall_provision_cores | int)
-    or (vm.memory_mb | int) != (autoinstall_provision_memory_mb | int)
-
 - name: Query VM config after CD-ROM removal
   ansible.builtin.uri:
     url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ add_proxmox_vm_active_node }}/qemu/{{ vm.vmid }}/config"
@@ -276,6 +183,10 @@
     index_var: loop_index
     label: "{{ item.disk_id }}"
 
+- name: Reconcile final VM hardware, placement, and replication
+  ansible.builtin.include_role:
+    name: set_proxmox_vm_hardware
+
 - name: Start VM
   community.proxmox.proxmox_kvm:
     api_host: "{{ proxmox_api_host }}"
@@ -283,6 +194,6 @@
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    node: "{{ add_proxmox_vm_active_node }}"
+    node: "{{ vm.proxmox_node }}"
     vmid: "{{ vm.vmid }}"
     state: started

@@ -110,6 +110,13 @@
       loop: "{{ provision_storages }}"
       changed_when: true
 
+    - name: Grant storage root ACL for replication job management
+      ansible.builtin.command: >-
+        pveum aclmod /storage
+        -user {{ pve_userid }}
+        -role {{ disk_storage_role }}
+      changed_when: true
+
     - name: Grant global audit permissions (easier troubleshooting user permissions)
       ansible.builtin.command: "pveum aclmod / -user {{ pve_userid }} -role PVEAuditor"
       changed_when: true

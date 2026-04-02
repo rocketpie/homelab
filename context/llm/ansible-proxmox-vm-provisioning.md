@@ -39,3 +39,14 @@ Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a
 * guest configuration then applies baseline roles such as disk setup (except no disks) and automatic Ubuntu security updates (except enable_autoupdate: false)
 * successful guest configuration appends a deployment record to /var/lib/homelab/deploy-history.yml on the VM
 
+## Day-2 VM updates
+`playbooks/set-vm-hardware.yml` reuses the same Proxmox reconciliation logic for
+existing VMs, so inventory remains the desired-state source for node placement,
+replication targets, CPU, and memory after initial provisioning.
+
+* reconcile the VM's desired day-2 Proxmox settings from inventory:
+  `proxmox_node`, `proxmox_replica_nodes`, `cores`, and `memory_mb`
+* if `proxmox_node` changed, the workflow prefers live migration with local
+  disks for running VMs and uses offline migration for already-stopped VMs
+* replication jobs are reconciled from `proxmox_replica_nodes`; removed jobs are
+  deleted with `keep=1` so replicated target volumes are not removed implicitly

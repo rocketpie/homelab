@@ -1,0 +1,453 @@
+- name: Validate required vars for Proxmox VM hardware update
+  ansible.builtin.assert:
+    that:
+      - vm_name is defined
+      - vm_name | string | trim | length > 0
+      - vm is defined
+      - vm.vmid is defined
+      - vm.proxmox_node is defined
+      - vm.cores is defined
+      - vm.memory_mb is defined
+      - proxmox_api_host is defined
+      - proxmox_api_user is defined
+      - proxmox_api_token_id is defined
+      - proxmox_api_token_secret is defined
+      - proxmox_api_verify_ssl is defined
+      - proxmox_api_vm_storage is defined
+    fail_msg: "Missing required vars for set_proxmox_vm_hardware"
+
+- name: Materialize desired Proxmox VM hardware inputs
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_target_node: "{{ vm.proxmox_node | string | trim }}"
+    set_proxmox_vm_hardware_target_replica_nodes: >-
+      {%- set result = [] -%}
+      {%- for node in vm.proxmox_replica_nodes | default([]) -%}
+      {%- set normalized = node | string | trim -%}
+      {%- if normalized | length > 0 and normalized not in result -%}
+      {%- set _ = result.append(normalized) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result | sort }}
+    set_proxmox_vm_hardware_replication_schedule: >-
+      {{
+        vm.proxmox_replication_schedule
+        | default(set_proxmox_vm_hardware_replication_schedule_default)
+        | string
+        | trim
+      }}
+    set_proxmox_vm_hardware_replication_rate: >-
+      {%- if vm.proxmox_replication_rate is defined -%}
+      {{ vm.proxmox_replication_rate | string | trim }}
+      {%- else -%}
+      {{ none }}
+      {%- endif -%}
+    set_proxmox_vm_hardware_replication_disabled: "{{ vm.proxmox_replication_disabled | default(false) | bool }}"
+
+- name: Validate desired Proxmox node and replication targets
+  ansible.builtin.assert:
+    that:
+      - set_proxmox_vm_hardware_target_node | length > 0
+      - set_proxmox_vm_hardware_replication_schedule | length > 0
+      - set_proxmox_vm_hardware_target_replica_nodes | difference([set_proxmox_vm_hardware_target_node]) | length == set_proxmox_vm_hardware_target_replica_nodes | length
+      - groups['proxmox'] is not defined or set_proxmox_vm_hardware_target_node in groups['proxmox']
+      - groups['proxmox'] is not defined or (set_proxmox_vm_hardware_target_replica_nodes | difference(groups['proxmox']) | length) == 0
+    fail_msg: >-
+      Invalid Proxmox VM hardware inputs for {{ vm_name }}.
+      target_node={{ set_proxmox_vm_hardware_target_node }}
+      replica_nodes={{ set_proxmox_vm_hardware_target_replica_nodes }}
+
+- name: Show desired Proxmox VM hardware inputs
+  ansible.builtin.debug:
+    msg:
+      vm_name: "{{ vm_name }}"
+      vmid: "{{ vm.vmid }}"
+      target_node: "{{ set_proxmox_vm_hardware_target_node }}"
+      replica_nodes: "{{ set_proxmox_vm_hardware_target_replica_nodes }}"
+      cores: "{{ vm.cores }}"
+      memory_mb: "{{ vm.memory_mb }}"
+      replication_schedule: "{{ set_proxmox_vm_hardware_replication_schedule }}"
+      replication_rate: "{{ set_proxmox_vm_hardware_replication_rate }}"
+      replication_disabled: "{{ set_proxmox_vm_hardware_replication_disabled }}"
+    verbosity: 0
+
+- name: Query existing Proxmox VMs
+  community.proxmox.proxmox_vm_info:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+  register: set_proxmox_vm_hardware_existing_vms
+
+- name: Materialize matches by vmid
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_existing_vms_by_vmid: >-
+      {{
+        set_proxmox_vm_hardware_existing_vms.proxmox_vms
+        | selectattr('vmid', 'equalto', (vm.vmid | int))
+        | list
+      }}
+
+- name: Materialize matches by name
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_existing_vms_by_name: >-
+      {{
+        set_proxmox_vm_hardware_existing_vms.proxmox_vms
+        | selectattr('name', 'defined')
+        | selectattr('name', 'equalto', vm_name)
+        | list
+      }}
+
+- name: Assert exactly one VM matches requested vmid and name
+  ansible.builtin.assert:
+    that:
+      - set_proxmox_vm_hardware_existing_vms_by_vmid | length == 1
+      - set_proxmox_vm_hardware_existing_vms_by_name | length == 1
+      - (set_proxmox_vm_hardware_existing_vms_by_vmid | first).vmid == (set_proxmox_vm_hardware_existing_vms_by_name | first).vmid
+    fail_msg: >-
+      Expected exactly one VM by vmid {{ vm.vmid }} and exactly one by name {{ vm_name }},
+      referring to the same VM.
+      by_vmid={{ set_proxmox_vm_hardware_existing_vms_by_vmid }}
+      by_name={{ set_proxmox_vm_hardware_existing_vms_by_name }}
+
+- name: Materialize matched VM from Proxmox
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_vm_match: "{{ set_proxmox_vm_hardware_existing_vms_by_vmid | first }}"
+    set_proxmox_vm_hardware_active_node: "{{ (set_proxmox_vm_hardware_existing_vms_by_vmid | first).node }}"
+
+- name: Show current Proxmox VM placement
+  ansible.builtin.debug:
+    msg:
+      current_node: "{{ set_proxmox_vm_hardware_vm_match.node | default('n/a') }}"
+      current_status: "{{ set_proxmox_vm_hardware_vm_match.status | default('n/a') }}"
+      current_cpus: "{{ set_proxmox_vm_hardware_vm_match.cpus | default('n/a') }}"
+      current_maxmem: "{{ set_proxmox_vm_hardware_vm_match.maxmem | default('n/a') }}"
+    verbosity: 0
+
+- name: Live-migrate running VM to target Proxmox node
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    vmid: "{{ vm.vmid }}"
+    node: "{{ set_proxmox_vm_hardware_target_node }}"
+    migrate: true
+    with_local_disks: true
+  when:
+    - set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+    - set_proxmox_vm_hardware_prefer_live_migration | bool
+    - (set_proxmox_vm_hardware_vm_match.status | default('')) != 'stopped'
+
+- name: Offline-migrate stopped VM to target Proxmox node
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ set_proxmox_vm_hardware_active_node }}/qemu/{{ vm.vmid }}/migrate"
+    method: POST
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body:
+      target: "{{ set_proxmox_vm_hardware_target_node }}"
+      online: 0
+      "with-local-disks": 1
+      targetstorage: "{{ proxmox_api_vm_storage }}"
+    return_content: true
+  register: set_proxmox_vm_hardware_migrate_result
+  when:
+    - set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+    - not (
+        set_proxmox_vm_hardware_prefer_live_migration | bool
+        and (set_proxmox_vm_hardware_vm_match.status | default('')) != 'stopped'
+      )
+
+- name: Materialize Proxmox migration task UPID
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_migrate_task_upid: >-
+      {{ set_proxmox_vm_hardware_migrate_result.json.data | string | trim }}
+  when:
+    - set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+    - not (
+        set_proxmox_vm_hardware_prefer_live_migration | bool
+        and (set_proxmox_vm_hardware_vm_match.status | default('')) != 'stopped'
+      )
+
+- name: Wait for Proxmox migration task to finish
+  ansible.builtin.uri:
+    url: >-
+      {{
+        'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
+        (set_proxmox_vm_hardware_active_node | trim) ~ '/tasks/' ~
+        (set_proxmox_vm_hardware_migrate_task_upid | urlencode) ~ '/status'
+      }}
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: set_proxmox_vm_hardware_migrate_status
+  changed_when: false
+  until: >-
+    set_proxmox_vm_hardware_migrate_status.content | default('') | regex_search(
+      '"status"\\s*:\\s*"stopped"'
+    )
+  retries: "{{ set_proxmox_vm_hardware_migrate_retries }}"
+  delay: "{{ set_proxmox_vm_hardware_migrate_delay }}"
+  when:
+    - set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+    - not (
+        set_proxmox_vm_hardware_prefer_live_migration | bool
+        and (set_proxmox_vm_hardware_vm_match.status | default('')) != 'stopped'
+      )
+
+- name: Assert Proxmox migration completed successfully
+  ansible.builtin.assert:
+    that:
+      - set_proxmox_vm_hardware_migrate_status.content | default('') | regex_search(
+          '"exitstatus"\\s*:\\s*"OK"'
+        )
+    fail_msg: >-
+      Proxmox VM migration failed for {{ vm_name }}:
+      {{
+        (
+          set_proxmox_vm_hardware_migrate_status.content
+          | default('', true)
+          | trim
+        )
+        if (
+          set_proxmox_vm_hardware_migrate_status.content
+          | default('', true)
+          | trim
+          | length
+        ) > 0
+        else (set_proxmox_vm_hardware_migrate_status | to_nice_json)
+      }}
+  when:
+    - set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+    - not (
+        set_proxmox_vm_hardware_prefer_live_migration | bool
+        and (set_proxmox_vm_hardware_vm_match.status | default('')) != 'stopped'
+      )
+
+- name: Switch active Proxmox node to final target
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_active_node: "{{ set_proxmox_vm_hardware_target_node }}"
+  when: set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+
+- name: Apply desired CPU and memory
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    node: "{{ set_proxmox_vm_hardware_active_node }}"
+    vmid: "{{ vm.vmid }}"
+    cores: "{{ vm.cores }}"
+    memory: "{{ vm.memory_mb }}"
+    state: present
+    update: true
+
+- name: Query cluster replication jobs
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: set_proxmox_vm_hardware_replication_jobs_response
+  changed_when: false
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Materialize existing replication jobs for VM
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_existing_replication_jobs: >-
+      {%- set result = [] -%}
+      {%- for job in set_proxmox_vm_hardware_replication_jobs_response.json.data | default([]) -%}
+      {%- set guest = job.guest | default(none) -%}
+      {%- if guest is not none and (guest | int) == (vm.vmid | int) -%}
+      {%- set _ = result.append({
+            'id': job.id | string,
+            'target': job.target | string,
+            'schedule': job.schedule | default(set_proxmox_vm_hardware_replication_schedule) | string,
+            'rate': (
+              (job.rate | string | trim)
+              if (job.rate is defined and job.rate is not none and (job.rate | string | trim | length) > 0)
+              else none
+            ),
+            'disable': (job.disable | default(0) | int) == 1
+          }) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Materialize desired replication jobs for VM
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_desired_replication_jobs: >-
+      {%- set existing_ids_by_target = {} -%}
+      {%- set used_suffixes = [] -%}
+      {%- for job in set_proxmox_vm_hardware_existing_replication_jobs | default([]) -%}
+      {%- if job.target | length > 0 -%}
+      {%- set _ = existing_ids_by_target.update({ job.target: job.id }) -%}
+      {%- endif -%}
+      {%- if job.id is match('^local:' ~ (vm.vmid | string) ~ '-\\d+$') -%}
+      {%- set _ = used_suffixes.append((job.id | regex_replace('^local:' ~ (vm.vmid | string) ~ '-', '')) | int) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {%- set available_suffixes = range(0, 1000) | list | difference(used_suffixes) | sort -%}
+      {%- set ns = namespace(next_new_index=0, result=[]) -%}
+      {%- for target in set_proxmox_vm_hardware_target_replica_nodes -%}
+      {%- if target in existing_ids_by_target -%}
+      {%- set job_id = existing_ids_by_target[target] -%}
+      {%- else -%}
+      {%- set job_id = 'local:' ~ (vm.vmid | string) ~ '-' ~ (available_suffixes[ns.next_new_index] | string) -%}
+      {%- set ns.next_new_index = ns.next_new_index + 1 -%}
+      {%- endif -%}
+      {%- set _ = ns.result.append({
+            'id': job_id,
+            'target': target,
+            'schedule': set_proxmox_vm_hardware_replication_schedule,
+            'rate': (
+              set_proxmox_vm_hardware_replication_rate
+              if (
+                set_proxmox_vm_hardware_replication_rate is not none
+                and set_proxmox_vm_hardware_replication_rate | length > 0
+              )
+              else none
+            ),
+            'disable': set_proxmox_vm_hardware_replication_disabled
+          }) -%}
+      {%- endfor -%}
+      {{ ns.result }}
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Materialize stale replication jobs
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_stale_replication_jobs: >-
+      {%- set result = [] -%}
+      {%- for job in set_proxmox_vm_hardware_existing_replication_jobs | default([]) -%}
+      {%- if job.target not in set_proxmox_vm_hardware_target_replica_nodes -%}
+      {%- set _ = result.append(job) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Materialize replication jobs to create
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_replication_jobs_to_create: >-
+      {%- set existing_ids = set_proxmox_vm_hardware_existing_replication_jobs | default([]) | map(attribute='id') | list -%}
+      {%- set result = [] -%}
+      {%- for job in set_proxmox_vm_hardware_desired_replication_jobs | default([]) -%}
+      {%- if job.id not in existing_ids -%}
+      {%- set _ = result.append(job) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Materialize replication jobs to update
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_replication_jobs_to_update: >-
+      {%- set existing_by_id = {} -%}
+      {%- set result = [] -%}
+      {%- for job in set_proxmox_vm_hardware_existing_replication_jobs | default([]) -%}
+      {%- set _ = existing_by_id.update({ job.id: job }) -%}
+      {%- endfor -%}
+      {%- for job in set_proxmox_vm_hardware_desired_replication_jobs | default([]) -%}
+      {%- if job.id in existing_by_id -%}
+      {%- set existing = existing_by_id[job.id] -%}
+      {%- if
+            existing.target != job.target
+            or existing.schedule != job.schedule
+            or existing.rate != job.rate
+            or existing.disable != job.disable
+          -%}
+      {%- set _ = result.append(job) -%}
+      {%- endif -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Show replication reconciliation plan
+  ansible.builtin.debug:
+    msg:
+      existing_jobs: "{{ set_proxmox_vm_hardware_existing_replication_jobs }}"
+      desired_jobs: "{{ set_proxmox_vm_hardware_desired_replication_jobs }}"
+      jobs_to_delete: "{{ set_proxmox_vm_hardware_stale_replication_jobs }}"
+      jobs_to_create: "{{ set_proxmox_vm_hardware_replication_jobs_to_create }}"
+      jobs_to_update: "{{ set_proxmox_vm_hardware_replication_jobs_to_update }}"
+    verbosity: 0
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Remove stale replication jobs while keeping replicated volumes
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}"
+    method: DELETE
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body:
+      keep: 1
+    return_content: true
+  loop: "{{ set_proxmox_vm_hardware_stale_replication_jobs | default([]) }}"
+  loop_control:
+    label: "{{ item.id }}"
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Create missing replication jobs
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication"
+    method: POST
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body: >-
+      {{
+        {
+          'id': item.id,
+          'target': item.target,
+          'schedule': item.schedule,
+          'disable': (1 if item.disable else 0)
+        }
+        | combine(
+            ({'rate': item.rate} if item.rate is not none else {}),
+            recursive=True
+          )
+      }}
+    return_content: true
+  loop: "{{ set_proxmox_vm_hardware_replication_jobs_to_create | default([]) }}"
+  loop_control:
+    label: "{{ item.id }}"
+  when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Update existing replication jobs
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body: >-
+      {{
+        {
+          'schedule': item.schedule,
+          'disable': (1 if item.disable else 0)
+        }
+        | combine(
+            ({'rate': item.rate} if item.rate is not none else {}),
+            recursive=True
+          )
+      }}
+    return_content: true
+  loop: "{{ set_proxmox_vm_hardware_replication_jobs_to_update | default([]) }}"
+  loop_control:
+    label: "{{ item.id }}"
+  when: set_proxmox_vm_hardware_manage_replication | bool
