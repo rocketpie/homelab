@@ -19,6 +19,11 @@ Paperless currently expects these host variables:
 On `dockerhost2`, the Paperless bind mounts live under `/media/paperless-data`
 and the compose project lives under `/home/<owner>/paperless`.
 
+The Paperless container uses `USERMAP_UID` and `USERMAP_GID` to remap its
+internal service user to the host owner account. Do not also force a Compose
+`user:` override for the `webserver` service, or the container will start
+without the privileges it needs for that remap step.
+
 ## Vault Variables
 
 Store Paperless secrets in the host vault:

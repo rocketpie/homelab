@@ -17,7 +17,6 @@ services:
 
   webserver:
     image: {{ add_paperless_image }}
-    user: "{{ add_paperless_owner_uid }}"
     restart: unless-stopped
     depends_on:
       - db
