@@ -39,3 +39,8 @@ The `add_paperless` role installs a `paperless.service` systemd unit that runs
 the compose stack and enables it on boot. `add_admin_scripts` installs
 `start-paperless`, `stop-paperless`, `host-status`, and
 `paperless-create-superuser` for the configured admin user.
+
+## Recovery
+
+For export-based recovery after a rebuild or data loss, see
+`context/guides/paperless-recovery.md`.
