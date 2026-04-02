@@ -1,0 +1,58 @@
+services:
+  broker:
+    image: {{ add_paperless_redis_image }}
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: {{ add_paperless_postgres_image }}
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: {{ add_paperless_db_password | quote }}
+
+  webserver:
+    image: {{ add_paperless_image }}
+    user: "{{ add_paperless_owner_uid }}"
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+      - gotenberg
+      - tika
+    ports:
+      - "{{ add_paperless_listen_port }}:8000"
+    volumes:
+      - {{ add_paperless_data_dir }}:/usr/src/paperless/data
+      - {{ add_paperless_media_dir }}:/usr/src/paperless/media
+      - {{ add_paperless_export_dir }}:/usr/src/paperless/export
+      - {{ add_paperless_consume_dir }}:/usr/src/paperless/consume
+    env_file:
+      - docker-compose.env
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPASS: {{ add_paperless_db_password | quote }}
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+
+  gotenberg:
+    image: {{ add_paperless_gotenberg_image }}
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=file:///tmp/.*
+
+  tika:
+    image: {{ add_paperless_tika_image }}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

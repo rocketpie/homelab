@@ -22,6 +22,13 @@ extra_disks:
 dns_aliases:
   - "paperless.lan"
 
+add_docker_users:
+  - "captain"
+
+add_paperless_owner_user: "captain"
+add_paperless_time_zone: "Europe/Berlin"
+add_paperless_ocr_language: "deu"
+
 add_admin_scripts_user: "captain"
 
 host_users:
@@ -35,3 +42,6 @@ host_users:
 # vault.yml:
 # host_user_passwords:
 #   captain: "USER_PASSWORD_HERE"
+#
+# add_paperless_db_password: "PAPERLESS_DB_PASSWORD_HERE"
+# add_paperless_secret_key: "PAPERLESS_SECRET_KEY_HERE"

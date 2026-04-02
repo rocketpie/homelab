@@ -1,0 +1,53 @@
+---
+add_paperless_owner_user: captain
+add_paperless_owner_group: "{{ add_paperless_owner_user }}"
+
+add_paperless_project_dir: "/home/{{ add_paperless_owner_user }}/paperless"
+add_paperless_data_root: /media/paperless-data
+add_paperless_data_dir: "{{ add_paperless_data_root }}/data"
+add_paperless_media_dir: "{{ add_paperless_data_root }}/media"
+add_paperless_export_dir: "{{ add_paperless_data_root }}/export"
+add_paperless_consume_dir: "{{ add_paperless_data_root }}/consume"
+
+add_paperless_compose_file_path: "{{ add_paperless_project_dir }}/docker-compose.yml"
+add_paperless_compose_env_path: "{{ add_paperless_project_dir }}/docker-compose.env"
+add_paperless_project_env_path: "{{ add_paperless_project_dir }}/.env"
+
+add_paperless_listen_port: 8000
+add_paperless_time_zone: UTC
+add_paperless_ocr_language: eng
+
+add_paperless_image: ghcr.io/paperless-ngx/paperless-ngx:latest
+add_paperless_postgres_image: docker.io/library/postgres:18
+add_paperless_redis_image: docker.io/library/redis:8
+add_paperless_gotenberg_image: docker.io/gotenberg/gotenberg:8.25
+add_paperless_tika_image: docker.io/apache/tika:latest
+add_paperless_docker_binary_path: /usr/bin/docker
+
+add_paperless_db_password: ""
+add_paperless_secret_key: ""
+
+add_paperless_service_name: paperless.service
+add_paperless_service_unit_path: "/etc/systemd/system/{{ add_paperless_service_name }}"
+
+add_paperless_admin_scripts_service_groups:
+  - key: "paperless"
+    label: "paperless"
+    status_units:
+      - "{{ add_paperless_service_name }}"
+    start_enable_units:
+      - "{{ add_paperless_service_name }}"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_paperless_service_name }}"
+    stop_stop_units:
+      - "{{ add_paperless_service_name }}"
+
+add_paperless_admin_scripts_extra_scripts:
+  - name: "paperless-create-superuser"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      cd {{ add_paperless_project_dir | quote }}
+      exec sudo {{ add_paperless_docker_binary_path | quote }} compose run --rm webserver createsuperuser

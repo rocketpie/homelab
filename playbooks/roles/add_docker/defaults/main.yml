@@ -1,0 +1,19 @@
+---
+add_docker_prerequisite_packages:
+  - ca-certificates
+  - curl
+
+add_docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+add_docker_keyring_dir: /etc/apt/keyrings
+add_docker_keyring_path: "{{ add_docker_keyring_dir }}/docker.asc"
+add_docker_repo_path: /etc/apt/sources.list.d/docker.list
+add_docker_repo_url: https://download.docker.com/linux/ubuntu
+add_docker_repo_gpg_url: "{{ add_docker_repo_url }}/gpg"
+
+add_docker_users: []

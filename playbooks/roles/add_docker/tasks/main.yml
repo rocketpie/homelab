@@ -1,0 +1,84 @@
+---
+- name: Validate host platform for Docker install
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_distribution == 'Ubuntu'
+    fail_msg: "add_docker currently supports Ubuntu Linux hosts only."
+
+- name: Check whether configured Docker users exist
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ item }}"
+  register: add_docker_user_getent_results
+  changed_when: false
+  failed_when: false
+  loop: "{{ add_docker_users }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Assert configured Docker users exist
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "Configured add_docker_users entry does not exist on host: {{ item.item }}"
+  loop: "{{ add_docker_user_getent_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Install Docker apt prerequisites
+  ansible.builtin.apt:
+    name: "{{ add_docker_prerequisite_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure Docker apt keyring directory exists
+  ansible.builtin.file:
+    path: "{{ add_docker_keyring_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Download Docker apt repository GPG key
+  ansible.builtin.get_url:
+    url: "{{ add_docker_repo_gpg_url }}"
+    dest: "{{ add_docker_keyring_path }}"
+    mode: "0644"
+
+- name: Materialize dpkg architecture
+  ansible.builtin.command:
+    argv:
+      - dpkg
+      - --print-architecture
+  register: add_docker_architecture
+  changed_when: false
+
+- name: Install Docker apt repository
+  ansible.builtin.copy:
+    dest: "{{ add_docker_repo_path }}"
+    mode: "0644"
+    content: |
+      deb [arch={{ add_docker_architecture.stdout | trim }} signed-by={{ add_docker_keyring_path }}] {{ add_docker_repo_url }} {{ ansible_distribution_release }} stable
+
+- name: Install Docker engine packages
+  ansible.builtin.apt:
+    name: "{{ add_docker_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure Docker service is enabled and started
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Ensure configured users can access Docker
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups:
+      - docker
+    append: true
+  loop: "{{ add_docker_users }}"
+  loop_control:
+    label: "{{ item }}"

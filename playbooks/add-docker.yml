@@ -1,0 +1,82 @@
+---
+- name: Install Docker engine on docker hosts
+  hosts: docker
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for Docker base
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_docker
+        record_deployment_metadata:
+          services:
+            - docker
+
+  roles:
+    - role: add_docker
+
+  post_tasks:
+    - name: Record successful deployment history for Docker base
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_docker
+        record_deployment_metadata:
+          services:
+            - docker
+
+- name: Install Paperless stack on paperless hosts
+  hosts: paperless
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for Paperless stack
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_paperless
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - docker
+            - paperless
+
+  roles:
+    - role: add_paperless
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: >-
+          {{
+            add_paperless_admin_scripts_service_groups | default([])
+          }}
+        add_admin_scripts_extra_scripts: >-
+          {{
+            add_paperless_admin_scripts_extra_scripts | default([])
+          }}
+
+  post_tasks:
+    - name: Record successful deployment history for Paperless stack
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_paperless
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - docker
+            - paperless

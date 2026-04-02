@@ -1,0 +1,126 @@
+---
+- name: Validate Paperless inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - add_paperless_owner_user | string | trim | length > 0
+      - add_paperless_db_password | string | trim | length > 0
+      - add_paperless_secret_key | string | trim | length > 0
+      - add_paperless_time_zone | string | trim | length > 0
+      - add_paperless_ocr_language | string | trim | length > 0
+    fail_msg: >-
+      add_paperless requires a Linux host, an owner user, and vaulted
+      add_paperless_db_password plus add_paperless_secret_key.
+
+- name: Check whether Paperless owner user exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ add_paperless_owner_user }}"
+  register: add_paperless_owner_getent_result
+  changed_when: false
+
+- name: Assert Paperless owner user exists
+  ansible.builtin.assert:
+    that:
+      - add_paperless_owner_getent_result.rc == 0
+      - add_paperless_owner_getent_result.stdout | string | trim | length > 0
+    fail_msg: >-
+      Could not resolve add_paperless_owner_user {{ add_paperless_owner_user }}
+      on the target host.
+
+- name: Materialize Paperless owner account details
+  ansible.builtin.set_fact:
+    add_paperless_owner_passwd_fields: "{{ add_paperless_owner_getent_result.stdout.split(':') }}"
+    add_paperless_owner_uid: "{{ add_paperless_owner_getent_result.stdout.split(':')[2] | trim }}"
+    add_paperless_owner_gid: "{{ add_paperless_owner_getent_result.stdout.split(':')[3] | trim }}"
+    add_paperless_owner_home: "{{ add_paperless_owner_getent_result.stdout.split(':')[5] | trim }}"
+
+- name: Assert Paperless owner account details were resolved
+  ansible.builtin.assert:
+    that:
+      - add_paperless_owner_passwd_fields | length >= 7
+      - add_paperless_owner_uid is match('^[0-9]+$')
+      - add_paperless_owner_gid is match('^[0-9]+$')
+      - add_paperless_owner_home | string | trim | length > 0
+    fail_msg: >-
+      Could not determine UID, GID, or home directory for
+      add_paperless_owner_user {{ add_paperless_owner_user }}.
+
+- name: Ensure Paperless host directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ add_paperless_owner_user }}"
+    group: "{{ add_paperless_owner_group }}"
+    mode: "0755"
+  loop:
+    - "{{ add_paperless_data_root }}"
+    - "{{ add_paperless_data_dir }}"
+    - "{{ add_paperless_media_dir }}"
+    - "{{ add_paperless_export_dir }}"
+    - "{{ add_paperless_consume_dir }}"
+    - "{{ add_paperless_project_dir }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Install Paperless compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ add_paperless_compose_file_path }}"
+    owner: "{{ add_paperless_owner_user }}"
+    group: "{{ add_paperless_owner_group }}"
+    mode: "0640"
+
+- name: Install Paperless compose environment file
+  ansible.builtin.template:
+    src: docker-compose.env.j2
+    dest: "{{ add_paperless_compose_env_path }}"
+    owner: "{{ add_paperless_owner_user }}"
+    group: "{{ add_paperless_owner_group }}"
+    mode: "0640"
+
+- name: Install Paperless compose project environment file
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ add_paperless_project_env_path }}"
+    owner: "{{ add_paperless_owner_user }}"
+    group: "{{ add_paperless_owner_group }}"
+    mode: "0640"
+
+- name: Install Paperless systemd unit
+  ansible.builtin.template:
+    src: paperless.service.j2
+    dest: "{{ add_paperless_service_unit_path }}"
+    mode: "0644"
+
+- name: Reload systemd after Paperless unit changes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Pull Paperless compose images
+  ansible.builtin.command:
+    argv:
+      - "{{ add_paperless_docker_binary_path }}"
+      - compose
+      - pull
+    chdir: "{{ add_paperless_project_dir }}"
+  changed_when: false
+
+- name: Apply Paperless compose stack
+  ansible.builtin.command:
+    argv:
+      - "{{ add_paperless_docker_binary_path }}"
+      - compose
+      - up
+      - -d
+      - --remove-orphans
+    chdir: "{{ add_paperless_project_dir }}"
+  changed_when: false
+
+- name: Ensure Paperless service is enabled and started
+  ansible.builtin.systemd_service:
+    name: "{{ add_paperless_service_name }}"
+    enabled: true
+    state: started
