@@ -16,7 +16,7 @@ if ($PSBoundParameters['Debug']) {
 }
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.3"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.4"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -51,6 +51,38 @@ function Test-Restic {
     }
 }
 
+function TrySecureString {
+    [CmdletBinding()]
+    param(
+        [string]$Value
+    )
+
+    try { 
+        UseSecureString -SerializedValue $Value | Out-Null
+    }
+    catch {
+        $serializedSecureString = ConvertTo-SecureString -String $Value -AsPlainText -Force | ConvertFrom-SecureString
+        return [pscustomobject]@{
+            Success = $true
+            SerializedSecureString = $serializedSecureString
+        }
+    }
+
+    return [pscustomobject]@{
+        Success = $false
+    }
+}
+
+function UseSecureString {
+    [CmdletBinding()]
+    param(
+        [string]$SerializedValue
+    )
+
+    $secureValue = ConvertTo-SecureString -String $SerializedValue -ErrorAction Stop
+    return [pscredential]::new('dummy', $secureValue).GetNetworkCredential().Password
+}
+
 # read the .json config file
 function Read-ConfigFile {
     "reading config file..."
@@ -64,6 +96,22 @@ function Read-ConfigFile {
 
     $config = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
     Write-Debug "using config from file '$($configFile)'"
+    
+    $configModified = $false
+    foreach ($snapshotItem in $Config.snapshot) {
+        $result = TrySecureString -Value $snapshotItem.repositoryPassword
+        if (-not $result.Success) {
+            continue
+        }
+
+        $snapshotItem.repositoryPassword = $result.SerializedSecureString
+        $configModified = $true
+    }
+
+    if ($configModified) {
+        Write-Debug "securing config passwords..."      
+        Set-Content -LiteralPath $ConfigFile -Encoding utf8NoBOM -Value ($Config | ConvertTo-Json -Depth 10)
+    }
 
     Set-Variable -Scope Script -Name "Config" -Value $config 
 }
@@ -167,7 +215,7 @@ function Invoke-ResticBackup {
     $processStartInfo.RedirectStandardError = $true
     $processStartInfo.CreateNoWindow = $true
     $processStartInfo.Environment['RESTIC_REPOSITORY'] = [string]$SnapshotItem.resticRepository
-    $processStartInfo.Environment['RESTIC_PASSWORD'] = [string]$SnapshotItem.repositoryPassword
+    $processStartInfo.Environment['RESTIC_PASSWORD'] = UseSecureString -SerializedValue $SnapshotItem.repositoryPassword
 
     foreach ($argument in $resticArguments) {
         $processStartInfo.ArgumentList.Add([string]$argument) | Out-Null

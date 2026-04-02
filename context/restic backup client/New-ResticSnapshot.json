@@ -6,7 +6,7 @@
     "snapshot": [
         {
             "path": "D:\\",
-            "resticRepository": "rest:http://backup.lan:8000/lc3win/d",
+            "resticRepository": "rest:http://username:password@backup.lan:8000/username/d",
             "repositoryPassword": "",
             "resticBackupOptions": [
                 "--skip-if-unchanged"
