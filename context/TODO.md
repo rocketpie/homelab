@@ -28,11 +28,12 @@
     - to the docker role, add a haproxy reverse proxy
     - bind to dns_aliases, forward to container ports (set where?) 
 
-# fix VM DNS server
-    - Fatal: unable to open config file: Head "http://dockerhost2:***@backup.lan:8000/dockerhost2/paperless/config": dial tcp: lookup backup.lan on 127.0.0.53:53: no such host
-        I've changed 
-        autoinstall_vm_ipv4_nameservers:
-        - "192.168.178.193"
-
-        how can i update all affected vm's network settings?
-        i believe this does not affect the netcontrollers, but all others?
+# adding restic client repo
+    - restic1/host.yml/add_restic_retention_repositories
+    - restic1/vault.yml/add_restic_server_htpasswd_entries
+    - repo init 
+```bash
+set -a
+source /etc/restic-client/repos.d/paperless.env
+restic init
+```

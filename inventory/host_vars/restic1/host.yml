@@ -71,6 +71,17 @@ add_restic_retention_repositories:
       - "--keep-monthly"
       - "4"
       - "--prune"
+  - user: "dockerhost2"
+    repository: "paperless"
+    enabled: true
+    forget_args:
+      - "--keep-within"
+      - "14d"
+      - "--keep-weekly"
+      - "4"
+      - "--keep-monthly"
+      - "4"
+      - "--prune"
 
 add_rclone_service_user: "archivar"
 add_rclone_service_group: "archivar"
