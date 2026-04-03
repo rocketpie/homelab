@@ -34,6 +34,7 @@ add_paperless_image: ghcr.io/paperless-ngx/paperless-ngx:2.15.3
 * Start the matching Paperless version.
 ```bash
 cd ~/paperless
+docker compose pull
 docker compose up -d
 ```
 
