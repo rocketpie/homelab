@@ -19,7 +19,7 @@ if ($PSBoundParameters['Debug']) {
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
 Set-Variable -Scope Script -Name "ThisFilePath" -Value ($MyInvocation.MyCommand.Definition)
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.6"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.7"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -323,30 +323,6 @@ function Show-ConfiguredSnapshots {
     }
 }
 
-function Get-ScheduledTaskSettings {
-    $taskName = $ThisFileName
-    $taskDescription = "Run configured restic snapshots from $($ThisFileName).ps1"
-    $taskDailyAt = '02:00'
-
-    if ($null -ne $Config.scheduledTask) {
-        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.name)) {
-            $taskName = [string]$Config.scheduledTask.name
-        }
-        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.description)) {
-            $taskDescription = [string]$Config.scheduledTask.description
-        }
-        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.dailyAt)) {
-            $taskDailyAt = [string]$Config.scheduledTask.dailyAt
-        }
-    }
-
-    return [pscustomobject]@{
-        Name        = $taskName
-        Description = $taskDescription
-        DailyAt     = $taskDailyAt
-    }
-}
-
 function Test-ScheduledTaskSupport {
     if (-not $IsWindows) {
         throw "scheduled task management is only supported on Windows"
@@ -360,36 +336,40 @@ function Test-ScheduledTaskSupport {
 function Install-ConfiguredScheduledTask {
     Test-ScheduledTaskSupport
 
-    $scheduledTask = Get-ScheduledTaskSettings
-    $taskTime = [datetime]::ParseExact($scheduledTask.DailyAt, 'HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
     $pwshPath = (Get-Command 'pwsh' -ErrorAction Stop).Source
-    $scriptPath = Get-Variable -Name 'ThisFilePath' -ValueOnly
+    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -File `"$ThisFilePath`" -Action Backup"
+    
+    $params = @{
+        TaskPath    = "\Homelab\"
+        TaskName    = $ThisFileName
+        Description = $Config.scheduledTask.description
+        Action      = $taskAction
+        Trigger     = (New-ScheduledTaskTrigger -Daily -At $Config.scheduledTask.dailyAt)
+        Settings    = (New-ScheduledTaskSettingsSet -StartWhenAvailable)
+        Force       = $true
+    }
 
-    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -File `"$scriptPath`" -Action Backup"
-    $taskTrigger = New-ScheduledTaskTrigger -Daily -At $taskTime
+    Register-ScheduledTask @params | Out-Null
 
-    Register-ScheduledTask `
-        -TaskName $scheduledTask.Name `
-        -Description $scheduledTask.Description `
-        -Action $taskAction `
-        -Trigger $taskTrigger `
-        -Force | Out-Null
-
-    "scheduled task '$($scheduledTask.Name)' installed or updated for $($scheduledTask.DailyAt)"
+    $installedTask = Get-ScheduledTask -TaskName $ThisFileName 
+    if ($null -eq $installedTask) {
+        throw "failed to verify installation of scheduled task '$($ThisFileName)'"
+    }
+        
+    "scheduled task '$($installedTask.TaskName)' installed or updated for $(([datetime]$installedTask.Triggers[0].StartBoundary).ToString('HH:mm'))"
 }
 
 function Remove-ConfiguredScheduledTask {
     Test-ScheduledTaskSupport
 
-    $scheduledTask = Get-ScheduledTaskSettings
-    $existingTask = Get-ScheduledTask -TaskName $scheduledTask.Name -ErrorAction SilentlyContinue
+    $existingTask = Get-ScheduledTask -TaskName $ThisFileName -ErrorAction SilentlyContinue
     if ($null -eq $existingTask) {
-        "scheduled task '$($scheduledTask.Name)' does not exist"
+        "scheduled task '$($ThisFileName)' does not exist"
         return
     }
 
-    Unregister-ScheduledTask -TaskName $scheduledTask.Name -Confirm:$false
-    "scheduled task '$($scheduledTask.Name)' removed"
+    Unregister-ScheduledTask -TaskName $ThisFileName -Confirm:$false
+    "scheduled task '$($ThisFileName)' removed"
 }
 
 function Invoke-InteractiveMenu {
@@ -400,7 +380,6 @@ function Invoke-InteractiveMenu {
         "  2. Show snapshots"
         "  3. Install or update scheduled task"
         "  4. Remove scheduled task"
-        "  5. Exit"
 
         $choice = Read-Host 'Choice [1-5]'
         switch ($choice) {
@@ -415,9 +394,6 @@ function Invoke-InteractiveMenu {
             }
             '4' {
                 Remove-ConfiguredScheduledTask
-            }
-            '5' {
-                return
             }
             default {
                 "invalid choice '$choice'"

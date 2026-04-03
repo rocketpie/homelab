@@ -6,7 +6,7 @@
     "scheduledTask": {
         "name": "New-ResticSnapshot",
         "description": "Run configured restic snapshots",
-        "dailyAt": "02:00"
+        "dailyAt": "19:00"
     },
     "snapshot": [
         {
