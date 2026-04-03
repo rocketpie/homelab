@@ -19,7 +19,7 @@ if ($PSBoundParameters['Debug']) {
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
 Set-Variable -Scope Script -Name "ThisFilePath" -Value ($MyInvocation.MyCommand.Definition)
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.7"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.8"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -33,6 +33,52 @@ function Main {
         default {
             throw "Unsupported action '$Action'"
         }
+    }
+}
+
+function Invoke-InteractiveMenu {
+    while ($true) {
+        ""
+        "Select an action:"
+        "  1. Run backup now"
+        "  2. Show snapshots"
+        "  3. Install or update scheduled task"
+        "  4. Remove scheduled task"
+        "  5. Restic Interactive Mode"
+
+        $choice = Read-Host 'Choice [1-5]'
+        switch ($choice) {
+            '1' {
+                Start-ConfiguredBackups
+            }
+            '2' {
+                Show-ConfiguredSnapshots
+            }
+            '3' {
+                Install-ConfiguredScheduledTask
+            }
+            '4' {
+                Remove-ConfiguredScheduledTask
+            }
+            '5' {
+                "choose a path to use restic interactive mode with:"
+                for ($i = 1; $i -lt @($Config.snapshot).Count + 1; $i++) {
+                    "$i. $($Config.snapshot[$i-1].path)"
+                }
+                $choice = Read-Host "choice [1-$($Config.snapshot.Count)]"
+                $SnapshotItem = $Config.snapshot[$choice - 1]
+                $env:RESTIC_REPOSITORY = [string]$SnapshotItem.resticRepository
+                $env:RESTIC_PASSWORD = UseSecureString -SerializedValue $SnapshotItem.repositoryPassword
+                return
+            }
+            default {
+                "invalid choice '$choice'"
+                continue
+            }
+        }
+
+        ""
+        [void](Read-Host 'Press Enter to return to the menu')
     }
 }
 
@@ -372,39 +418,6 @@ function Remove-ConfiguredScheduledTask {
     "scheduled task '$($ThisFileName)' removed"
 }
 
-function Invoke-InteractiveMenu {
-    while ($true) {
-        ""
-        "Select an action:"
-        "  1. Run backup now"
-        "  2. Show snapshots"
-        "  3. Install or update scheduled task"
-        "  4. Remove scheduled task"
-
-        $choice = Read-Host 'Choice [1-5]'
-        switch ($choice) {
-            '1' {
-                Start-ConfiguredBackups
-            }
-            '2' {
-                Show-ConfiguredSnapshots
-            }
-            '3' {
-                Install-ConfiguredScheduledTask
-            }
-            '4' {
-                Remove-ConfiguredScheduledTask
-            }
-            default {
-                "invalid choice '$choice'"
-                continue
-            }
-        }
-
-        ""
-        [void](Read-Host 'Press Enter to return to the menu')
-    }
-}
 
 function Get-ResticIgnoreFiles {
     [CmdletBinding()]
