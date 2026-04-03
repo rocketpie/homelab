@@ -9,3 +9,5 @@ __pycache__/
 vault.yml
 
 inventory/group_vars/all/autoinstall-target.yml
+context/homelab-ca/ca.*
+context/homelab-ca/client/

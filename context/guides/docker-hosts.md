@@ -15,6 +15,7 @@ The Docker host base currently manages:
 - Docker Engine
 - Docker CLI and Compose plugin
 - optional host-local HAProxy reverse proxy
+- internal TLS termination for the reverse proxy
 - Docker host admin scripts
 
 Application-specific stacks such as Paperless belong in their own guides and
@@ -38,6 +39,12 @@ they are not reverse-proxied by Docker host HAProxy.
 by HAProxy to a published host port. These hostnames are also exported into the
 DNS workflow automatically, so they do not need to be duplicated in
 `dns_aliases`.
+
+When reverse proxy bindings exist, the role expects:
+
+- `context/homelab-ca/ca.crt`
+- `context/homelab-ca/client/<inventory_hostname>.crt`
+- `context/homelab-ca/client/<inventory_hostname>.key`
 
 ## Reverse Proxy Bindings
 
@@ -63,7 +70,11 @@ Rules:
 - use `dns_aliases` separately only for names that should resolve to the host
   without a reverse proxy binding
 
-The current HAProxy setup is HTTP-only on port `80`.
+The current HAProxy setup:
+
+- redirects HTTP on port `80` to HTTPS
+- serves HTTPS on port `443`
+- terminates TLS with the host certificate from `context/homelab-ca/client/`
 
 ## Service Management
 
@@ -95,11 +106,13 @@ That means:
 
 - `paperless.lan` resolves to the host IP through the DNS workflow
 - `paperless.vpn` resolves to the host IP through the DNS workflow
-- HAProxy on the host listens on port `80`
+- HAProxy redirects HTTP on port `80` to HTTPS
+- HAProxy serves HTTPS on port `443` with `context/homelab-ca/client/dockerhost2.crt`
 - requests for both names are forwarded to `127.0.0.1:8000`
 
 ## Operational Notes
 
+- generate the CA and host certificate before rerunning `run.ps1 add-docker.yml`
 - The backend service must still publish a host port that HAProxy can reach
 - changing Docker host bindings requires rerunning `run.ps1 add-docker.yml`
 - changing hostnames that feed DNS, including reverse proxy bindings, also

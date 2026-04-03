@@ -29,6 +29,8 @@ and the compose project lives under `/home/<owner>/paperless`.
 If the host should expose Paperless under a hostname such as `paperless.lan`,
 define that in the Docker host config with
 `add_docker_reverse_proxy_bindings`, not in the Paperless role.
+TLS termination for that hostname is also managed by the Docker host role, not
+the Paperless role.
 
 The Paperless container uses `USERMAP_UID` and `USERMAP_GID` to remap its
 internal service user to the host owner account. Do not also force a Compose

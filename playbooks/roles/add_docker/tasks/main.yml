@@ -89,6 +89,19 @@
         )
     fail_msg: "add_docker_reverse_proxy_bindings hostnames must be unique"
 
+- name: Assert Docker reverse proxy TLS assets exist on the controller
+  ansible.builtin.assert:
+    that:
+      - query('ansible.builtin.fileglob', add_docker_reverse_proxy_ca_cert_src) | length == 1
+      - query('ansible.builtin.fileglob', add_docker_reverse_proxy_tls_cert_src) | length == 1
+      - query('ansible.builtin.fileglob', add_docker_reverse_proxy_tls_key_src) | length == 1
+    fail_msg: >-
+      Missing Docker reverse proxy TLS assets on the controller. Expected:
+      ca={{ add_docker_reverse_proxy_ca_cert_src }},
+      cert={{ add_docker_reverse_proxy_tls_cert_src }},
+      key={{ add_docker_reverse_proxy_tls_key_src }}.
+  when: add_docker_reverse_proxy_enabled | bool
+
 - name: Install Docker apt prerequisites
   ansible.builtin.apt:
     name: "{{ add_docker_prerequisite_packages }}"
@@ -135,6 +148,45 @@
     name: docker
     enabled: true
     state: started
+
+- name: Ensure HAProxy certificate directory exists
+  ansible.builtin.file:
+    path: "{{ add_docker_haproxy_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: add_docker_reverse_proxy_enabled | bool
+
+- name: Install homelab CA certificate on Docker host
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', add_docker_reverse_proxy_ca_cert_src) }}"
+    dest: "{{ add_docker_host_ca_cert_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: add_docker_ca_cert_install
+  when: add_docker_reverse_proxy_enabled | bool
+
+- name: Refresh host CA trust store
+  ansible.builtin.command:
+    cmd: update-ca-certificates
+  when:
+    - add_docker_reverse_proxy_enabled | bool
+    - add_docker_ca_cert_install.changed
+
+- name: Install HAProxy TLS certificate bundle
+  ansible.builtin.copy:
+    content: |-
+      {{ lookup('ansible.builtin.file', add_docker_reverse_proxy_tls_cert_src) | trim }}
+      {{ lookup('ansible.builtin.file', add_docker_reverse_proxy_tls_key_src) | trim }}
+    dest: "{{ add_docker_haproxy_tls_pem_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart HAProxy
+  when: add_docker_reverse_proxy_enabled | bool
 
 - name: Render HAProxy reverse proxy config
   ansible.builtin.template:

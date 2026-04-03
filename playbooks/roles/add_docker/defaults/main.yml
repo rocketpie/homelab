@@ -21,9 +21,25 @@ add_docker_users: []
 add_docker_reverse_proxy_bindings: []
 add_docker_reverse_proxy_enabled: "{{ add_docker_reverse_proxy_bindings | length > 0 }}"
 add_docker_reverse_proxy_bind_port: 80
+add_docker_reverse_proxy_tls_bind_port: 443
 add_docker_reverse_proxy_backend_host_default: 127.0.0.1
+add_docker_reverse_proxy_ca_cert_src: "{{ playbook_dir }}/../context/homelab-ca/ca.crt"
+add_docker_reverse_proxy_tls_cert_name: "{{ inventory_hostname }}"
+add_docker_reverse_proxy_tls_cert_src: >-
+  {{
+    playbook_dir ~ '/../context/homelab-ca/client/' ~
+    add_docker_reverse_proxy_tls_cert_name ~ '.crt'
+  }}
+add_docker_reverse_proxy_tls_key_src: >-
+  {{
+    playbook_dir ~ '/../context/homelab-ca/client/' ~
+    add_docker_reverse_proxy_tls_cert_name ~ '.key'
+  }}
 add_docker_haproxy_service_name: haproxy
 add_docker_haproxy_config_path: /etc/haproxy/haproxy.cfg
+add_docker_haproxy_cert_dir: /etc/haproxy/certs
+add_docker_haproxy_tls_pem_path: "{{ add_docker_haproxy_cert_dir }}/{{ add_docker_reverse_proxy_tls_cert_name }}.pem"
+add_docker_host_ca_cert_path: /usr/local/share/ca-certificates/homelab-ca.crt
 
 add_docker_admin_scripts_service_groups:
   - key: "docker"

@@ -16,7 +16,13 @@ frontend add_docker_http_frontend
   bind *:{{ add_docker_reverse_proxy_bind_port }}
   mode http
   option httplog
-  http-request set-header X-Forwarded-Proto http
+  http-request redirect scheme https code 301
+
+frontend add_docker_https_frontend
+  bind *:{{ add_docker_reverse_proxy_tls_bind_port }} ssl crt {{ add_docker_haproxy_tls_pem_path }}
+  mode http
+  option httplog
+  http-request set-header X-Forwarded-Proto https
 {% for binding in add_docker_reverse_proxy_bindings %}
 {%   set backend_name = 'backend_' ~ loop.index0 %}
 {%   for hostname in binding.hostnames %}
