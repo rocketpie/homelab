@@ -415,13 +415,7 @@
 
 - name: Wait for stale replication deletion tasks to finish
   ansible.builtin.uri:
-    url: >-
-      {{
-        'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
-        ((item.json.data | string | trim) | regex_replace('^UPID:([^:]+):.*$', '\1')) ~
-        '/tasks/' ~
-        ((item.json.data | string | trim) | urlencode) ~ '/status'
-      }}
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication"
     method: GET
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
@@ -430,20 +424,27 @@
   register: set_proxmox_vm_hardware_replication_delete_status
   changed_when: false
   until: >-
-    set_proxmox_vm_hardware_replication_delete_status.content | default('') | regex_search(
-      '"status"\\s*:\\s*"stopped"'
-    )
+    (
+      set_proxmox_vm_hardware_replication_delete_status.json.data
+      | default([])
+      | selectattr('id', 'defined')
+      | selectattr(
+          'id',
+          'in',
+          (
+            set_proxmox_vm_hardware_stale_replication_jobs
+            | default([])
+            | map(attribute='id')
+            | list
+          )
+        )
+      | list
+      | length
+    ) == 0
   retries: "{{ set_proxmox_vm_hardware_migrate_retries }}"
   delay: "{{ set_proxmox_vm_hardware_migrate_delay }}"
-  loop: "{{ set_proxmox_vm_hardware_replication_delete_result.results | default([]) }}"
-  loop_control:
-    label: "{{ item.item.id | default(item.item | string) }}"
   when:
     - set_proxmox_vm_hardware_manage_replication | bool
-    - item.json is defined
-    - item.json.data is defined
-    - item.json.data | string | trim | length > 0
-    - item.json.data | string is match('^UPID:')
 
 - name: Create missing replication jobs
   ansible.builtin.uri:

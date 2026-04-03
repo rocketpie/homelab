@@ -4,7 +4,7 @@
   gather_facts: false
   vars:
     remove_vm_task_retries: 10
-    remove_vm_task_delay: 5
+    remove_vm_task_delay: 10
 
   tasks:
     - name: Prompt for VM to destroy when not provided
@@ -129,9 +129,9 @@
         force: true
       when: (proxmox_vm_match.status | default('')) != 'stopped'
 
-    - name: Remove VM replication jobs while keeping replicated volumes
+    - name: Remove VM replication jobs and replicated target volumes
       ansible.builtin.uri:
-        url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}?keep=1"
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}"
         method: DELETE
         headers:
           Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
@@ -142,36 +142,27 @@
       loop_control:
         label: "{{ item.id }}"
 
-    - name: Wait for Proxmox replication deletion tasks to finish
+    - name: Wait until VM replication jobs are gone
       ansible.builtin.uri:
-        url: >-
-          {{
-            'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
-            ((item.json.data | string | trim) | regex_replace('^UPID:([^:]+):.*$', '\1')) ~
-            '/tasks/' ~
-            ((item.json.data | string | trim) | urlencode) ~ '/status'
-          }}
+        url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication"
         method: GET
         headers:
           Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_api_verify_ssl }}"
         return_content: true
-      register: remove_vm_replication_delete_status
+      register: remove_vm_replication_jobs_after_delete_response
       changed_when: false
       until: >-
-        remove_vm_replication_delete_status.content | default('') | regex_search(
-          '"status"\\s*:\\s*"stopped"'
-        )
+        (
+          remove_vm_replication_jobs_after_delete_response.json.data
+          | default([])
+          | selectattr('guest', 'defined')
+          | selectattr('guest', 'equalto', (vm.vmid | int))
+          | list
+          | length
+        ) == 0
       retries: "{{ remove_vm_task_retries }}"
       delay: "{{ remove_vm_task_delay }}"
-      loop: "{{ remove_vm_replication_delete_result.results | default([]) }}"
-      loop_control:
-        label: "{{ item.item.id | default(item.item | string) }}"
-      when:
-        - item.json is defined
-        - item.json.data is defined
-        - item.json.data | string | trim | length > 0
-        - item.json.data | string is match('^UPID:')
 
     - name: Destroy VM
       community.proxmox.proxmox_kvm:
