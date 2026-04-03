@@ -1,0 +1,94 @@
+---
+- name: Assert supported platform for VM network configuration
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family == 'Debian'
+      - ansible_distribution == 'Ubuntu'
+    fail_msg: "set_vm_network currently supports Ubuntu hosts only"
+
+- name: Assert required static network variables for VM network configuration
+  ansible.builtin.assert:
+    that:
+      - set_vm_network_address is defined
+      - set_vm_network_address | string | trim | length > 0
+      - set_vm_network_prefix is defined
+      - set_vm_network_gateway is defined
+      - set_vm_network_nameservers is defined
+      - set_vm_network_nameservers | length > 0
+      - set_vm_network_interface_name is defined
+      - set_vm_network_interface_name | string | trim | length > 0
+    fail_msg: "Missing required static network variables for set_vm_network"
+
+- name: Render static netplan config for VM
+  ansible.builtin.template:
+    src: 50-cloud-init.yaml.j2
+    dest: "{{ set_vm_network_netplan_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+    backup: true
+  register: set_vm_network_netplan_render
+
+- name: Validate and apply VM netplan config
+  block:
+    - name: Validate generated netplan config
+      ansible.builtin.command:
+        cmd: netplan generate
+      changed_when: false
+
+    - name: Apply generated netplan config
+      ansible.builtin.command:
+        cmd: netplan apply
+      when: set_vm_network_netplan_render.changed
+
+  rescue:
+    - name: Troubleshoot rendered netplan file after failure
+      ansible.builtin.command:
+        cmd: "cat {{ set_vm_network_netplan_file }}"
+      register: set_vm_network_troubleshoot_netplan_file
+      changed_when: false
+      failed_when: false
+
+    - name: Troubleshoot netplan state after failure
+      ansible.builtin.command:
+        cmd: netplan get
+      register: set_vm_network_troubleshoot_netplan_state
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with VM network diagnostics
+      ansible.builtin.fail:
+        msg: |
+          Failed to validate or apply netplan on {{ inventory_hostname }}.
+          Rendered file:
+          {{ set_vm_network_troubleshoot_netplan_file.stdout | default('(no output)') }}
+
+          netplan get:
+          {{ set_vm_network_troubleshoot_netplan_state.stdout | default('(no output)') }}
+
+- name: Verify active DNS servers reported by resolvectl
+  ansible.builtin.command:
+    cmd: "resolvectl dns {{ set_vm_network_interface_name }}"
+  register: set_vm_network_resolvectl_dns
+  changed_when: false
+
+- name: Build list of nameservers missing from resolvectl output
+  ansible.builtin.set_fact:
+    set_vm_network_missing_nameservers: >-
+      {%- set result = [] -%}
+      {%- set resolvectl_output = set_vm_network_resolvectl_dns.stdout | default('') -%}
+      {%- for nameserver in set_vm_network_nameservers -%}
+      {%- if not (resolvectl_output is search('(^|\\s)' ~ (nameserver | regex_escape) ~ '(\\s|$)')) -%}
+      {%- set _ = result.append(nameserver) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: Assert resolvectl reports configured DNS servers
+  ansible.builtin.assert:
+    that:
+      - set_vm_network_missing_nameservers | length == 0
+    fail_msg: >-
+      resolvectl did not report the expected DNS servers.
+      Missing: {{ set_vm_network_missing_nameservers }}
+      Actual: {{ set_vm_network_resolvectl_dns.stdout | default('') }}

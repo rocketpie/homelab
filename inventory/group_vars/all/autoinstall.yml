@@ -13,7 +13,7 @@ autoinstall_caddy_executable: "{{ playbook_dir }}/../srv/caddy_windows_amd64.exe
 autoinstall_vm_ipv4_prefix: 24
 autoinstall_vm_ipv4_gateway: "192.168.178.1"
 autoinstall_vm_ipv4_nameservers:
-  - "192.168.178.1"
+  - "192.168.178.193"
 
 # this is the default for all playbooks that target a single VM
 # autoinstall_default_vm_name: netcontroller2

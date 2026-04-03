@@ -1,7 +1,7 @@
 # renaming:
     'kea' inventory role -> 'dhcp'
     'unbound' inventory rule -> 'dns-resolver'
-    
+    'configure_disks' role -> 'set_vm_disks'
 
 # rest-server-role.md TODO
 - add a second-stage smoke test that uses the `restic` CLI to create a
@@ -23,3 +23,16 @@
     - add extensive testing, including restic repository access / restore and backup
     since this is frequently re-run when adding htaccess users.
     maybe handle user changes differently?
+
+# docker hostname binding
+    - to the docker role, add a haproxy reverse proxy
+    - bind to dns_aliases, forward to container ports (set where?) 
+
+# fix VM DNS server
+    - Fatal: unable to open config file: Head "http://dockerhost2:***@backup.lan:8000/dockerhost2/paperless/config": dial tcp: lookup backup.lan on 127.0.0.53:53: no such host
+        I've changed 
+        autoinstall_vm_ipv4_nameservers:
+        - "192.168.178.193"
+
+        how can i update all affected vm's network settings?
+        i believe this does not affect the netcontrollers, but all others?

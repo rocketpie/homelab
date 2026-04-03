@@ -1,0 +1,94 @@
+---
+- name: Select VM network update targets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    set_vm_network_candidate_hosts: >-
+      {{
+        (groups['vm'] | default([]))
+        | difference(groups['unbound'] | default([]))
+        | sort
+      }}
+
+  tasks:
+    - name: Ensure at least one non-netcontroller VM is defined
+      ansible.builtin.assert:
+        that:
+          - set_vm_network_candidate_hosts | length > 0
+        fail_msg: "The inventory does not contain any non-netcontroller VMs to update."
+
+    - name: Prompt for VM to update when not provided
+      ansible.builtin.pause:
+        prompt: >-
+          VM to update network config on? Leave blank to update all affected VMs.
+          [all]
+      register: set_vm_network_target_prompt
+
+    - name: Resolve requested VM target
+      ansible.builtin.set_fact:
+        set_vm_network_requested_target: >-
+          {{
+            set_vm_network_target_prompt.user_input
+            | default('', true)
+            | trim
+          }}
+
+    - name: Ensure requested VM is a supported target
+      ansible.builtin.assert:
+        that:
+          - set_vm_network_requested_target in set_vm_network_candidate_hosts
+        fail_msg: >-
+          Host '{{ set_vm_network_requested_target }}' is not a non-netcontroller VM.
+          Valid targets: {{ set_vm_network_candidate_hosts }}
+      when: set_vm_network_requested_target | length > 0
+
+    - name: Resolve VM network update targets
+      ansible.builtin.set_fact:
+        set_vm_network_target_hosts: >-
+          {{
+            set_vm_network_candidate_hosts
+            if (set_vm_network_requested_target | length == 0)
+            else [set_vm_network_requested_target]
+          }}
+
+    - name: Show VM network update targets
+      ansible.builtin.debug:
+        msg:
+          - "vm network targets: {{ set_vm_network_target_hosts }}"
+
+    - name: Build VM network update group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: vm_network_update_targets
+      loop: "{{ set_vm_network_target_hosts }}"
+      loop_control:
+        label: "{{ item }}"
+
+- name: Update static network config on existing non-netcontroller VMs
+  hosts: vm_network_update_targets
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for VM network update
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: set-vm-network.yml
+        record_deployment_roles:
+          - set_vm_network
+
+  roles:
+    - role: set_vm_network
+
+  post_tasks:
+    - name: Record successful deployment history for VM network update
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: set-vm-network.yml
+        record_deployment_roles:
+          - set_vm_network

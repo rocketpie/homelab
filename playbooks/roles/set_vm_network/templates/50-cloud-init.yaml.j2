@@ -1,0 +1,12 @@
+network:
+  version: 2
+  ethernets:
+    "{{ set_vm_network_interface_name }}":
+      dhcp4: false
+      addresses:
+        - {{ (set_vm_network_address ~ '/' ~ set_vm_network_prefix) | to_json }}
+      routes:
+        - to: default
+          via: {{ set_vm_network_gateway | to_json }}
+      nameservers:
+        addresses: {{ set_vm_network_nameservers | to_json }}
