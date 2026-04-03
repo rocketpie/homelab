@@ -19,7 +19,7 @@ if ($PSBoundParameters['Debug']) {
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
 Set-Variable -Scope Script -Name "ThisFilePath" -Value ($MyInvocation.MyCommand.Definition)
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.8"
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.9"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
@@ -383,7 +383,7 @@ function Install-ConfiguredScheduledTask {
     Test-ScheduledTaskSupport
 
     $pwshPath = (Get-Command 'pwsh' -ErrorAction Stop).Source
-    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -File `"$ThisFilePath`" -Action Backup"
+    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -WindowStyle Hidden -File `"$ThisFilePath`" -Action Backup"
     
     $params = @{
         TaskPath    = "\Homelab\"
