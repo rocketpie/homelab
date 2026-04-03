@@ -3,4 +3,4 @@ ansible_user: root
 ansible_become: true
 
 # vault.yml:
-# ansible_ssh_pass: "PROXMOX_ROOT_PASSWORD_HERE"
+# ansible_ssh_pass: "SECRET_VALUE_HERE"

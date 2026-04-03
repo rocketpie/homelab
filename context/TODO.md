@@ -43,19 +43,14 @@ source /etc/restic-client/repos.d/paperless.env
 restic init
 ```
 
-# vault template handling
-    - add a function to build.ps1, that:
-        - reads all vault.yml files
-        - replaces all values and list items with a static placeholder
-        - replaces the host.yml template comment with the generated placeholder.
-    this way, we keep the template and the vaults in sync, without exposing secrets.
-
-
 # Lint
 Running ansible-lint...
-WARNING  Listing 2 violation(s) that are fatal
-load-failure[not-found]: File or directory not found. (warning)
-context/guides/docker-reverse-proxy.md:1
+WARNING  Listing 3 violation(s) that are fatal
+no-changed-when: Commands should not change things if nothing needs doing.
+playbooks/roles/add_docker/tasks/main.yml:171 Task/Handler: Refresh host CA trust store
+
+yaml[line-length]: Line too long (161 > 160 characters)
+playbooks/roles/add_immich/defaults/main.yml:21
 
 no-handler: Tasks that run when changed should likely be handlers.
 playbooks/roles/set_vm_network/tasks/main.yml:42:13 Task/Handler: Flush netplan apply handler

@@ -100,16 +100,21 @@ host_users:
 
 # vault.yml:
 # host_user_passwords:
-#   archivar: "USER_PASSWORD_HERE"
+#   archivar: "SECRET_VALUE_HERE"
 
 # add_restic_server_htpasswd_entries:
-#   - user: "backup-user-1"
-#     password: "REST_SERVER_PASSWORD_HERE"
-#   - user: "backup-user-2"
-#     password: "REST_SERVER_PASSWORD_HERE"
+# - user: restic-server-test
+#   password: "SECRET_VALUE_HERE"
+# - user: lc3win
+#   password: "SECRET_VALUE_HERE"
+# - user: dockerhost2
+#   password: "SECRET_VALUE_HERE"
 
 # add_restic_retention_repository_passwords:
-#   "backup-user-1/repo1": "RESTIC_REPO_PASSWORD"
+#   restic-server-test/repo1: "SECRET_VALUE_HERE"
+#   lc3win/d: "SECRET_VALUE_HERE"
+#   lc3win/documents: "SECRET_VALUE_HERE"
+#   lc3win/scans: "SECRET_VALUE_HERE"
 
 # add_rclone_remote_config_content: |
 #   [pCloud]

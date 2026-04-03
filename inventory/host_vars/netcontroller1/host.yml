@@ -36,4 +36,4 @@ host_users:
 
 # vault.yml:
 # host_user_passwords:
-#   networker: "USER_PASSWORD_HERE"
+#   networker: "SECRET_VALUE_HERE"

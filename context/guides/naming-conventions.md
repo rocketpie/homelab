@@ -59,6 +59,11 @@ eg. restic1/host.yml:
 #     password: "REST_SERVER_PASSWORD_HERE"
 ```
 
+`build.ps1` can regenerate these `# vault.yml:` template comments from the
+local sibling `vault.yml` files by replacing every secret value with a static
+placeholder. Keep the marker at the bottom of the target file so the sync step
+can replace the whole block reliably.
+
 ## General Notes
 
 - Keep file and directory paths relative to the repository root or the current file.

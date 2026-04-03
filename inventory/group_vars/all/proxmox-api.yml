@@ -12,5 +12,4 @@ proxmox_api_user: "ansible@pve"
 proxmox_api_token_id: "lc3win-ansible"
 
 # vault.yml:
-# API Token auth
-# proxmox_api_token_secret: "BOOTSTRAP_TOKEN_SECRET_HERE"
+# proxmox_api_token_secret: "SECRET_VALUE_HERE"
