@@ -33,6 +33,7 @@
 
     - name: Check whether rest-server port is listening
       ansible.builtin.shell: >-
+        set -o pipefail &&
         ss -H -ltn | awk '$4 ~ /:{{ test_restic_server_port }}$/'
       args:
         executable: /bin/bash
@@ -114,7 +115,7 @@
       changed_when: false
 
   rescue:
-    - name: troubleshoot capture rest-server service status
+    - name: Troubleshoot capture rest-server service status
       ansible.builtin.command:
         argv:
           - systemctl
@@ -126,7 +127,7 @@
       changed_when: false
       failed_when: false
 
-    - name: troubleshoot capture recent rest-server journal entries
+    - name: Troubleshoot capture recent rest-server journal entries
       ansible.builtin.command:
         argv:
           - journalctl
@@ -139,8 +140,9 @@
       changed_when: false
       failed_when: false
 
-    - name: troubleshoot capture listening TCP sockets for rest-server port
+    - name: Troubleshoot capture listening TCP sockets for rest-server port
       ansible.builtin.shell: >-
+        set -o pipefail &&
         ss -H -ltnp | awk '$4 ~ /:{{ test_restic_server_port }}$/' || true
       args:
         executable: /bin/bash

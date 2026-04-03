@@ -37,10 +37,8 @@
       }}
     set_proxmox_vm_hardware_replication_rate: >-
       {%- if vm.proxmox_replication_rate is defined -%}
-      {{ vm.proxmox_replication_rate | string | trim }}
-      {%- else -%}
-      {{ none }}
-      {%- endif -%}
+      {{ vm.proxmox_replication_rate | string | trim }}{%- else -%}
+      {{ none }}{%- endif -%}
     set_proxmox_vm_hardware_replication_disabled: "{{ vm.proxmox_replication_disabled | default(false) | bool }}"
 
 - name: Validate desired Proxmox node and replication targets
@@ -48,9 +46,22 @@
     that:
       - set_proxmox_vm_hardware_target_node | length > 0
       - set_proxmox_vm_hardware_replication_schedule | length > 0
-      - set_proxmox_vm_hardware_target_replica_nodes | difference([set_proxmox_vm_hardware_target_node]) | length == set_proxmox_vm_hardware_target_replica_nodes | length
+      - >-
+        (
+          set_proxmox_vm_hardware_target_replica_nodes
+          | difference([set_proxmox_vm_hardware_target_node])
+          | length
+        )
+        == (set_proxmox_vm_hardware_target_replica_nodes | length)
       - groups['proxmox'] is not defined or set_proxmox_vm_hardware_target_node in groups['proxmox']
-      - groups['proxmox'] is not defined or (set_proxmox_vm_hardware_target_replica_nodes | difference(groups['proxmox']) | length) == 0
+      - >-
+        groups['proxmox'] is not defined
+        or
+        (
+          set_proxmox_vm_hardware_target_replica_nodes
+          | difference(groups['proxmox'])
+          | length
+        ) == 0
     fail_msg: >-
       Invalid Proxmox VM hardware inputs for {{ vm_name }}.
       target_node={{ set_proxmox_vm_hardware_target_node }}

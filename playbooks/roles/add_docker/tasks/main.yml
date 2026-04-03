@@ -58,8 +58,10 @@
   ansible.builtin.copy:
     dest: "{{ add_docker_repo_path }}"
     mode: "0644"
-    content: |
-      deb [arch={{ add_docker_architecture.stdout | trim }} signed-by={{ add_docker_keyring_path }}] {{ add_docker_repo_url }} {{ ansible_distribution_release }} stable
+    content: >-
+      deb [arch={{ add_docker_architecture.stdout | trim }}
+      signed-by={{ add_docker_keyring_path }}]
+      {{ add_docker_repo_url }} {{ ansible_distribution_release }} stable
 
 - name: Install Docker engine packages
   ansible.builtin.apt:

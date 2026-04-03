@@ -27,6 +27,7 @@
     group: root
     mode: "0600"
     backup: true
+  notify: Apply netplan config
   register: set_vm_network_netplan_render
 
 - name: Validate and apply VM netplan config
@@ -36,9 +37,8 @@
         cmd: netplan generate
       changed_when: false
 
-    - name: Apply generated netplan config
-      ansible.builtin.command:
-        cmd: netplan apply
+    - name: Flush netplan apply handler
+      ansible.builtin.meta: flush_handlers
       when: set_vm_network_netplan_render.changed
 
   rescue:

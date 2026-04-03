@@ -250,6 +250,7 @@
   community.general.htpasswd:
     path: "{{ add_restic_server_htpasswd_file }}"
     name: "{{ item }}"
+    mode: "0640"
     state: absent
   loop: >-
     {{
@@ -266,6 +267,7 @@
     name: "{{ item.user }}"
     password: "{{ item.password }}"
     crypt_scheme: bcrypt
+    mode: "0640"
     state: present
   loop: "{{ add_restic_server_htpasswd_entries }}"
   loop_control:
