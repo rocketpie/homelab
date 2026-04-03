@@ -55,12 +55,23 @@ add_docker_reverse_proxy_bindings:
   - port: 8000
     hostnames:
       - "paperless.lan"
-      - "paperless.vpn"
+      - "paperless.vpn.lan"
   - port: 2283
     hostnames:
       - "immich.lan"
-      - "immich.vpn"
+      - "immich.vpn.lan"
 ```
+
+That means:
+
+- `paperless.lan` resolves to the host IP through the DNS workflow
+- `paperless.vpn.lan` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
+- `immich.lan` resolves to the host IP through the DNS workflow
+- `immich.vpn.lan` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
+- HAProxy redirects HTTP on port `80` to HTTPS
+- HAProxy serves HTTPS on port `443` with `context/homelab-ca/client/dockerhost2.crt`
+- requests for the Paperless names are forwarded to `127.0.0.1:8000`
+- requests for the Immich names are forwarded to `127.0.0.1:2283`
 
 Rules:
 
@@ -87,36 +98,6 @@ The admin scripts exposed through `add_admin_scripts` cover:
 - Docker service control
 - reverse proxy service control
 - host status
-
-## Example: dockerhost2
-
-`dockerhost2` currently uses:
-
-```yaml
-add_docker_users:
-  - "captain"
-
-add_docker_reverse_proxy_bindings:
-  - port: 8000
-    hostnames:
-      - "paperless.lan"
-      - "paperless.vpn"
-  - port: 2283
-    hostnames:
-      - "immich.lan"
-      - "immich.vpn"
-```
-
-That means:
-
-- `paperless.lan` resolves to the host IP through the DNS workflow
-- `paperless.vpn` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
-- `immich.lan` resolves to the host IP through the DNS workflow
-- `immich.vpn` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
-- HAProxy redirects HTTP on port `80` to HTTPS
-- HAProxy serves HTTPS on port `443` with `context/homelab-ca/client/dockerhost2.crt`
-- requests for the Paperless names are forwarded to `127.0.0.1:8000`
-- requests for the Immich names are forwarded to `127.0.0.1:2283`
 
 ## Operational Notes
 

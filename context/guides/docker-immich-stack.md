@@ -27,7 +27,7 @@ On `dockerhost2`, the bind mounts live under `/media/immich-data` and the
 compose project lives under `/home/<owner>/immich-app`.
 
 If the host should expose Immich under names such as `immich.lan` or
-`immich.vpn`, define that in the Docker host config with
+`immich.vpn.lan`, define that in the Docker host config with
 `add_docker_reverse_proxy_bindings`, not in the Immich role.
 TLS termination for those names is also managed by the Docker host role.
 

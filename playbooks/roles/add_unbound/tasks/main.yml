@@ -50,7 +50,7 @@
     add_unbound_manual_dns_records: []
   when: homelab_dns_records is not defined or homelab_dns_records is not mapping
 
-- name: Validate hosts with inventory-derived .vpn DNS records
+- name: Validate hosts with inventory-derived .vpn.lan DNS records
   ansible.builtin.assert:
     that:
       - vpn_record_name | length == 0 or vpn_ip | length > 0
@@ -62,7 +62,7 @@
     vpn_record_name: >-
       {{
         effective_record_name
-        if effective_record_name.endswith('.vpn')
+        if effective_record_name.endswith('.vpn.lan')
         else ''
       }}
     effective_record_name: "{{ hostvars[item].dns_name | default(item) | string | trim }}"
@@ -82,12 +82,12 @@
   loop_control:
     label: "{{ item }}"
 
-- name: Validate hosts with .vpn aliases
+- name: Validate hosts with .vpn.lan aliases
   ansible.builtin.assert:
     that:
       - vpn_aliases | length == 0 or vpn_ip | length > 0
     fail_msg: >-
-      Host '{{ item }}' defines .vpn aliases {{ vpn_aliases }} but does not
+      Host '{{ item }}' defines .vpn.lan aliases {{ vpn_aliases }} but does not
       define add_vpn_client_overlay_ipv4 for its WireGuard overlay IPv4.
   vars:
     docker_proxy_hostnames: >-
@@ -114,7 +114,7 @@
         | unique
         | list
       }}
-    vpn_aliases: "{{ effective_host_aliases | select('match', '.*\\.vpn$') | list }}"
+    vpn_aliases: "{{ effective_host_aliases | select('match', '.*\\.vpn\\.lan$') | list }}"
     vpn_ip: >-
       {{
         hostvars[item].add_vpn_client_overlay_ipv4
@@ -167,7 +167,7 @@
                   'name': alias,
                   'value': (
                     vpn_ip
-                    if alias.endswith('.vpn')
+                    if alias.endswith('.vpn.lan')
                     else host_ip
                   )
                 }) -}}
@@ -217,7 +217,7 @@
                 | string
                 | trim
               )
-              if ((hostvars[item].dns_name | default(item) | string).endswith('.vpn'))
+              if ((hostvars[item].dns_name | default(item) | string).endswith('.vpn.lan'))
               else hostvars[item].ansible_host
             )
           }

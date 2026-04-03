@@ -11,9 +11,9 @@ Both are processed by the `add_unbound` role and merged together into the DNS re
 
 For Docker hosts, `add_docker_reverse_proxy_bindings[*].hostnames[*]` also feeds
 into the same host-level DNS alias collection automatically.
-When a collected hostname ends with `.vpn`, the DNS workflow uses the host's
+When a collected hostname ends with `.vpn.lan`, the DNS workflow uses the host's
 explicit `add_vpn_client_overlay_ipv4` instead of the host's LAN
-`ansible_host`. If a host defines a `.vpn` hostname through inventory-driven
+`ansible_host`. If a host defines a `.vpn.lan` hostname through inventory-driven
 records, `dns_aliases`, or Docker reverse proxy bindings without
 `add_vpn_client_overlay_ipv4`, the `add_unbound` run fails instead of
 publishing the wrong IP.
@@ -27,20 +27,22 @@ DNS records are organized by IP address, with each IP mapping to a list of hostn
 ```yaml
 homelab_dns_records:
   "192.168.178.55":
-    - "dockerhost1"
-    - "docker.backup"
+    - "dockerhost1.lan"
+    - "docker.backup.lan"
     - "minio.internal"
   "10.13.0.3":
-    - "gateway.vpn"
+    - "gateway.vpn.lan"
   "10.13.0.6":
-    - "dockerhost1.vpn"
+    - "dockerhost1.vpn.lan"
 ```
 
 **Key points:**
 - Map keys are IP addresses (strings, must be quoted)
 - Map values are lists of DNS names/aliases
 - Multiple aliases can point to the same IP
-- Names are automatically qualified with the local TLD (default: `.lan`)
+- Prefer fully qualified names in config, for example `backup.lan` or
+  `paperless.vpn.lan`
+- Bare names still default to the local TLD when omitted
 
 ### Local TLD
 
@@ -75,8 +77,7 @@ dns_aliases:
 - Useful for service-specific names without modifying central DNS records
 - Docker reverse proxy hostnames are collected separately, so they do not need
   to be duplicated here
-- `.vpn` aliases prefer `add_vpn_client_overlay_ipv4`
-- `.vpn` aliases require `add_vpn_client_overlay_ipv4`
+- `.vpn.lan` aliases prefer (and require) `add_vpn_client_overlay_ipv4`
 
 ### Example: Adding Aliases to `netcontroller1`
 
@@ -123,7 +124,7 @@ When the `configure-netcontroller.yml` playbook runs:
 ### Reserved/Special Suffixes
 
 - `.lan` - homelab TLD (IANA / ICANN reserved `.internal` for this purpose)
-- `.vpn` - VPN overlay subdomain
+- `.vpn.lan` - VPN overlay subdomain within the local DNS zone
 - `.local` - mDNS reserved
 
 ### Examples
@@ -132,7 +133,7 @@ When the `configure-netcontroller.yml` playbook runs:
 |----------|------|--------|
 | Primary service | `service` | `service.lan` |
 | Alternative name | `service`, `s-alias` | both resolve to same IP |
-| VPN access | `service.vpn` | `service.vpn` resolves to VPN IP |
+| VPN access | `service.vpn.lan` | `service.vpn.lan` resolves to VPN IP |
 
 ## Common Patterns
 

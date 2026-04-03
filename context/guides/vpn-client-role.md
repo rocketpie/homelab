@@ -34,15 +34,15 @@ the private key.
 After adding the vaulted host variable, run `build.ps1` so the matching
 `# vault.yml:` template comment in the host file stays in sync.
 
-Each host that publishes `.vpn` DNS names should also define its non-secret
+Each host that publishes `.vpn.lan` DNS names should also define its non-secret
 overlay IPv4 in host vars:
 
 ```yaml
 add_vpn_client_overlay_ipv4: "10.13.0.10"
 ```
 
-This keeps `.vpn` DNS generation independent from cross-host access to vaulted
-content. The `add_vpn_client` role validates that the `Address` inside the
+This keeps `.vpn.lan` DNS generation independent from cross-host access to
+vaulted content. The `add_vpn_client` role validates that the `Address` inside the
 vaulted config matches `add_vpn_client_overlay_ipv4`.
 
 ## Rollout Paths
@@ -61,8 +61,8 @@ guest configuration when the vaulted variable is present.
 
 ## DNS Behavior
 
-Host-level `.vpn` names gathered from `dns_aliases` or Docker reverse proxy
-bindings use `add_vpn_client_overlay_ipv4`. Inventory-derived `.vpn` names
-follow the same rule. If a host advertises a `.vpn` name without
+Host-level `.vpn.lan` names gathered from `dns_aliases` or Docker reverse proxy
+bindings use `add_vpn_client_overlay_ipv4`. Inventory-derived `.vpn.lan` names
+follow the same rule. If a host advertises a `.vpn.lan` name without
 `add_vpn_client_overlay_ipv4`, `add_unbound` fails rather than publishing the
 LAN IP by mistake.

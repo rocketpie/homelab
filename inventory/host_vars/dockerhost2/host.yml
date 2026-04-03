@@ -31,11 +31,11 @@ add_docker_reverse_proxy_bindings:
   - port: 8000
     hostnames:
       - "paperless.lan"
-      - "paperless.vpn"
+      - "paperless.vpn.lan"
   - port: 2283
     hostnames:
       - "immich.lan"
-      - "immich.vpn"
+      - "immich.vpn.lan"
 
 add_vpn_client_overlay_ipv4: "10.13.0.11"
 

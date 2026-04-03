@@ -33,7 +33,7 @@ pwsh context/homelab-ca/new-ca.ps1
 Create a host certificate with SANs:
 
 ```powershell
-pwsh context/homelab-ca/new-client-certificate.ps1 -Name dockerhost2 -DnsName paperless.lan,paperless.vpn
+pwsh context/homelab-ca/new-client-certificate.ps1 -Name dockerhost2 -DnsName paperless.lan,paperless.vpn.lan
 ```
 
 For Docker hosts, the default HAProxy certificate lookup is:

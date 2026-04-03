@@ -18,17 +18,21 @@ homelab_dns_local_tld: "lan"
 # Maps IP addresses to DNS aliases (names)
 # Each IP can have multiple names/aliases
 homelab_dns_records:
+  "192.168.178.6":
+    - "n2.pxe.vpn.lan"
+  "192.168.178.5":
+    - "n5.pxe.vpn.lan"
   "192.168.178.55":
-    - "dockerhost1"
+    - "dockerhost1.lan"
   "192.168.178.33":
-    - "backup2"
+    - "backup2.lan"
   "192.168.178.34":
-    - "james"
-    - "licht"
-    - "grafana"
+    - "james.lan"
+    - "licht.lan"
+    - "grafana.lan"
+  "10.13.0.5":
+    - "james.vpn.lan"
+    - "licht.vpn.lan"
+    - "grafana.vpn.lan"
   "10.13.0.3":
-    - "gateway.vpn"
-  "10.13.0.6":
-    - "dockerhost1.vpn"
-    - "paperless.vpn"
-    - "grafana.vpn"
+    - "gateway.vpn.lan"
