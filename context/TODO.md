@@ -24,11 +24,6 @@
     - process runtime output live streaming to the console
     - DEBUG_LOG=restic-debug.log
 
-# context/restic-client scheduling
-    - make script interactive
-    - show snapshots
-    - add / remove scheduled task option
-
 # restic server play
     - add extensive testing, including restic repository access / restore and backup
     since this is frequently re-run when adding htaccess users.

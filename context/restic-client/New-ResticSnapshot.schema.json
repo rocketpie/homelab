@@ -35,6 +35,27 @@
                 }
             }
         },
+        "scheduledTask": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Windows scheduled task name."
+                },
+                "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Windows scheduled task description."
+                },
+                "dailyAt": {
+                    "type": "string",
+                    "pattern": "^\\d{2}:\\d{2}$",
+                    "description": "Local daily trigger time in 24-hour HH:MM format."
+                }
+            }
+        },
         "snapshot": {
             "type": "array",
             "minItems": 1,

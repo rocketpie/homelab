@@ -3,6 +3,11 @@
         "path": "C:\\ProgramData\\backuplog\\",
         "retainLogs": "30:00:00:00"
     },
+    "scheduledTask": {
+        "name": "New-ResticSnapshot",
+        "description": "Run configured restic snapshots",
+        "dailyAt": "02:00"
+    },
     "snapshot": [
         {
             "path": "D:\\",

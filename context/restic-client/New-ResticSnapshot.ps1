@@ -6,6 +6,8 @@
 #>
 [CmdletBinding()]
 Param(
+    [ValidateSet('Interactive', 'Backup', 'ShowSnapshots', 'InstallSchedule', 'RemoveSchedule')]
+    [string]$Action = 'Interactive'
 )
 
 Set-StrictMode -Version Latest
@@ -16,31 +18,22 @@ if ($PSBoundParameters['Debug']) {
 }
 
 Set-Variable -Scope Script -Name "ThisFileName" -Value ([System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Definition))
-Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.5"
+Set-Variable -Scope Script -Name "ThisFilePath" -Value ($MyInvocation.MyCommand.Definition)
+Set-Variable -Scope Script -Name "ThisFileVersion" -Value "0.6"
 "$($thisFileName) $($thisFileVersion)"
 
 function Main {
     Read-ConfigFile
-
-    Test-WriteAccess -Path $Config.log.path
-    $logFilePath = Initialize-LogFile -LogPath $Config.log.path
-
-    Test-Restic
-
-    foreach ($item in $config.snapshot) {
-        try {
-            Test-ReadAccess -Path $item.path
-
-            "starting backup of '$($item.path)' to repository '$($item.resticRepository)'..." | Out-Logged -LogfilePath $logFilePath
-            Invoke-ResticBackup -SnapshotItem $item -LogFilePath $logFilePath
-        }
-        catch {
-            "backup failed! path:'$($item.path)'" | Out-Logged -LogfilePath $logFilePath
-            Write-LoggedErrorDetails -ErrorRecord $_ -LogFilePath $logFilePath
+    switch ($Action) {
+        'Interactive' { Invoke-InteractiveMenu }
+        'Backup' { Start-ConfiguredBackups }
+        'ShowSnapshots' { Show-ConfiguredSnapshots }
+        'InstallSchedule' { Install-ConfiguredScheduledTask }
+        'RemoveSchedule' { Remove-ConfiguredScheduledTask }
+        default {
+            throw "Unsupported action '$Action'"
         }
     }
-
-    Remove-ExpiredLogFiles  *>&1 | Out-Logged -LogfilePath $logFilePath
 }
 
 function Test-Restic {
@@ -61,16 +54,60 @@ function TrySecureString {
         UseSecureString -SerializedValue $Value | Out-Null
     }
     catch {
-        $serializedSecureString = ConvertTo-SecureString -String $Value -AsPlainText -Force | ConvertFrom-SecureString
-        return [pscustomobject]@{
-            Success = $true
-            SerializedSecureString = $serializedSecureString
+        try {
+            $serializedSecureString = ConvertTo-SecureString -String $Value -AsPlainText -Force | ConvertFrom-SecureString
+            return [pscustomobject]@{
+                Success                = $true
+                SerializedSecureString = $serializedSecureString
+            }
+        }
+        catch {
+            Write-Warning "cannot secure string: $($_.Exception.Message)"
+            return [pscustomobject]@{
+                Success                = $false
+                SerializedSecureString = $Value
+            }
         }
     }
 
     return [pscustomobject]@{
         Success = $false
     }
+}
+
+function Start-ConfiguredBackups {
+    Test-WriteAccess -Path $Config.log.path
+    $logFilePath = Initialize-LogFile -LogPath $Config.log.path
+
+    Test-Restic
+
+    foreach ($item in $config.snapshot) {
+        try {
+            Test-ReadAccess -Path $item.path
+
+            "starting backup of '$($item.path)' to repository '$((Get-DisplayRepository -Repository $item.resticRepository))'..." | Out-Logged -LogfilePath $logFilePath
+            Invoke-ResticBackup -SnapshotItem $item -LogFilePath $logFilePath
+        }
+        catch {
+            "backup failed! path:'$($item.path)'" | Out-Logged -LogfilePath $logFilePath
+            Write-LoggedErrorDetails -ErrorRecord $_ -LogFilePath $logFilePath
+        }
+    }
+
+    Remove-ExpiredLogFiles  *>&1 | Out-Logged -LogfilePath $logFilePath
+}
+
+function Get-DisplayRepository {
+    [CmdletBinding()]
+    param(
+        [string]$Repository
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Repository)) {
+        return $Repository
+    }
+
+    return ($Repository -replace '(?<=://[^:]+:)[^@]+(?=@)', '***')
 }
 
 function UseSecureString {
@@ -208,6 +245,19 @@ function Invoke-ResticBackup {
         "using .backupignore files: $($resticIgnoreFiles -join ', ')" | Out-Logged -LogfilePath $LogFilePath
     }
 
+    $resticResult = Invoke-ResticCommand -SnapshotItem $SnapshotItem -ArgumentList $resticArguments
+
+    Write-LoggedText -LogFilePath $LogFilePath -Text $resticResult.StandardOutput
+    Write-LoggedText -LogFilePath $LogFilePath -Text $resticResult.StandardError
+}
+
+function Invoke-ResticCommand {
+    [CmdletBinding()]
+    param(
+        [object]$SnapshotItem,
+        [string[]]$ArgumentList
+    )
+
     $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $processStartInfo.FileName = 'restic'
     $processStartInfo.UseShellExecute = $false
@@ -217,7 +267,7 @@ function Invoke-ResticBackup {
     $processStartInfo.Environment['RESTIC_REPOSITORY'] = [string]$SnapshotItem.resticRepository
     $processStartInfo.Environment['RESTIC_PASSWORD'] = UseSecureString -SerializedValue $SnapshotItem.repositoryPassword
 
-    foreach ($argument in $resticArguments) {
+    foreach ($argument in $ArgumentList) {
         $processStartInfo.ArgumentList.Add([string]$argument) | Out-Null
     }
 
@@ -237,15 +287,146 @@ function Invoke-ResticBackup {
         $stdoutText = $stdoutTask.GetAwaiter().GetResult()
         $stderrText = $stderrTask.GetAwaiter().GetResult()
 
-        Write-LoggedText -LogFilePath $LogFilePath -Text $stdoutText
-        Write-LoggedText -LogFilePath $LogFilePath -Text $stderrText
-
         if ($process.ExitCode -ne 0) {
-            throw "restic exited with code $($process.ExitCode)"
+            throw "restic exited with code $($process.ExitCode)`n$stderrText"
+        }
+
+        return [pscustomobject]@{
+            StandardOutput = $stdoutText
+            StandardError  = $stderrText
         }
     }
     finally {
         $process.Dispose()
+    }
+}
+
+function Show-ConfiguredSnapshots {
+    Test-Restic
+
+    foreach ($item in $Config.snapshot) {
+        ""
+        "snapshots for '$($item.path)'"
+        "repository: $(Get-DisplayRepository -Repository $item.resticRepository)"
+        try {
+            $resticResult = Invoke-ResticCommand -SnapshotItem $item -ArgumentList @('snapshots', '--path', $item.path)
+            if (-not [string]::IsNullOrWhiteSpace($resticResult.StandardOutput)) {
+                $resticResult.StandardOutput.TrimEnd("`r", "`n")
+            }
+            if (-not [string]::IsNullOrWhiteSpace($resticResult.StandardError)) {
+                $resticResult.StandardError.TrimEnd("`r", "`n")
+            }
+        }
+        catch {
+            Write-Error "failed to list snapshots for '$($item.path)': $($_.Exception.Message)"
+        }
+    }
+}
+
+function Get-ScheduledTaskSettings {
+    $taskName = $ThisFileName
+    $taskDescription = "Run configured restic snapshots from $($ThisFileName).ps1"
+    $taskDailyAt = '02:00'
+
+    if ($null -ne $Config.scheduledTask) {
+        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.name)) {
+            $taskName = [string]$Config.scheduledTask.name
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.description)) {
+            $taskDescription = [string]$Config.scheduledTask.description
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Config.scheduledTask.dailyAt)) {
+            $taskDailyAt = [string]$Config.scheduledTask.dailyAt
+        }
+    }
+
+    return [pscustomobject]@{
+        Name        = $taskName
+        Description = $taskDescription
+        DailyAt     = $taskDailyAt
+    }
+}
+
+function Test-ScheduledTaskSupport {
+    if (-not $IsWindows) {
+        throw "scheduled task management is only supported on Windows"
+    }
+
+    if ($null -eq (Get-Command 'Register-ScheduledTask' -ErrorAction SilentlyContinue)) {
+        throw "scheduled task cmdlets are not available in this PowerShell session"
+    }
+}
+
+function Install-ConfiguredScheduledTask {
+    Test-ScheduledTaskSupport
+
+    $scheduledTask = Get-ScheduledTaskSettings
+    $taskTime = [datetime]::ParseExact($scheduledTask.DailyAt, 'HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
+    $pwshPath = (Get-Command 'pwsh' -ErrorAction Stop).Source
+    $scriptPath = Get-Variable -Name 'ThisFilePath' -ValueOnly
+
+    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -File `"$scriptPath`" -Action Backup"
+    $taskTrigger = New-ScheduledTaskTrigger -Daily -At $taskTime
+
+    Register-ScheduledTask `
+        -TaskName $scheduledTask.Name `
+        -Description $scheduledTask.Description `
+        -Action $taskAction `
+        -Trigger $taskTrigger `
+        -Force | Out-Null
+
+    "scheduled task '$($scheduledTask.Name)' installed or updated for $($scheduledTask.DailyAt)"
+}
+
+function Remove-ConfiguredScheduledTask {
+    Test-ScheduledTaskSupport
+
+    $scheduledTask = Get-ScheduledTaskSettings
+    $existingTask = Get-ScheduledTask -TaskName $scheduledTask.Name -ErrorAction SilentlyContinue
+    if ($null -eq $existingTask) {
+        "scheduled task '$($scheduledTask.Name)' does not exist"
+        return
+    }
+
+    Unregister-ScheduledTask -TaskName $scheduledTask.Name -Confirm:$false
+    "scheduled task '$($scheduledTask.Name)' removed"
+}
+
+function Invoke-InteractiveMenu {
+    while ($true) {
+        ""
+        "Select an action:"
+        "  1. Run backup now"
+        "  2. Show snapshots"
+        "  3. Install or update scheduled task"
+        "  4. Remove scheduled task"
+        "  5. Exit"
+
+        $choice = Read-Host 'Choice [1-5]'
+        switch ($choice) {
+            '1' {
+                Start-ConfiguredBackups
+            }
+            '2' {
+                Show-ConfiguredSnapshots
+            }
+            '3' {
+                Install-ConfiguredScheduledTask
+            }
+            '4' {
+                Remove-ConfiguredScheduledTask
+            }
+            '5' {
+                return
+            }
+            default {
+                "invalid choice '$choice'"
+                continue
+            }
+        }
+
+        ""
+        [void](Read-Host 'Press Enter to return to the menu')
     }
 }
 
