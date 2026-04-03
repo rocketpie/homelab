@@ -17,6 +17,8 @@ os_disk_gb: 10
 
 # enable_autoupdate: false
 
+add_vpn_client_overlay_ipv4: "10.13.0.9"
+
 add_admin_scripts_user: "networker"
 
 # Optional DNS aliases

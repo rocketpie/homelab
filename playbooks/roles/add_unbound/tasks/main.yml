@@ -50,6 +50,83 @@
     add_unbound_manual_dns_records: []
   when: homelab_dns_records is not defined or homelab_dns_records is not mapping
 
+- name: Validate hosts with inventory-derived .vpn DNS records
+  ansible.builtin.assert:
+    that:
+      - vpn_record_name | length == 0 or vpn_ip | length > 0
+    fail_msg: >-
+      Host '{{ item }}' defines inventory DNS name '{{ vpn_record_name }}' but
+      does not define add_vpn_client_overlay_ipv4 for its WireGuard overlay
+      IPv4.
+  vars:
+    vpn_record_name: >-
+      {{
+        effective_record_name
+        if effective_record_name.endswith('.vpn')
+        else ''
+      }}
+    effective_record_name: "{{ hostvars[item].dns_name | default(item) | string | trim }}"
+    vpn_ip: >-
+      {{
+        hostvars[item].add_vpn_client_overlay_ipv4
+        | default('', true)
+        | string
+        | trim
+      }}
+  loop: "{{ groups['all'] | default([]) }}"
+  when:
+    - add_unbound_inventory_dns_enabled | bool
+    - hostvars[item].ansible_host is defined
+    - hostvars[item].ansible_host | string | length > 0
+    - hostvars[item].dns_record_enabled | default(true) | bool
+  loop_control:
+    label: "{{ item }}"
+
+- name: Validate hosts with .vpn aliases
+  ansible.builtin.assert:
+    that:
+      - vpn_aliases | length == 0 or vpn_ip | length > 0
+    fail_msg: >-
+      Host '{{ item }}' defines .vpn aliases {{ vpn_aliases }} but does not
+      define add_vpn_client_overlay_ipv4 for its WireGuard overlay IPv4.
+  vars:
+    docker_proxy_hostnames: >-
+      {{
+        hostvars[item].add_docker_reverse_proxy_bindings
+        | default([])
+        | selectattr('hostnames', 'defined')
+        | map(attribute='hostnames')
+        | flatten
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+    effective_host_aliases: >-
+      {{
+        (
+          (hostvars[item].dns_aliases | default([]))
+          + docker_proxy_hostnames
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+    vpn_aliases: "{{ effective_host_aliases | select('match', '.*\\.vpn$') | list }}"
+    vpn_ip: >-
+      {{
+        hostvars[item].add_vpn_client_overlay_ipv4
+        | default('', true)
+        | string
+        | trim
+      }}
+  loop: "{{ groups['all'] | default([]) }}"
+  when: add_unbound_inventory_dns_enabled | bool
+  loop_control:
+    label: "{{ item }}"
+
 - name: Collect host-level DNS aliases
   ansible.builtin.set_fact:
     add_unbound_host_dns_records: >-
@@ -75,10 +152,25 @@
               | unique
               | list
             ) -%}
+        {%- set vpn_ip = (
+              (
+                hostvars[host_name].add_vpn_client_overlay_ipv4
+                | default('', true)
+              )
+              | string
+              | trim
+            ) -%}
         {%- set host_ip = hostvars[host_name].ansible_host | default('') -%}
         {%- if effective_host_aliases and host_ip -%}
           {%- for alias in effective_host_aliases -%}
-            {{- records.append({'name': alias, 'value': host_ip}) -}}
+            {{- records.append({
+                  'name': alias,
+                  'value': (
+                    vpn_ip
+                    if alias.endswith('.vpn')
+                    else host_ip
+                  )
+                }) -}}
           {%- endfor -%}
         {%- endif -%}
       {%- endfor -%}
@@ -118,7 +210,16 @@
         add_unbound_inventory_dns_records + [
           {
             'name': (hostvars[item].dns_name | default(item)),
-            'value': hostvars[item].ansible_host
+            'value': (
+              (
+                hostvars[item].add_vpn_client_overlay_ipv4
+                | default('', true)
+                | string
+                | trim
+              )
+              if ((hostvars[item].dns_name | default(item) | string).endswith('.vpn'))
+              else hostvars[item].ansible_host
+            )
           }
         ]
       }}

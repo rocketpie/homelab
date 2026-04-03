@@ -1,0 +1,43 @@
+---
+- name: Install WireGuard VPN client on all VM hosts
+  hosts: vm
+  become: true
+  gather_facts: true
+  vars:
+    add_vpn_client_record_deployment_roles: >-
+      {{
+        ['add_vpn_client']
+        if (add_vpn_client_enabled | default(
+          (add_vpn_client_config | default('', true) | string | trim | length) > 0
+        ) | bool)
+        else []
+      }}
+
+  pre_tasks:
+    - name: Record incomplete deployment history for VPN client
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-vpn-client.yml
+        record_deployment_roles: "{{ add_vpn_client_record_deployment_roles }}"
+        record_deployment_metadata:
+          services:
+            - vpn-client
+      when: add_vpn_client_record_deployment_roles | length > 0
+
+  roles:
+    - role: add_vpn_client
+
+  post_tasks:
+    - name: Record successful deployment history for VPN client
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-vpn-client.yml
+        record_deployment_roles: "{{ add_vpn_client_record_deployment_roles }}"
+        record_deployment_metadata:
+          services:
+            - vpn-client
+      when: add_vpn_client_record_deployment_roles | length > 0

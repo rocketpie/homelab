@@ -1,0 +1,13 @@
+---
+add_vpn_client_enabled: >-
+  {{
+    (add_vpn_client_config | default('', true) | string | trim | length) > 0
+  }}
+add_vpn_client_package_name: wireguard-tools
+add_vpn_client_interface_name: co3d
+add_vpn_client_config_dir: /etc/wireguard
+add_vpn_client_config_path: "{{ add_vpn_client_config_dir }}/{{ add_vpn_client_interface_name }}.conf"
+add_vpn_client_service_name: "wg-quick@{{ add_vpn_client_interface_name }}"
+add_vpn_client_config: ""
+add_vpn_client_overlay_ipv4: ""
+add_vpn_client_overlay_ipv4_regex: '(?im)^Address\s*=\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(?:/\d+)?(?:\s*,.*)?\s*$'

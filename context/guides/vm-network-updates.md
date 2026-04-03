@@ -1,6 +1,8 @@
 # VM Network Updates
 
-Use `playbooks/set-vm-network.yml` when a VM's static network settings need to be reapplied after changing the shared autoinstall network variables.
+Use `playbooks/set-vm-network.yml` when a VM's static network settings need to
+be reapplied after changing the shared autoinstall network variables or when a
+VM's vaulted WireGuard client config needs to be refreshed in place.
 
 ## When to use it
 
@@ -15,20 +17,23 @@ Changing `autoinstall_*` values only affects future autoinstall renders by itsel
 
 ## Targeting
 
-- The playbook targets non-netcontroller VMs from the `vm` inventory group.
-- Hosts in the `unbound` group are excluded, so `netcontroller1` and `netcontroller2` are not part of the default rollout.
-- When prompted, enter a single VM name such as `dockerhost2` to update one host first, or press Enter to update all affected VMs.
+- The playbook targets hosts from the `vm` inventory group.
+- When prompted, enter a single VM name such as `dockerhost2` to update one
+  host first, or press Enter to update all affected VMs.
 
 ## Recommended rollout
 
 1. Run `run.ps1 set-vm-network.yml`
 2. Enter `dockerhost2` first and confirm the host can resolve the expected names
-3. Run the playbook again and press Enter to update the remaining affected VMs
+3. Update the remaining VMs one at a time if the change also touches the
+   WireGuard client config or DNS-sensitive hosts such as the netcontrollers
 
 ## What it updates
 
 - rewrites `/etc/netplan/50-cloud-init.yaml`
 - keeps the host's static `ansible_host` address
 - reapplies the shared gateway, prefix, and nameserver values from `inventory/group_vars/all/autoinstall.yml`
+- reapplies the vaulted WireGuard client config when `add_vpn_client_config` is
+  present for the host
 - validates with `netplan generate`
 - applies with `netplan apply`

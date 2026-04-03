@@ -11,6 +11,12 @@ Both are processed by the `add_unbound` role and merged together into the DNS re
 
 For Docker hosts, `add_docker_reverse_proxy_bindings[*].hostnames[*]` also feeds
 into the same host-level DNS alias collection automatically.
+When a collected hostname ends with `.vpn`, the DNS workflow uses the host's
+explicit `add_vpn_client_overlay_ipv4` instead of the host's LAN
+`ansible_host`. If a host defines a `.vpn` hostname through inventory-driven
+records, `dns_aliases`, or Docker reverse proxy bindings without
+`add_vpn_client_overlay_ipv4`, the `add_unbound` run fails instead of
+publishing the wrong IP.
 
 ## Global DNS Records (`dns.yml`)
 
@@ -65,10 +71,12 @@ dns_aliases:
 
 **Key points:**
 - `dns_aliases` is an optional list
-- These names resolve to the host's `ansible_host` (primary inventory IP)
+- These names resolve to the host's `ansible_host` by default
 - Useful for service-specific names without modifying central DNS records
 - Docker reverse proxy hostnames are collected separately, so they do not need
   to be duplicated here
+- `.vpn` aliases prefer `add_vpn_client_overlay_ipv4`
+- `.vpn` aliases require `add_vpn_client_overlay_ipv4`
 
 ### Example: Adding Aliases to `netcontroller1`
 

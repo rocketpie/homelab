@@ -9,10 +9,6 @@
   disposable repository, write one backup, list snapshots, and restore it
   again once this repo has a proper way to install `restic` for tests
 
-# VPN and VPN DNS
-    - .vpn names must always resolve to the hosts vpn overlay ip, not the local ip.
-    - add the netcontrollers to the vpn as dns resolvers
-    - add vpn client install to all VMs.
 
 # duplicate documentation 
 - restic-retention-role.md

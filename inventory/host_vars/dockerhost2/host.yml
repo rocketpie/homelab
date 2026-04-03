@@ -37,6 +37,8 @@ add_docker_reverse_proxy_bindings:
       - "immich.lan"
       - "immich.vpn"
 
+add_vpn_client_overlay_ipv4: "10.13.0.11"
+
 add_paperless_owner_user: "captain"
 add_paperless_time_zone: "Europe/Berlin"
 add_paperless_ocr_language: "deu"

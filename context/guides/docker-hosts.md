@@ -110,9 +110,9 @@ add_docker_reverse_proxy_bindings:
 That means:
 
 - `paperless.lan` resolves to the host IP through the DNS workflow
-- `paperless.vpn` resolves to the host IP through the DNS workflow
+- `paperless.vpn` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
 - `immich.lan` resolves to the host IP through the DNS workflow
-- `immich.vpn` resolves to the host IP through the DNS workflow
+- `immich.vpn` resolves to `add_vpn_client_overlay_ipv4` through the DNS workflow
 - HAProxy redirects HTTP on port `80` to HTTPS
 - HAProxy serves HTTPS on port `443` with `context/homelab-ca/client/dockerhost2.crt`
 - requests for the Paperless names are forwarded to `127.0.0.1:8000`

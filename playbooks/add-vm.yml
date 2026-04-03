@@ -150,6 +150,15 @@
           if (vm.enable_autoupdate | default(true) | bool)
           else []
         )
+        + (
+          ['add_vpn_client']
+          if (
+            add_vpn_client_enabled | default(
+              (vm.add_vpn_client_config | default('', true) | string | trim | length) > 0
+            ) | bool
+          )
+          else []
+        )
       }}
 
   pre_tasks:
@@ -207,6 +216,14 @@
       ansible.builtin.include_role:
         name: add_autoupdate
       when: vm.enable_autoupdate | default(true) | bool
+
+    - name: Install WireGuard VPN client
+      ansible.builtin.include_role:
+        name: add_vpn_client
+      when: >-
+        add_vpn_client_enabled | default(
+          (vm.add_vpn_client_config | default('', true) | string | trim | length) > 0
+        ) | bool
 
   post_tasks:
     - name: Record successful deployment history for provisioned VM

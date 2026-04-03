@@ -1,0 +1,68 @@
+---
+- name: Manage WireGuard VPN client
+  when: add_vpn_client_enabled | bool
+  block:
+    - name: Validate VPN client inputs
+      ansible.builtin.assert:
+        that:
+          - ansible_system == 'Linux'
+          - ansible_distribution == 'Ubuntu'
+          - add_vpn_client_interface_name | string | trim | length > 0
+          - add_vpn_client_overlay_ipv4 | string | trim | length > 0
+          - add_vpn_client_config | string | trim | length > 0
+          - add_vpn_client_config | regex_search('(?im)^\[Interface\]\s*$')
+          - add_vpn_client_config | regex_search('(?im)^\[Peer\]\s*$')
+          - add_vpn_client_config | regex_search(add_vpn_client_overlay_ipv4_regex)
+          - add_vpn_client_config_overlay_ipv4 == (add_vpn_client_overlay_ipv4 | string | trim)
+        fail_msg: >-
+          add_vpn_client requires an Ubuntu host and a vaulted WireGuard client
+          config with [Interface], [Peer], and an IPv4 Address entry that
+          matches add_vpn_client_overlay_ipv4.
+      vars:
+        add_vpn_client_config_overlay_ipv4: >-
+          {{
+            (
+              add_vpn_client_config
+              | regex_findall(add_vpn_client_overlay_ipv4_regex)
+              | first
+              | default('', true)
+            )
+            | string
+            | trim
+          }}
+
+    - name: Install WireGuard client package
+      ansible.builtin.apt:
+        name: "{{ add_vpn_client_package_name }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure WireGuard config directory exists
+      ansible.builtin.file:
+        path: "{{ add_vpn_client_config_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Install WireGuard client config
+      ansible.builtin.copy:
+        content: "{{ add_vpn_client_config | trim ~ '\n' }}"
+        dest: "{{ add_vpn_client_config_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      register: add_vpn_client_config_install
+
+    - name: Restart WireGuard client after config changes
+      ansible.builtin.systemd_service:
+        name: "{{ add_vpn_client_service_name }}"
+        state: restarted
+      when: add_vpn_client_config_install.changed
+
+    - name: Ensure WireGuard client service is enabled and started
+      ansible.builtin.systemd_service:
+        name: "{{ add_vpn_client_service_name }}"
+        enabled: true
+        state: started

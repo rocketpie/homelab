@@ -1,22 +1,20 @@
 ---
-- name: Select VM network update targets
+- name: Select a VM to update its network settings
   hosts: localhost
   connection: local
   gather_facts: false
   vars:
     set_vm_network_candidate_hosts: >-
       {{
-        (groups['vm'] | default([]))
-        | difference(groups['unbound'] | default([]))
-        | sort
+        (groups['vm'] | default([])) | sort
       }}
 
   tasks:
-    - name: Ensure at least one non-netcontroller VM is defined
+    - name: Ensure at least one VM is defined
       ansible.builtin.assert:
         that:
           - set_vm_network_candidate_hosts | length > 0
-        fail_msg: "The inventory does not contain any non-netcontroller VMs to update."
+        fail_msg: "The inventory does not contain any VMs to update."
 
     - name: Prompt for VM to update when not provided
       ansible.builtin.pause:
@@ -39,7 +37,7 @@
         that:
           - set_vm_network_requested_target in set_vm_network_candidate_hosts
         fail_msg: >-
-          Host '{{ set_vm_network_requested_target }}' is not a non-netcontroller VM.
+          Host '{{ set_vm_network_requested_target }}' is not a VM target.
           Valid targets: {{ set_vm_network_candidate_hosts }}
       when: set_vm_network_requested_target | length > 0
 
@@ -65,10 +63,24 @@
       loop_control:
         label: "{{ item }}"
 
-- name: Update static network config on existing non-netcontroller VMs
+- name: Update static network config on existing VMs
   hosts: vm_network_update_targets
   become: true
   gather_facts: true
+  vars:
+    set_vm_network_record_deployment_roles: >-
+      {{
+        ['set_vm_network']
+        + (
+          ['add_vpn_client']
+          if (
+            add_vpn_client_enabled | default(
+              (add_vpn_client_config | default('', true) | string | trim | length) > 0
+            ) | bool
+          )
+          else []
+        )
+      }}
 
   pre_tasks:
     - name: Record incomplete deployment history for VM network update
@@ -77,11 +89,11 @@
       vars:
         record_deployment_phase: start
         record_deployment_playbook: set-vm-network.yml
-        record_deployment_roles:
-          - set_vm_network
+        record_deployment_roles: "{{ set_vm_network_record_deployment_roles }}"
 
   roles:
     - role: set_vm_network
+    - role: add_vpn_client
 
   post_tasks:
     - name: Record successful deployment history for VM network update
@@ -90,5 +102,4 @@
       vars:
         record_deployment_phase: finish
         record_deployment_playbook: set-vm-network.yml
-        record_deployment_roles:
-          - set_vm_network
+        record_deployment_roles: "{{ set_vm_network_record_deployment_roles }}"
