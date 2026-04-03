@@ -38,6 +38,11 @@ Each configured repository gets:
 The scripts load `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, and the restore target
 path from a root-managed env file.
 
+For backups, the generated Linux helper also auto-discovers `.backupignore`
+files in the repository `path` and its first child level, and passes each one
+to restic with `--iexclude-file`. This mirrors the behavior of
+`context/restic-client/New-ResticSnapshot.ps1`.
+
 If needed, a repository can also run one `backup_pre_command` before `restic
 backup`. This is useful for applications like Paperless that need to refresh an
 export directory before the filesystem backup runs.
@@ -72,6 +77,12 @@ replaces those placeholders from
 `add_restic_client_repository_credentials.<name>` before writing the env file.
 The helper scripts print a redacted repository string so the embedded password
 is not echoed back to the terminal.
+
+Example ignore file for excluding a generated subtree from snapshots:
+
+```text
+/thumbs
+```
 
 For hosts that also use `add_admin_scripts`, the same script name is installed
 in the admin user's home directory as a wrapper, and timer start/stop helpers

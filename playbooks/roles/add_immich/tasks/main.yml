@@ -74,6 +74,14 @@
     group: "{{ add_immich_owner_group }}"
     mode: "0640"
 
+- name: Install Immich backup ignore file
+  ansible.builtin.template:
+    src: .backupignore.j2
+    dest: "{{ add_immich_backup_ignore_file_path }}"
+    owner: "{{ add_immich_owner_user }}"
+    group: "{{ add_immich_owner_group }}"
+    mode: "0644"
+
 - name: Install Immich systemd unit
   ansible.builtin.template:
     src: immich.service.j2

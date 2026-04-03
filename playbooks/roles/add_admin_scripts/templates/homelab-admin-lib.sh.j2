@@ -84,7 +84,7 @@ homelab_admin_show_deployment_history() {
 
   if [[ -f "$history_file" ]]; then
     history_entries_output="$(
-      sudo awk '
+      awk '
         function flush_entry() {
           if (in_entry && recorded_at != "" && playbook != "") {
             if (status == "") {

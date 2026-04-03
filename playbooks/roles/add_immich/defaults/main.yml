@@ -6,6 +6,7 @@ add_immich_project_dir: "/home/{{ add_immich_owner_user }}/immich-app"
 add_immich_data_root: /media/immich-data
 add_immich_upload_location: "{{ add_immich_data_root }}/library"
 add_immich_db_data_location: "{{ add_immich_data_root }}/postgres"
+add_immich_backup_ignore_file_path: "{{ add_immich_upload_location }}/.backupignore"
 
 add_immich_compose_file_path: "{{ add_immich_project_dir }}/docker-compose.yml"
 add_immich_project_env_path: "{{ add_immich_project_dir }}/.env"

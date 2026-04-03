@@ -9,6 +9,7 @@ add_restic_client_binary_path: /usr/bin/restic
 add_restic_client_config_dir: /etc/restic-client
 add_restic_client_env_dir: "{{ add_restic_client_config_dir }}/repos.d"
 add_restic_client_script_dir: /usr/local/bin
+add_restic_client_backup_ignore_filename: .backupignore
 
 add_restic_client_repositories: []
 add_restic_client_repository_credentials: {}

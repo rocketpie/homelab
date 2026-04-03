@@ -73,3 +73,9 @@ docker compose up --detach --remove-orphans
 For the current `dockerhost2` setup, restic snapshots the uploaded asset tree
 under `/media/immich-data/library`. The live PostgreSQL data remains local under
 `/media/immich-data/postgres`.
+
+The role also installs `/media/immich-data/library/.backupignore` with:
+
+```text
+/thumbs
+```
