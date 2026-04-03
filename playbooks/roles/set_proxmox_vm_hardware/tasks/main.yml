@@ -390,19 +390,49 @@
 
 - name: Remove stale replication jobs while keeping replicated volumes
   ansible.builtin.uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}"
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/cluster/replication/{{ item.id | urlencode }}?keep=1"
     method: DELETE
     headers:
       Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
     validate_certs: "{{ proxmox_api_verify_ssl }}"
-    body_format: form-urlencoded
-    body:
-      keep: 1
     return_content: true
+  register: set_proxmox_vm_hardware_replication_delete_result
   loop: "{{ set_proxmox_vm_hardware_stale_replication_jobs | default([]) }}"
   loop_control:
     label: "{{ item.id }}"
   when: set_proxmox_vm_hardware_manage_replication | bool
+
+- name: Wait for stale replication deletion tasks to finish
+  ansible.builtin.uri:
+    url: >-
+      {{
+        'https://' ~ proxmox_api_host ~ ':8006/api2/json/nodes/' ~
+        ((item.json.data | string | trim) | regex_replace('^UPID:([^:]+):.*$', '\1')) ~
+        '/tasks/' ~
+        ((item.json.data | string | trim) | urlencode) ~ '/status'
+      }}
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: set_proxmox_vm_hardware_replication_delete_status
+  changed_when: false
+  until: >-
+    set_proxmox_vm_hardware_replication_delete_status.content | default('') | regex_search(
+      '"status"\\s*:\\s*"stopped"'
+    )
+  retries: "{{ set_proxmox_vm_hardware_migrate_retries }}"
+  delay: "{{ set_proxmox_vm_hardware_migrate_delay }}"
+  loop: "{{ set_proxmox_vm_hardware_replication_delete_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.id | default(item.item | string) }}"
+  when:
+    - set_proxmox_vm_hardware_manage_replication | bool
+    - item.json is defined
+    - item.json.data is defined
+    - item.json.data | string | trim | length > 0
+    - item.json.data | string is match('^UPID:')
 
 - name: Create missing replication jobs
   ansible.builtin.uri:
