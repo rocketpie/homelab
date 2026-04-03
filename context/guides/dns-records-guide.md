@@ -9,6 +9,9 @@ The homelab DNS system uses two mechanisms to register DNS records:
 
 Both are processed by the `add_unbound` role and merged together into the DNS resolver.
 
+For Docker hosts, `add_docker_reverse_proxy_bindings[*].hostnames[*]` also feeds
+into the same host-level DNS alias collection automatically.
+
 ## Global DNS Records (`dns.yml`)
 
 ### Structure
@@ -64,6 +67,8 @@ dns_aliases:
 - `dns_aliases` is an optional list
 - These names resolve to the host's `ansible_host` (primary inventory IP)
 - Useful for service-specific names without modifying central DNS records
+- Docker reverse proxy hostnames are collected separately, so they do not need
+  to be duplicated here
 
 ### Example: Adding Aliases to `netcontroller1`
 
@@ -92,6 +97,8 @@ When the `configure-netcontroller.yml` playbook runs:
 2. **Host aliases are collected**
    - For each host with an `ansible_host` defined
    - Any `dns_aliases` entries are converted to name/value pairs
+   - Any `add_docker_reverse_proxy_bindings[*].hostnames[*]` entries are also converted
+     to name/value pairs
    - Uses the host's IP as the target
 
 3. **Records are merged**

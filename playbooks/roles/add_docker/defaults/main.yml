@@ -9,6 +9,7 @@ add_docker_packages:
   - containerd.io
   - docker-buildx-plugin
   - docker-compose-plugin
+  - haproxy
 
 add_docker_keyring_dir: /etc/apt/keyrings
 add_docker_keyring_path: "{{ add_docker_keyring_dir }}/docker.asc"
@@ -17,3 +18,31 @@ add_docker_repo_url: https://download.docker.com/linux/ubuntu
 add_docker_repo_gpg_url: "{{ add_docker_repo_url }}/gpg"
 
 add_docker_users: []
+add_docker_reverse_proxy_bindings: []
+add_docker_reverse_proxy_enabled: "{{ add_docker_reverse_proxy_bindings | length > 0 }}"
+add_docker_reverse_proxy_bind_port: 80
+add_docker_reverse_proxy_backend_host_default: 127.0.0.1
+add_docker_haproxy_service_name: haproxy
+add_docker_haproxy_config_path: /etc/haproxy/haproxy.cfg
+
+add_docker_admin_scripts_service_groups:
+  - key: "docker"
+    label: "docker"
+    status_units:
+      - docker.service
+    start_enable_units:
+      - docker.service
+    start_start_units: []
+    stop_disable_units: []
+    stop_stop_units: []
+  - key: "docker-proxy"
+    label: "docker reverse proxy"
+    status_units:
+      - "{{ add_docker_haproxy_service_name }}.service"
+    start_enable_units:
+      - "{{ add_docker_haproxy_service_name }}.service"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_docker_haproxy_service_name }}.service"
+    stop_stop_units:
+      - "{{ add_docker_haproxy_service_name }}.service"

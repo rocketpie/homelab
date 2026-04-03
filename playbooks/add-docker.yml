@@ -59,7 +59,8 @@
       vars:
         add_admin_scripts_service_groups: >-
           {{
-            add_paperless_admin_scripts_service_groups | default([])
+            (add_docker_admin_scripts_service_groups | default([]))
+            + (add_paperless_admin_scripts_service_groups | default([]))
           }}
         add_admin_scripts_extra_scripts: >-
           {{

@@ -1,0 +1,41 @@
+global
+  log /dev/log local0
+  log /dev/log local1 notice
+  daemon
+
+defaults
+  log global
+  mode http
+  option httplog
+  option dontlognull
+  timeout connect 5s
+  timeout client 30s
+  timeout server 30s
+
+frontend add_docker_http_frontend
+  bind *:{{ add_docker_reverse_proxy_bind_port }}
+  mode http
+  option httplog
+  http-request set-header X-Forwarded-Proto http
+{% for binding in add_docker_reverse_proxy_bindings %}
+{%   set backend_name = 'backend_' ~ loop.index0 %}
+{%   for hostname in binding.hostnames %}
+{%     set acl_name = ('host_' ~ hostname) | regex_replace('[^A-Za-z0-9_]', '_') %}
+  acl {{ acl_name }} hdr_reg(host) -i ^{{ hostname | regex_escape }}(:[0-9]+)?$
+  use_backend {{ backend_name }} if {{ acl_name }}
+{%   endfor %}
+{% endfor %}
+  default_backend add_docker_no_match_backend
+
+{% for binding in add_docker_reverse_proxy_bindings %}
+{%   set backend_name = 'backend_' ~ loop.index0 %}
+{%   set server_name = 'server_' ~ loop.index0 %}
+{%   set backend_host = (binding.backend_host | default(add_docker_reverse_proxy_backend_host_default)) | trim %}
+backend {{ backend_name }}
+  mode http
+  server {{ server_name }} {{ backend_host }}:{{ binding.port }} check
+
+{% endfor %}
+backend add_docker_no_match_backend
+  mode http
+  http-request return status 503 content-type text/plain lf-string "No reverse proxy binding matched.\n"

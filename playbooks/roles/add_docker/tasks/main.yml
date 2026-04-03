@@ -28,6 +28,67 @@
   loop_control:
     label: "{{ item.item }}"
 
+- name: Validate configured Docker reverse proxy bindings
+  ansible.builtin.assert:
+    that:
+      - item.port is defined
+      - item.port | int > 0
+      - item.port | int < 65536
+      - item.hostnames is defined
+      - item.hostnames is sequence
+      - item.hostnames is not string
+      - item.hostnames | length > 0
+      - >-
+        (
+          item.hostnames
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | length
+        ) == (item.hostnames | length)
+      - >-
+        (
+          item.backend_host is not defined
+        )
+        or
+        (
+          item.backend_host | string | trim | length > 0
+        )
+    fail_msg: >-
+      Invalid add_docker_reverse_proxy_bindings item: {{ item | to_nice_yaml }}
+  loop: "{{ add_docker_reverse_proxy_bindings }}"
+  loop_control:
+    label: "{{ item.port | default('unnamed-binding') }}"
+
+- name: Assert Docker reverse proxy hostnames are unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          add_docker_reverse_proxy_bindings
+          | map(attribute='hostnames')
+          | flatten
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | unique
+          | length
+        )
+        ==
+        (
+          add_docker_reverse_proxy_bindings
+          | map(attribute='hostnames')
+          | flatten
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | length
+        )
+    fail_msg: "add_docker_reverse_proxy_bindings hostnames must be unique"
+
 - name: Install Docker apt prerequisites
   ansible.builtin.apt:
     name: "{{ add_docker_prerequisite_packages }}"
@@ -74,6 +135,27 @@
     name: docker
     enabled: true
     state: started
+
+- name: Render HAProxy reverse proxy config
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ add_docker_haproxy_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "haproxy -c -f %s"
+  notify: Restart HAProxy
+  when: add_docker_reverse_proxy_enabled | bool
+
+- name: Flush HAProxy handler after config changes
+  ansible.builtin.meta: flush_handlers
+  when: add_docker_reverse_proxy_enabled | bool
+
+- name: Ensure HAProxy service matches desired Docker reverse proxy state
+  ansible.builtin.systemd_service:
+    name: "{{ add_docker_haproxy_service_name }}"
+    enabled: "{{ add_docker_reverse_proxy_enabled | bool }}"
+    state: "{{ 'started' if add_docker_reverse_proxy_enabled | bool else 'stopped' }}"
 
 - name: Ensure configured users can access Docker
   ansible.builtin.user:

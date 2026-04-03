@@ -56,9 +56,28 @@
       {%- set records = [] -%}
       {%- for host_name in groups['all'] | default([]) -%}
         {%- set host_aliases = hostvars[host_name].dns_aliases | default([]) -%}
+        {%- set docker_proxy_hostnames = (
+              hostvars[host_name].add_docker_reverse_proxy_bindings
+              | default([])
+              | selectattr('hostnames', 'defined')
+              | map(attribute='hostnames')
+              | flatten
+              | map('string')
+              | map('trim')
+              | reject('equalto', '')
+              | list
+            ) -%}
+        {%- set effective_host_aliases = (
+              (host_aliases + docker_proxy_hostnames)
+              | map('string')
+              | map('trim')
+              | reject('equalto', '')
+              | unique
+              | list
+            ) -%}
         {%- set host_ip = hostvars[host_name].ansible_host | default('') -%}
-        {%- if host_aliases and host_ip -%}
-          {%- for alias in host_aliases -%}
+        {%- if effective_host_aliases and host_ip -%}
+          {%- for alias in effective_host_aliases -%}
             {{- records.append({'name': alias, 'value': host_ip}) -}}
           {%- endfor -%}
         {%- endif -%}

@@ -1,0 +1,6 @@
+---
+- name: Restart HAProxy
+  ansible.builtin.systemd_service:
+    name: "{{ add_docker_haproxy_service_name }}"
+    state: restarted
+  when: add_docker_reverse_proxy_enabled | bool

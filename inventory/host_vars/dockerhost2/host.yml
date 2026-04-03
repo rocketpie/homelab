@@ -19,11 +19,14 @@ extra_disks:
 
 # enable_autoupdate: false
 
-dns_aliases:
-  - "paperless.lan"
-
 add_docker_users:
   - "captain"
+
+add_docker_reverse_proxy_bindings:
+  - port: 8000
+    hostnames:
+      - "paperless.lan"
+      - "paperless.vpn"
 
 add_paperless_owner_user: "captain"
 add_paperless_time_zone: "Europe/Berlin"
