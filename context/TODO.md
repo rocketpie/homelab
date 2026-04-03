@@ -9,6 +9,10 @@
   disposable repository, write one backup, list snapshots, and restore it
   again once this repo has a proper way to install `restic` for tests
 
+# VPN and VPN DNS
+    - .vpn names must always resolve to the hosts vpn overlay ip, not the local ip.
+    - add the netcontrollers to the vpn as dns resolvers
+    - add vpn client install to all VMs.
 
 # duplicate documentation 
 - restic-retention-role.md
@@ -19,6 +23,11 @@
 # restic client log
     - process runtime output live streaming to the console
     - DEBUG_LOG=restic-debug.log
+
+# context/restic-client scheduling
+    - make script interactive
+    - show snapshots
+    - add / remove scheduled task option
 
 # restic server play
     - add extensive testing, including restic repository access / restore and backup
@@ -38,6 +47,13 @@ set -a
 source /etc/restic-client/repos.d/paperless.env
 restic init
 ```
+
+# vault template handling
+    - add a function to build.ps1, that:
+        - reads all vault.yml files
+        - replaces all values and list items with a static placeholder
+        - replaces the host.yml template comment with the generated placeholder.
+    this way, we keep the template and the vaults in sync, without exposing secrets.
 
 
 # Lint

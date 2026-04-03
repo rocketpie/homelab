@@ -14,6 +14,7 @@ autoinstall_vm_ipv4_prefix: 24
 autoinstall_vm_ipv4_gateway: "192.168.178.1"
 autoinstall_vm_ipv4_nameservers:
   - "192.168.178.193"
+  - "192.168.178.194"
 
 # this is the default for all playbooks that target a single VM
 # autoinstall_default_vm_name: netcontroller2

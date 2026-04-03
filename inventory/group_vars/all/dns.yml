@@ -20,7 +20,6 @@ homelab_dns_local_tld: "lan"
 homelab_dns_records:
   "192.168.178.55":
     - "dockerhost1"
-    - "immich"
   "192.168.178.33":
     - "backup2"
   "192.168.178.34":
@@ -31,6 +30,5 @@ homelab_dns_records:
     - "gateway.vpn"
   "10.13.0.6":
     - "dockerhost1.vpn"
-    - "immich.vpn"
     - "paperless.vpn"
     - "grafana.vpn"

@@ -1,0 +1,94 @@
+---
+- name: Validate Immich inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - add_immich_owner_user | string | trim | length > 0
+      - add_immich_db_password | string | trim | length > 0
+      - add_immich_time_zone | string | trim | length > 0
+      - add_immich_version | string | trim | length > 0
+    fail_msg: >-
+      add_immich requires a Linux host, an owner user, and vaulted
+      add_immich_db_password.
+
+- name: Check whether Immich owner user exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ add_immich_owner_user }}"
+  register: add_immich_owner_getent_result
+  changed_when: false
+
+- name: Assert Immich owner user exists
+  ansible.builtin.assert:
+    that:
+      - add_immich_owner_getent_result.rc == 0
+      - add_immich_owner_getent_result.stdout | string | trim | length > 0
+    fail_msg: >-
+      Could not resolve add_immich_owner_user {{ add_immich_owner_user }}
+      on the target host.
+
+- name: Materialize Immich owner account details
+  ansible.builtin.set_fact:
+    add_immich_owner_passwd_fields: "{{ add_immich_owner_getent_result.stdout.split(':') }}"
+    add_immich_owner_home: "{{ add_immich_owner_getent_result.stdout.split(':')[5] | trim }}"
+
+- name: Assert Immich owner account details were resolved
+  ansible.builtin.assert:
+    that:
+      - add_immich_owner_passwd_fields | length >= 7
+      - add_immich_owner_home | string | trim | length > 0
+    fail_msg: >-
+      Could not determine a home directory for add_immich_owner_user
+      {{ add_immich_owner_user }}.
+
+- name: Ensure Immich host directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ add_immich_owner_user }}"
+    group: "{{ add_immich_owner_group }}"
+    mode: "0755"
+  loop:
+    - "{{ add_immich_data_root }}"
+    - "{{ add_immich_upload_location }}"
+    - "{{ add_immich_db_data_location }}"
+    - "{{ add_immich_project_dir }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Install Immich compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ add_immich_compose_file_path }}"
+    owner: "{{ add_immich_owner_user }}"
+    group: "{{ add_immich_owner_group }}"
+    mode: "0640"
+
+- name: Install Immich project environment file
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ add_immich_project_env_path }}"
+    owner: "{{ add_immich_owner_user }}"
+    group: "{{ add_immich_owner_group }}"
+    mode: "0640"
+
+- name: Install Immich systemd unit
+  ansible.builtin.template:
+    src: immich.service.j2
+    dest: "{{ add_immich_service_unit_path }}"
+    mode: "0644"
+
+- name: Reload systemd after Immich unit changes
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Note manual Immich startup requirement
+  ansible.builtin.debug:
+    msg: >-
+      Immich files and service definitions were installed, but the stack was
+      not pulled or started automatically. Use start-immich, systemctl start
+      {{ add_immich_service_name }}, or docker compose up -d when you are ready
+      to bring it up.
+  changed_when: false

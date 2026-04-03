@@ -42,11 +42,16 @@ Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a
 ## Day-2 VM updates
 `playbooks/set-vm-hardware.yml` reuses the same Proxmox reconciliation logic for
 existing VMs, so inventory remains the desired-state source for node placement,
-replication targets, CPU, and memory after initial provisioning.
+replication targets, CPU, memory, and attached extra disks after initial
+provisioning.
 
 * reconcile the VM's desired day-2 Proxmox settings from inventory:
-  `proxmox_node`, `proxmox_replica_nodes`, `cores`, and `memory_mb`
+  `proxmox_node`, `proxmox_replica_nodes`, `cores`, `memory_mb`, and
+  `extra_disks`
 * if `proxmox_node` changed, the workflow prefers live migration with local
   disks for running VMs and uses offline migration for already-stopped VMs
 * replication jobs are reconciled from `proxmox_replica_nodes`; removed jobs are
   deleted with `keep=1` so replicated target volumes are not removed implicitly
+* missing `extra_disks` are attached to the existing VM without recreating it,
+  then the guest-side disk workflow formats and mounts them by stable
+  `disk_id`-derived `/dev/disk/by-id` paths

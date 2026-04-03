@@ -1,0 +1,16 @@
+[Unit]
+Description=Immich Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ add_immich_project_dir }}
+ExecStart={{ add_immich_docker_binary_path }} compose up -d --remove-orphans
+ExecStop={{ add_immich_docker_binary_path }} compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

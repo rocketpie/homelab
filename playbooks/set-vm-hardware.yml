@@ -21,9 +21,66 @@
           - vm_name in hostvars
         fail_msg: "Host '{{ vm_name }}' is not defined in inventory"
 
-    - name: Materialize selected VM vars
+    - name: Ensure target VM has a static ansible_host configured
+      ansible.builtin.assert:
+        that:
+          - hostvars[vm_name].ansible_host is defined
+          - hostvars[vm_name].ansible_host | string | trim | length > 0
+        fail_msg: >-
+          Host '{{ vm_name }}' must define ansible_host in inventory for guest
+          disk configuration after the Proxmox update.
+
+    - name: Materialize selected VM vars with normalized extra disks
       ansible.builtin.set_fact:
-        vm: "{{ hostvars[vm_name] }}"
+        vm: >-
+          {{
+            (hostvars[vm_name] | to_json | from_json)
+            | combine({
+                'extra_disks': normalized_extra_disks
+              }, recursive=True)
+          }}
+      vars:
+        normalized_extra_disks: >-
+          {%- set result = [] -%}
+          {%- for d in hostvars[vm_name].extra_disks | default([]) -%}
+          {%- set raw_name = (
+                d.mount_path
+                | basename
+                | lower
+                | regex_replace('\W+', '-')
+                | regex_replace('^-+|-+$', '')
+            ) -%}
+          {%- set short_name = (
+                (raw_name if raw_name | length > 0 else 'disk')
+                | truncate(15, True, '')
+            ) -%}
+          {%- set hash_suffix = (d.mount_path | hash('sha1'))[:4] -%}
+          {%- set derived_disk_id = d.disk_id | default(short_name ~ '-' ~ hash_suffix) -%}
+          {%- set _ = result.append(
+                d | combine({
+                  'disk_id': derived_disk_id
+                }, recursive=True)
+              ) -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Ensure extra disk mount paths are unique
+      ansible.builtin.assert:
+        that:
+          - (vm.extra_disks | map(attribute='mount_path') | list | unique | length)
+            == (vm.extra_disks | length)
+        fail_msg: "extra_disks mount_path values must be unique"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Ensure derived extra disk IDs are non-empty and unique
+      ansible.builtin.assert:
+        that:
+          - (vm.extra_disks | map(attribute='disk_id') | reject('equalto', '') | list | length)
+            == (vm.extra_disks | length)
+          - (vm.extra_disks | map(attribute='disk_id') | list | unique | length)
+            == (vm.extra_disks | length)
+        fail_msg: "Derived extra_disks disk_id values are empty or not unique"
+      when: vm.extra_disks | default([]) | length > 0
 
     - name: Run Proxmox API preflight checks
       ansible.builtin.include_role:
@@ -32,3 +89,48 @@
     - name: Reconcile desired VM hardware, placement, and replication
       ansible.builtin.include_role:
         name: set_proxmox_vm_hardware
+
+    - name: Add updated VM to in-memory inventory
+      ansible.builtin.add_host:
+        vm: "{{ vm }}"
+        name: "{{ vm_name }}"
+        ansible_host: "{{ vm.ansible_host }}"
+        ansible_user: "{{ vm.ansible_user }}"
+        ansible_python_interpreter: "{{ vm.ansible_python_interpreter }}"
+        ansible_ssh_private_key_file: "{{ vm.ansible_ssh_private_key_file }}"
+        ansible_ssh_common_args: >-
+          -o StrictHostKeyChecking=no
+          -o UserKnownHostsFile={{ lookup('env', 'HOME') + '/.ssh/known_hosts' }}
+        groups: set_vm_hardware_targets
+      when: vm.extra_disks | default([]) | length > 0
+
+- name: Configure updated VM guest disks
+  hosts: set_vm_hardware_targets
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for SSH connection to updated VM
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+        connect_timeout: 5
+        sleep: 5
+
+    - name: Wait for expected extra disks to appear in guest
+      ansible.builtin.stat:
+        path: "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_{{ item.disk_id }}"
+      register: set_vm_hardware_guest_disk_stat
+      until: set_vm_hardware_guest_disk_stat.stat.exists
+      retries: 12
+      delay: 5
+      loop: "{{ vm.extra_disks | default([]) }}"
+      loop_control:
+        label: "{{ item.disk_id }}"
+      when: vm.extra_disks | default([]) | length > 0
+
+    - name: Configure extra disks inside guest
+      ansible.builtin.include_role:
+        name: configure_disks
+      vars:
+        configure_disks_items: "{{ vm.extra_disks | default([]) }}"
+      when: vm.extra_disks | default([]) | length > 0

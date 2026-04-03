@@ -1,0 +1,43 @@
+---
+add_immich_owner_user: captain
+add_immich_owner_group: "{{ add_immich_owner_user }}"
+
+add_immich_project_dir: "/home/{{ add_immich_owner_user }}/immich-app"
+add_immich_data_root: /media/immich-data
+add_immich_upload_location: "{{ add_immich_data_root }}/library"
+add_immich_db_data_location: "{{ add_immich_data_root }}/postgres"
+
+add_immich_compose_file_path: "{{ add_immich_project_dir }}/docker-compose.yml"
+add_immich_project_env_path: "{{ add_immich_project_dir }}/.env"
+
+add_immich_listen_port: 2283
+add_immich_time_zone: UTC
+add_immich_version: v2
+
+add_immich_server_image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+add_immich_machine_learning_image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+add_immich_redis_image: docker.io/valkey/valkey:9@sha256:3eeb09785cd61ec8e3be35f8804c8892080f3ca21934d628abc24ee4ed1698f6
+add_immich_postgres_image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+add_immich_docker_binary_path: /usr/bin/docker
+
+add_immich_db_password: ""
+add_immich_db_username: postgres
+add_immich_db_database_name: immich
+
+add_immich_service_name: immich.service
+add_immich_service_unit_path: "/etc/systemd/system/{{ add_immich_service_name }}"
+
+add_immich_admin_scripts_service_groups:
+  - key: "immich"
+    label: "immich"
+    status_units:
+      - "{{ add_immich_service_name }}"
+    start_enable_units:
+      - "{{ add_immich_service_name }}"
+    start_start_units: []
+    stop_disable_units:
+      - "{{ add_immich_service_name }}"
+    stop_stop_units:
+      - "{{ add_immich_service_name }}"
+
+add_immich_admin_scripts_extra_scripts: []

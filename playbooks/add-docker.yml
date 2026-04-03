@@ -61,10 +61,20 @@
           {{
             (add_docker_admin_scripts_service_groups | default([]))
             + (add_paperless_admin_scripts_service_groups | default([]))
+            + (
+                add_immich_admin_scripts_service_groups | default([])
+                if inventory_hostname in (groups['immich'] | default([]))
+                else []
+              )
           }}
         add_admin_scripts_extra_scripts: >-
           {{
             add_paperless_admin_scripts_extra_scripts | default([])
+            + (
+                add_immich_admin_scripts_extra_scripts | default([])
+                if inventory_hostname in (groups['immich'] | default([]))
+                else []
+              )
           }}
 
   post_tasks:
@@ -81,3 +91,62 @@
           services:
             - docker
             - paperless
+
+- name: Install Immich stack on immich hosts
+  hosts: immich
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for Immich stack
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_immich
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - docker
+            - immich
+
+  roles:
+    - role: add_immich
+    - role: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: >-
+          {{
+            (add_docker_admin_scripts_service_groups | default([]))
+            + (
+                add_paperless_admin_scripts_service_groups | default([])
+                if inventory_hostname in (groups['paperless'] | default([]))
+                else []
+              )
+            + (add_immich_admin_scripts_service_groups | default([]))
+          }}
+        add_admin_scripts_extra_scripts: >-
+          {{
+            (
+              add_paperless_admin_scripts_extra_scripts | default([])
+              if inventory_hostname in (groups['paperless'] | default([]))
+              else []
+            )
+            + (add_immich_admin_scripts_extra_scripts | default([]))
+          }}
+
+  post_tasks:
+    - name: Record successful deployment history for Immich stack
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-docker.yml
+        record_deployment_roles:
+          - add_immich
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - docker
+            - immich

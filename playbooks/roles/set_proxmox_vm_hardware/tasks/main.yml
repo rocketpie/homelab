@@ -16,6 +16,28 @@
       - proxmox_api_vm_storage is defined
     fail_msg: "Missing required vars for set_proxmox_vm_hardware"
 
+- name: Validate desired extra disk definitions
+  ansible.builtin.assert:
+    that:
+      - item.disk_id is defined
+      - item.disk_id | string | trim | length > 0
+      - item.disk_gb is defined
+      - item.disk_gb | int > 0
+      - item.pve_storage is defined
+      - item.pve_storage | string | trim | length > 0
+    fail_msg: "Invalid extra_disks entry for set_proxmox_vm_hardware: {{ item | to_nice_yaml }}"
+  loop: "{{ vm.extra_disks | default([]) }}"
+  loop_control:
+    label: "{{ item.disk_id | default('unnamed-disk') }}"
+
+- name: Validate extra disk ID uniqueness
+  ansible.builtin.assert:
+    that:
+      - (vm.extra_disks | default([]) | map(attribute='disk_id') | list | unique | length)
+        == (vm.extra_disks | default([]) | length)
+    fail_msg: "extra_disks[].disk_id values must be unique"
+  when: vm.extra_disks | default([]) | length > 0
+
 - name: Materialize desired Proxmox VM hardware inputs
   ansible.builtin.set_fact:
     set_proxmox_vm_hardware_target_node: "{{ vm.proxmox_node | string | trim }}"
@@ -245,6 +267,123 @@
   ansible.builtin.set_fact:
     set_proxmox_vm_hardware_active_node: "{{ set_proxmox_vm_hardware_target_node }}"
   when: set_proxmox_vm_hardware_active_node != set_proxmox_vm_hardware_target_node
+
+- name: Query current Proxmox VM config
+  ansible.builtin.uri:
+    url: >-
+      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ set_proxmox_vm_hardware_active_node }}/qemu/{{ vm.vmid }}/config
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    return_content: true
+  register: set_proxmox_vm_hardware_vm_config
+  changed_when: false
+
+- name: Materialize currently attached extra disks
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_existing_extra_disks: >-
+      {%- set result = [] -%}
+      {%- for item in (set_proxmox_vm_hardware_vm_config.json.data | dict2items) -%}
+      {%- if item.key is match('^scsi[1-9][0-9]*$') -%}
+      {%- set disk_id = (
+            item.value | regex_replace('^.*(?:^|,)serial=([^,]+).*$','\\1')
+            if (item.value | regex_search('(^|,)serial=[^,]+'))
+            else ''
+          ) -%}
+      {%- set _ = result.append({
+            'slot': item.key,
+            'value': item.value,
+            'disk_id': disk_id
+          }) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result | sort(attribute='slot') }}
+
+- name: Materialize missing desired extra disks
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_missing_extra_disks: >-
+      {%- set existing_ids = (
+            set_proxmox_vm_hardware_existing_extra_disks
+            | map(attribute='disk_id')
+            | reject('equalto', '')
+            | list
+          ) -%}
+      {%- set result = [] -%}
+      {%- for item in vm.extra_disks | default([]) -%}
+      {%- if item.disk_id not in existing_ids -%}
+      {%- set _ = result.append(item) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+    set_proxmox_vm_hardware_available_extra_disk_slots: >-
+      {%- set all_slots = [] -%}
+      {%- for index in range(1, (set_proxmox_vm_hardware_scsi_slot_count | int) + 1) -%}
+      {%- set _ = all_slots.append('scsi' ~ index) -%}
+      {%- endfor -%}
+      {{
+        all_slots
+        | difference(
+            set_proxmox_vm_hardware_existing_extra_disks
+            | map(attribute='slot')
+            | list
+          )
+        | sort
+      }}
+
+- name: Assert there are enough free SCSI slots for missing extra disks
+  ansible.builtin.assert:
+    that:
+      - (set_proxmox_vm_hardware_available_extra_disk_slots | length)
+        >=
+        (set_proxmox_vm_hardware_missing_extra_disks | length)
+    fail_msg: >-
+      Not enough free SCSI slots remain to attach all desired extra disks for
+      {{ vm_name }}.
+  when: set_proxmox_vm_hardware_missing_extra_disks | length > 0
+
+- name: Materialize missing extra disk attach plan
+  ansible.builtin.set_fact:
+    set_proxmox_vm_hardware_extra_disks_to_attach: >-
+      {%- set ns = namespace(next_slot_index=0, result=[]) -%}
+      {%- for item in set_proxmox_vm_hardware_missing_extra_disks -%}
+      {%- set _ = ns.result.append(
+            item | combine({
+              'slot': set_proxmox_vm_hardware_available_extra_disk_slots[ns.next_slot_index],
+              'value': item.pve_storage ~ ':' ~ item.disk_gb ~ ',serial=' ~ item.disk_id
+            }, recursive=True)
+          ) -%}
+      {%- set ns.next_slot_index = ns.next_slot_index + 1 -%}
+      {%- endfor -%}
+      {{ ns.result }}
+
+- name: Show extra disk reconciliation plan
+  ansible.builtin.debug:
+    msg:
+      existing_extra_disks: "{{ set_proxmox_vm_hardware_existing_extra_disks }}"
+      missing_extra_disks: "{{ set_proxmox_vm_hardware_missing_extra_disks }}"
+      attach_plan: "{{ set_proxmox_vm_hardware_extra_disks_to_attach }}"
+    verbosity: 0
+
+- name: Attach missing extra disks
+  ansible.builtin.uri:
+    url: >-
+      https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ set_proxmox_vm_hardware_active_node }}/qemu/{{ vm.vmid }}/config
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: "{{ proxmox_api_verify_ssl }}"
+    body_format: form-urlencoded
+    body: >-
+      {{
+        {
+          item.slot: item.value
+        }
+      }}
+    return_content: true
+  loop: "{{ set_proxmox_vm_hardware_extra_disks_to_attach | default([]) }}"
+  loop_control:
+    label: "{{ item.disk_id }}"
 
 - name: Apply desired CPU and memory
   community.proxmox.proxmox_kvm:
