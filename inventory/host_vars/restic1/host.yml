@@ -43,22 +43,18 @@ add_restic_retention_repositories:
     enabled: true
     forget_args:
       - "--keep-within"
-      - "14d"
+      - "7d"
       - "--keep-weekly"
       - "4"
       - "--keep-monthly"
-      - "4"
+      - "6"
       - "--prune"
   - user: "lc3win"
     repository: "documents"
     enabled: true
     forget_args:
       - "--keep-within"
-      - "14d"
-      - "--keep-weekly"
-      - "4"
-      - "--keep-monthly"
-      - "4"
+      - "30d"
       - "--prune"
   - user: "lc3win"
     repository: "scans"
@@ -66,21 +62,28 @@ add_restic_retention_repositories:
     forget_args:
       - "--keep-within"
       - "14d"
-      - "--keep-weekly"
-      - "4"
-      - "--keep-monthly"
-      - "4"
       - "--prune"
   - user: "dockerhost2"
     repository: "paperless"
     enabled: true
     forget_args:
       - "--keep-within"
-      - "14d"
+      - "7d"
       - "--keep-weekly"
       - "4"
       - "--keep-monthly"
+      - "6"
+      - "--prune"
+  - user: "dockerhost2"
+    repository: "immich"
+    enabled: true
+    forget_args:
+      - "--keep-within"
+      - "7d"
+      - "--keep-weekly"
       - "4"
+      - "--keep-monthly"
+      - "6"
       - "--prune"
 
 add_rclone_service_user: "archivar"

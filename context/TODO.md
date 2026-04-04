@@ -22,8 +22,9 @@
 
 # restic server play
     - add extensive testing, including restic repository access / restore and backup
-    since this is frequently re-run when adding htaccess users.
-    maybe handle user changes differently?
+    - make sure to check if all existing repos on the host 
+    have a matching add_restic_retention_repositories
+    - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
 
 # docker hostname binding
     - to the docker role, add a haproxy reverse proxy
