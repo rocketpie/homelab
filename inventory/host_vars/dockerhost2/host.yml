@@ -7,7 +7,7 @@ proxmox_ostype: "l26"
 proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
 
 cores: 4
-memory_mb: 8192
+memory_mb: 12288
 os_disk_gb: 40
 
 extra_disks:
