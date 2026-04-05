@@ -10,15 +10,12 @@
 - use-restic-server.md / Server-side retention config
     -> focus on extending the config, like adding a new repo or changing retention
 
-# restic client log
-    - process runtime output live streaming to the console
-    - DEBUG_LOG=restic-debug.log
-
 # restic server play
     - add extensive testing, including restic repository access / restore and backup
     - make sure to check if all existing repos on the host 
     have a matching add_restic_retention_repositories
     - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
+    - log retention application
 
 # adding restic client repo guide
     - restic1/host.yml/add_restic_retention_repositories
@@ -29,6 +26,10 @@ set -a
 source /etc/restic-client/repos.d/paperless.env
 restic init
 ```
+
+# add-docker 
+    - daily scan active container versions
+    - log changes
 
 # add ansible execution vm
     - a vm with a clone of this repo, and all vaults
@@ -79,9 +80,6 @@ You may be missing important files
 
 thumbs has 2 folder(s)
 
-
-# update retention policies
-    - run add-restic-server.yml
 
 # User updates
     - set-vm-user.yml 

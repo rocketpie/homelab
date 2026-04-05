@@ -114,7 +114,7 @@
   register: add_proxmox_vm_status
   changed_when: false
   until: add_proxmox_vm_status.json.data.status == 'stopped'
-  retries: 30
+  retries: 90
   delay: 30
 
 - name: Remove installer ISO / CD-ROM via Proxmox API

@@ -1,7 +1,7 @@
 autoinstall_export_directory: "{{ playbook_dir }}/../srv/http_root/ubuntu2404"
 autoinstall_provision_proxmox_node: "n2"
-autoinstall_provision_cores: 2
-autoinstall_provision_memory_mb: 3072
+autoinstall_provision_cores: 4
+autoinstall_provision_memory_mb: 4096
 
 # what the Autoinstall VM uses to access the seed files
 autoinstall_base_url: "http://lc3win.fritz.box:8080/ubuntu2404"
