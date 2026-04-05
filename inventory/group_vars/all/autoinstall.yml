@@ -4,11 +4,11 @@ autoinstall_provision_cores: 4
 autoinstall_provision_memory_mb: 4096
 
 # what the Autoinstall VM uses to access the seed files
-autoinstall_base_url: "http://lc3win.fritz.box:8080/ubuntu2404"
+autoinstall_base_url: "http://autoinstall-seed.lan:8080/ubuntu2404"
 # what ansible uses to test if the seed files are being served
 autoinstall_controller_probe_url: "http://127.0.0.1:8080/ubuntu2404"
 
-autoinstall_caddy_executable: "{{ playbook_dir }}/../srv/caddy_windows_amd64.exe"
+autoinstall_start_server_workdir: "{{ playbook_dir }}/../srv"
 
 autoinstall_vm_ipv4_prefix: 24
 autoinstall_vm_ipv4_gateway: "192.168.178.1"

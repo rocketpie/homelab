@@ -84,3 +84,14 @@ thumbs has 2 folder(s)
 # User updates
     - set-vm-user.yml 
         update user passwords, ssh keys
+
+
+# paperless: reverse-proxy CSRF Issues
+    - when recovering, initial user setup fails.
+    regular login fails as well.
+    only when connected to https://paperless.lan/ 
+    with 'CSRF verification failed. Request aborted.'
+
+    to fix, resolve this from template
+    docker-compose.env.j2:
+        PAPERLESS_URL=https://paperless.lan

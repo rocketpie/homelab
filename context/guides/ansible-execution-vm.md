@@ -8,7 +8,7 @@ Use it when you want a Linux control node inside the lab that can:
 
 - run the repo's `pwsh`-based workflow directly
 - provision VMs with `playbooks/add-vm.yml`
-- carry the local repo state, including local `vault.yml` files, onto the VM
+- keep a normal Git clone of this repo on a homelab host
 
 ## Provisioning Flow
 
@@ -18,25 +18,22 @@ Use it when you want a Linux control node inside the lab that can:
 The `add_ansible_execution` role:
 
 - installs the repo runtime dependencies on Ubuntu
-- installs `pwsh`, `uv`, and `caddy`
+- installs `pwsh`, `uv`, and the repo's Ansible prerequisites
 - clones the Git remote into the `ansible` user's home directory
-- synchronizes the local working tree onto the VM so local vault files come along
-- copies the shared Ansible SSH key into `~/.ssh/ansible`
+- optionally copies the shared Ansible SSH key into `~/.ssh/ansible`
+- creates missing local `vault.yml` files from the checked-in `# vault.yml:` template comments
 - installs helper commands in the `ansible` user's home directory
 
 ## Autoinstall Seed Hosting
 
-The repo's autoinstall settings now honor these optional environment variables:
+The shared seed URL is `http://autoinstall-seed.lan:8080/ubuntu2404`.
 
-- `HOMELAB_AUTOINSTALL_HOST`
-- `HOMELAB_AUTOINSTALL_PROBE_URL`
-- `HOMELAB_AUTOINSTALL_HTTP_SERVER_BIN`
-- `HOMELAB_AUTOINSTALL_HTTP_SERVER_WORKDIR`
+Point `autoinstall-seed.lan` at whichever host should currently serve
+`srv/http_root`, then run that host's repo-local launcher script.
 
-On `admin1`, the role exports those values for both login shells and
-PowerShell sessions so `playbooks/add-vm.yml` serves `srv/http_root/ubuntu2404`
-through local `caddy` on port `8080`.
+For `admin1`, the expected launcher is:
 
-`add_ansible_execution_autoinstall_host` should normally point to the address
-new VMs can reach during Ubuntu autoinstall. The current `admin1` host vars
-use the VM's `ansible_host` for that reason.
+- `srv/Start-AutoInstallServer-admin1.sh`
+
+The role also installs a helper wrapper so the admin user can run
+`homelab-autoinstall-seed` when that launcher script exists.

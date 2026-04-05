@@ -18,6 +18,14 @@ add_vpn_client_overlay_ipv4: "10.13.0.12"
 
 add_admin_scripts_user: "talos"
 
-add_ansible_execution_autoinstall_host: "{{ ansible_host }}"
 add_ansible_execution_repo_url: "https://github.com/rocketpie/homelab.git"
 add_ansible_execution_repo_version: "main"
+
+host_users:
+  - name: "talos"
+    description: "automation service account"
+    groups:
+      - sudo
+#    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"

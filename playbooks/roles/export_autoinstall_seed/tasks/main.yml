@@ -6,7 +6,8 @@
       - shared_admin_users is defined
       - autoinstall_export_directory is defined
       - autoinstall_base_url is defined
-      - autoinstall_caddy_executable is defined
+      - autoinstall_controller_probe_url is defined
+      - autoinstall_start_server_workdir is defined
     fail_msg: "Missing required variables for export_autoinstall_seed role"
 
 - name: Validate static network variables for VM autoinstall
@@ -101,12 +102,61 @@
   failed_when: false
   changed_when: false
 
-- name: Start Caddy if autoinstall seed is not being served
+- name: Assert autoinstall seed server script is configured
+  ansible.builtin.assert:
+    that:
+      - autoinstall_start_server_script is defined
+      - autoinstall_start_server_script | string | trim | length > 0
+    fail_msg: >-
+      autoinstall_start_server_script is not set. Define it in a local file such as
+      inventory/group_vars/all/autoinstall-local.yml, for example:
+      autoinstall_start_server_script: "srv/Start-CaddyServer.ps1"
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
+
+- name: Resolve autoinstall seed server launcher path
+  ansible.builtin.set_fact:
+    export_autoinstall_seed_start_server_script_path: >-
+      {{
+        autoinstall_start_server_script
+        if (
+          (autoinstall_start_server_script | string).startswith('../')
+          or (autoinstall_start_server_script | string).startswith('./')
+        )
+        else '../' ~ (autoinstall_start_server_script | string)
+      }}
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
+
+- name: Check whether autoinstall seed server launcher exists
+  ansible.builtin.stat:
+    path: "{{ export_autoinstall_seed_start_server_script_path }}"
+  register: export_autoinstall_seed_start_server_script_stat
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
+
+- name: Assert autoinstall seed server launcher exists
+  ansible.builtin.assert:
+    that:
+      - export_autoinstall_seed_start_server_script_stat.stat.exists
+    fail_msg: >-
+      Expected autoinstall launcher script was not found:
+      {{ export_autoinstall_seed_start_server_script_path }}
+      Set autoinstall_start_server_script in a local file such as
+      inventory/group_vars/all/autoinstall-local.yml.
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
+
+- name: Materialize autoinstall seed server command
+  ansible.builtin.set_fact:
+    export_autoinstall_seed_start_server_command: >-
+      {{
+        ['pwsh', '-File', export_autoinstall_seed_start_server_script_path]
+        if (export_autoinstall_seed_start_server_script_path | lower).endswith('.ps1')
+        else ['bash', export_autoinstall_seed_start_server_script_path]
+      }}
+  when: export_autoinstall_seed_http_check.status | default(0) != 200
+
+- name: Start autoinstall seed server if user-data is not being served
   ansible.builtin.command:
-    argv:
-      - "{{ autoinstall_caddy_executable }}"
-      - run
-    chdir: "{{ autoinstall_caddy_executable | dirname }}"
+    argv: "{{ export_autoinstall_seed_start_server_command }}"
+    chdir: "{{ autoinstall_start_server_workdir }}"
   async: 3600
   poll: 0
   when: export_autoinstall_seed_http_check.status | default(0) != 200

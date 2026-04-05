@@ -7,13 +7,18 @@
       - add_ansible_execution_repo_owner | string | trim | length > 0
       - add_ansible_execution_repo_dir_name | string | trim | length > 0
       - add_ansible_execution_repo_url | string | trim | length > 0
-      - add_ansible_execution_ssh_private_key_source | string | trim | length > 0
-      - add_ansible_execution_ssh_public_key_source | string | trim | length > 0
-      - add_ansible_execution_autoinstall_host | string | trim | length > 0
-      - add_ansible_execution_http_server_bin | string | trim | length > 0
     fail_msg: >-
       add_ansible_execution requires a Debian-family Linux host, a repo owner,
-      a repo source, SSH key sources, and local autoinstall HTTP settings.
+      and a repo source.
+
+- name: Validate optional ansible SSH key inputs
+  ansible.builtin.assert:
+    that:
+      - add_ansible_execution_ssh_private_key_source | string | trim | length > 0
+      - add_ansible_execution_ssh_public_key_source | string | trim | length > 0
+    fail_msg: >-
+      add_ansible_execution_copy_ssh_key requires both SSH key source paths.
+  when: add_ansible_execution_copy_ssh_key | bool
 
 - name: Check whether ansible execution repo owner exists
   ansible.builtin.command:
@@ -139,27 +144,10 @@
     dest: "{{ add_ansible_execution_repo_dir }}"
     version: "{{ add_ansible_execution_repo_version }}"
     single_branch: true
-    update: "{{ not (add_ansible_execution_sync_local_repo | bool) }}"
+    update: true
   become_user: "{{ add_ansible_execution_repo_owner }}"
   environment:
     HOME: "{{ add_ansible_execution_repo_owner_home }}"
-
-- name: Synchronize local homelab working tree to ansible execution host
-  ansible.posix.synchronize:
-    src: "{{ add_ansible_execution_local_repo_path }}/"
-    dest: "{{ add_ansible_execution_repo_dir }}/"
-    archive: true
-    compress: true
-    delete: false
-    rsync_opts: >-
-      {{
-        add_ansible_execution_sync_excludes
-        | map('regex_replace', '^(.*)$', '--exclude=\\1')
-        | list
-      }}
-  delegate_to: localhost
-  become: false
-  when: add_ansible_execution_sync_local_repo | bool
 
 - name: Ensure ansible execution repo ownership is correct
   ansible.builtin.file:
@@ -176,6 +164,7 @@
     owner: "{{ add_ansible_execution_repo_owner }}"
     group: "{{ add_ansible_execution_repo_group }}"
     mode: "0700"
+  when: add_ansible_execution_copy_ssh_key | bool
 
 - name: Copy ansible SSH private key for execution host
   ansible.builtin.copy:
@@ -185,6 +174,7 @@
     group: "{{ add_ansible_execution_repo_group }}"
     mode: "0600"
   no_log: true
+  when: add_ansible_execution_copy_ssh_key | bool
 
 - name: Copy ansible SSH public key for execution host
   ansible.builtin.copy:
@@ -193,42 +183,27 @@
     owner: "{{ add_ansible_execution_repo_owner }}"
     group: "{{ add_ansible_execution_repo_group }}"
     mode: "0644"
+  when: add_ansible_execution_copy_ssh_key | bool
 
-- name: Ensure PowerShell profile directory exists
-  ansible.builtin.file:
-    path: "{{ add_ansible_execution_repo_owner_home }}/.config/powershell"
-    state: directory
-    owner: "{{ add_ansible_execution_repo_owner }}"
-    group: "{{ add_ansible_execution_repo_group }}"
-    mode: "0755"
-
-- name: Export homelab autoinstall environment for login shells
-  ansible.builtin.copy:
-    content: |
-      export HOMELAB_AUTOINSTALL_HOST={{ add_ansible_execution_autoinstall_host | quote }}
-      export HOMELAB_AUTOINSTALL_PROBE_URL={{ add_ansible_execution_autoinstall_probe_url | quote }}
-      export HOMELAB_AUTOINSTALL_HTTP_SERVER_BIN={{ add_ansible_execution_http_server_bin | quote }}
-      export HOMELAB_AUTOINSTALL_HTTP_SERVER_WORKDIR={{ (add_ansible_execution_repo_dir ~ '/srv') | quote }}
-    dest: /etc/profile.d/homelab-autoinstall.sh
-    owner: root
-    group: root
-    mode: "0644"
-
-- name: Export homelab autoinstall environment for PowerShell sessions
-  ansible.builtin.copy:
-    content: |
-      $env:HOMELAB_AUTOINSTALL_HOST = {{ add_ansible_execution_autoinstall_host | to_json }}
-      $env:HOMELAB_AUTOINSTALL_PROBE_URL = {{ add_ansible_execution_autoinstall_probe_url | to_json }}
-      $env:HOMELAB_AUTOINSTALL_HTTP_SERVER_BIN = {{ add_ansible_execution_http_server_bin | to_json }}
-      $env:HOMELAB_AUTOINSTALL_HTTP_SERVER_WORKDIR = {{ (add_ansible_execution_repo_dir ~ '/srv') | to_json }}
-    dest: >-
-      {{
-        add_ansible_execution_repo_owner_home
-        ~ '/.config/powershell/Microsoft.PowerShell_profile.ps1'
-      }}
-    owner: "{{ add_ansible_execution_repo_owner }}"
-    group: "{{ add_ansible_execution_repo_group }}"
-    mode: "0644"
+- name: Pre-fill missing vault template files from host comments
+  ansible.builtin.command:
+    argv:
+      - pwsh
+      - -File
+      - ./srv/Initialize-VaultTemplates.ps1
+      - -RepoRoot
+      - .
+    chdir: "{{ add_ansible_execution_repo_dir }}"
+  become_user: "{{ add_ansible_execution_repo_owner }}"
+  environment:
+    HOME: "{{ add_ansible_execution_repo_owner_home }}"
+  register: add_ansible_execution_initialize_vault_templates_result
+  when: add_ansible_execution_prefill_vault_templates | bool
+  changed_when: >-
+    add_ansible_execution_initialize_vault_templates_result.stdout
+    | string
+    | trim
+    | length > 0
 
 - name: Check whether ansible-playbook is already installed in repo venv
   ansible.builtin.stat:
@@ -249,24 +224,58 @@
   when: not add_ansible_execution_repo_ansible_playbook_stat.stat.exists
   changed_when: true
 
+- name: Check whether host autoinstall server launcher exists
+  ansible.builtin.stat:
+    path: >-
+      {{
+        add_ansible_execution_repo_dir
+        ~ '/'
+        ~ add_ansible_execution_autoinstall_server_script
+      }}
+  register: add_ansible_execution_autoinstall_server_script_stat
+
 - name: Materialize ansible execution admin helper scripts
   ansible.builtin.set_fact:
-    add_ansible_execution_admin_scripts_extra_scripts:
-      - name: homelab-run
-        content: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          cd {{ add_ansible_execution_repo_dir | quote }}
-          exec pwsh ./run.ps1 "$@"
-      - name: homelab-install
-        content: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          cd {{ add_ansible_execution_repo_dir | quote }}
-          exec pwsh ./install.ps1 "$@"
-      - name: homelab-lint
-        content: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          cd {{ add_ansible_execution_repo_dir | quote }}
-          exec pwsh ./build.ps1 "$@"
+    add_ansible_execution_admin_scripts_extra_scripts: >-
+      {{
+        [
+          {
+            'name': 'homelab-run',
+            'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
+              ~ (add_ansible_execution_repo_dir | quote)
+              ~ '\nexec pwsh ./run.ps1 "$@"\n'
+          },
+          {
+            'name': 'homelab-install',
+            'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
+              ~ (add_ansible_execution_repo_dir | quote)
+              ~ '\nexec pwsh ./install.ps1 "$@"\n'
+          },
+          {
+            'name': 'homelab-lint',
+            'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
+              ~ (add_ansible_execution_repo_dir | quote)
+              ~ '\nexec pwsh ./build.ps1 "$@"\n'
+          },
+          {
+            'name': 'homelab-init-vaults',
+            'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
+              ~ (add_ansible_execution_repo_dir | quote)
+              ~ '\nexec pwsh ./srv/Initialize-VaultTemplates.ps1 -RepoRoot . "$@"\n'
+          }
+        ]
+        + (
+            [
+              {
+                'name': 'homelab-autoinstall-seed',
+                'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
+                  ~ (add_ansible_execution_repo_dir | quote)
+                  ~ '\nexec ./'
+                  ~ add_ansible_execution_autoinstall_server_script
+                  ~ ' "$@"\n'
+              }
+            ]
+            if (add_ansible_execution_autoinstall_server_script_stat.stat.exists | default(false))
+            else []
+          )
+      }}

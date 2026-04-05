@@ -9,8 +9,8 @@ proxmox local network bridge is 'vmbr0'
     user-data (your autoinstall YAML)
     meta-data (can be minimal but must exist)
 
-minimal caddy server on workstation, which should be network reachable from the new VM.
--> srv/Start-CaddyServer.ps1
+minimal HTTP server on the chosen seed host, which should be network reachable from the new VM.
+-> srv/Start-AutoInstallServer-lc3win.ps1
 
 
 
@@ -50,14 +50,14 @@ Edit UEFI GRUB:
 
 Search for the menuentry that boots “Try or Install Ubuntu Server” and append to the linux line:
 
-autoinstall ds=nocloud-net;s=http://{{caddy-hostname}}:8080/ubuntu2404/ ---
+autoinstall ds=nocloud-net;s=http://autoinstall-seed.lan:8080/ubuntu2404/ ---
 
 Example (illustrative):
-linux  /casper/vmlinuz ... autoinstall ds=nocloud-net;s=http://{{caddy-hostname}}:8080/ubuntu2404/ ---
+linux  /casper/vmlinuz ... autoinstall ds=nocloud-net;s=http://autoinstall-seed.lan:8080/ubuntu2404/ ---
 
 **Important:**
     The URL must end with a trailing slash.
-    Prefer a fully qualified local hostname such as lc3win.fritz.box instead of a bare short name.
+    Prefer a stable, fully qualified DNS name such as autoinstall-seed.lan instead of a host-specific short name.
     Keep the final --- (it separates kernel params cleanly).
 
 Repack ISO:
