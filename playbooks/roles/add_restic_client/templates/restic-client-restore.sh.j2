@@ -74,7 +74,6 @@ RESTIC_RESTORE_ARGS=(
   "${RESTIC_RESTORE_EXTRA_ARGS[@]}"
 )
 
-RESTIC_RESTORE_LOG_FILE="$RESTIC_RESTORE_LOG_DIR/${RESTIC_RESTORE_SCRIPT_NAME}-$(date +%Y%m%d-%H%M%S).log"
 
 echo "Repository: {{ item.repository_display }}"
 echo "Restore path: $RESTIC_RESTORE_PATH"
@@ -91,14 +90,24 @@ if [[ ! "$RESTIC_RESTORE_CONFIRM" =~ ^[Yy]$ ]]; then
   exit 1
 fi
 
-mkdir -p "$RESTIC_RESTORE_PATH"
-mkdir -p "$RESTIC_RESTORE_LOG_DIR"
 
 if [[ "$RESTIC_RESTORE_FOREGROUND" == "1" ]]; then
   exec "${RESTIC_RESTORE_ARGS[@]}"
+  exit 0
 fi
 
-nohup "${RESTIC_RESTORE_ARGS[@]}" >"$RESTIC_RESTORE_LOG_FILE" 2>&1 < /dev/null &
+mkdir -p "$RESTIC_RESTORE_PATH"
+mkdir -p "$RESTIC_RESTORE_LOG_DIR"
+RESTIC_RESTORE_LOG_FILE="$RESTIC_RESTORE_LOG_DIR/${RESTIC_RESTORE_SCRIPT_NAME}-$(date +%Y%m%d-%H%M%S).log"
+
+date >> "$RESTIC_RESTORE_LOG_FILE"
+echo "Repository: {{ item.repository_display }}" >> "$RESTIC_RESTORE_LOG_FILE"
+echo "Restore path: $RESTIC_RESTORE_PATH" >> "$RESTIC_RESTORE_LOG_FILE"
+echo "Snapshot: $SNAPSHOT" >> "$RESTIC_RESTORE_LOG_FILE"
+echo "Mode: $([[ "$RESTIC_RESTORE_FOREGROUND" == "1" ]] && echo "Foreground" || echo "Background")" >> "$RESTIC_RESTORE_LOG_FILE"
+echo "Command: restic restore $SNAPSHOT --target / --include $RESTIC_RESTORE_PATH" >> "$RESTIC_RESTORE_LOG_FILE"
+
+nohup "${RESTIC_RESTORE_ARGS[@]}" >> "$RESTIC_RESTORE_LOG_FILE" 2>&1 < /dev/null &
 RESTIC_RESTORE_PID=$!
 disown "$RESTIC_RESTORE_PID" 2>/dev/null || true
 
