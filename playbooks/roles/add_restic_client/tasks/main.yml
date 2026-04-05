@@ -351,6 +351,10 @@
       owner: root
       group: "{{ add_restic_client_service_group }}"
       mode: "0750"
+    - path: "{{ add_restic_client_restore_log_dir }}"
+      owner: "{{ add_restic_client_service_user }}"
+      group: "{{ add_restic_client_service_group }}"
+      mode: "0750"
   loop_control:
     label: "{{ item.path }}"
 

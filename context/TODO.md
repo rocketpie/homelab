@@ -4,12 +4,6 @@
     'configure_disks' role -> 'set_vm_disks'
     'configure-netcontroller' play -> 'set-dns'
 
-# rest-server-role.md TODO
-- add a second-stage smoke test that uses the `restic` CLI to create a
-  disposable repository, write one backup, list snapshots, and restore it
-  again once this repo has a proper way to install `restic` for tests
-
-
 # duplicate documentation 
 - restic-retention-role.md
     -> focus on role function details
@@ -26,10 +20,6 @@
     have a matching add_restic_retention_repositories
     - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
 
-# docker hostname binding
-    - to the docker role, add a haproxy reverse proxy
-    - bind to dns_aliases, forward to container ports (set where?) 
-
 # adding restic client repo guide
     - restic1/host.yml/add_restic_retention_repositories
     - restic1/vault.yml/add_restic_server_htpasswd_entries
@@ -39,6 +29,22 @@ set -a
 source /etc/restic-client/repos.d/paperless.env
 restic init
 ```
+
+# add ansible execution vm
+    - a vm with a clone of this repo, and all vaults
+    - able to connect to pxe, run playbooks.
+
+```prompt
+let's not overthink the autoinstall right now, keep it simple.
+we've got dns resolvers now - we cloud just use autoinstall.lan and point that to whatever host ip we need with a dns update.
+and for the server executable - the files srv/http_root is the important part. we could just point add {hostname}.ps1 to start the server.
+
+i've reverted the autoinstall changes.
+ansible1 was renamed admin1.
+```
+
+-> branch ansible-vm
+
 
 # Lint
 Running ansible-lint...
@@ -51,3 +57,32 @@ playbooks/roles/add_immich/defaults/main.yml:21
 
 no-handler: Tasks that run when changed should likely be handlers.
 playbooks/roles/set_vm_network/tasks/main.yml:42:13 Task/Handler: Flush netplan apply handler
+
+
+# debug, test immich restore
+
+encoded-video (readable and writable)
+library (readable and writable)
+upload (readable and writable)
+profile (readable and writable)
+thumbs (readable and writable)
+backups (readable and writable)
+encoded-video has 2 folder(s)
+
+library is missing files!
+Using storage template? You may be missing files
+
+upload has 2 folder(s)
+
+profile is missing files!
+You may be missing important files
+
+thumbs has 2 folder(s)
+
+
+# update retention policies
+    - run add-restic-server.yml
+
+# User updates
+    - set-vm-user.yml 
+        update user passwords, ssh keys

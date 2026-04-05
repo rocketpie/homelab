@@ -47,8 +47,16 @@ If needed, a repository can also run one `backup_pre_command` before `restic
 backup`. This is useful for applications like Paperless that need to refresh an
 export directory before the filesystem backup runs.
 
-The restore script prompts for confirmation and restores in place with:
+The restore script restores in place with:
 `restic restore <snapshot> --target / --include <path>`
+
+By default, `restic-restore-<name>` launches the restore in the background with
+`nohup` so it keeps running if the SSH session disconnects. Output is written
+under `add_restic_client_restore_log_dir`, which defaults to
+`/var/log/restic-client`.
+
+Use `--foreground` if you want to keep the restore attached to the current
+terminal instead.
 
 The backup timer is installed but disabled unless
 `backup_schedule_enabled: true` is set for that repository.
@@ -60,6 +68,7 @@ restic-backup-paperless
 restic-restore-paperless
 restic-restore-paperless latest
 restic-restore-paperless 7c9c4f15
+restic-restore-paperless --foreground latest
 ```
 
 Example pre-backup hook:
