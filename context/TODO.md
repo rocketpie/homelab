@@ -69,16 +69,16 @@ profile (readable and writable)
 thumbs (readable and writable)
 backups (readable and writable)
 encoded-video has 2 folder(s)
-
 library is missing files!
-Using storage template? You may be missing files
-
+    Using storage template? You may be missing files
 upload has 2 folder(s)
-
 profile is missing files!
-You may be missing important files
-
+    You may be missing important files
 thumbs has 2 folder(s)
+
+second error:
+Error: /usr/lib/postgresql/14/bin/psql non-zero exit code (3)
+ERROR:  DROP DATABASE cannot run inside a transaction block
 
 
 # User updates
@@ -94,4 +94,5 @@ thumbs has 2 folder(s)
 
     to fix, resolve this from template
     docker-compose.env.j2:
-        PAPERLESS_URL=https://paperless.lan
+        PAPERLESS_CSRF_TRUSTED_ORIGINS=https://paperless.lan,https://paperless.vpn.lan
+        PAPERLESS_ALLOWED_HOSTS=paperless.lan,paperless.vpn.lan
