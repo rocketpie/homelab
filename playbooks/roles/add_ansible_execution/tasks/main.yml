@@ -1,0 +1,272 @@
+---
+- name: Validate ansible execution inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_os_family == 'Debian'
+      - add_ansible_execution_repo_owner | string | trim | length > 0
+      - add_ansible_execution_repo_dir_name | string | trim | length > 0
+      - add_ansible_execution_repo_url | string | trim | length > 0
+      - add_ansible_execution_ssh_private_key_source | string | trim | length > 0
+      - add_ansible_execution_ssh_public_key_source | string | trim | length > 0
+      - add_ansible_execution_autoinstall_host | string | trim | length > 0
+      - add_ansible_execution_http_server_bin | string | trim | length > 0
+    fail_msg: >-
+      add_ansible_execution requires a Debian-family Linux host, a repo owner,
+      a repo source, SSH key sources, and local autoinstall HTTP settings.
+
+- name: Check whether ansible execution repo owner exists
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ add_ansible_execution_repo_owner }}"
+  register: add_ansible_execution_repo_owner_getent_result
+  changed_when: false
+
+- name: Assert ansible execution repo owner exists
+  ansible.builtin.assert:
+    that:
+      - add_ansible_execution_repo_owner_getent_result.rc == 0
+      - >-
+        add_ansible_execution_repo_owner_getent_result.stdout
+        | string
+        | trim
+        | length > 0
+    fail_msg: >-
+      add_ansible_execution_repo_owner {{ add_ansible_execution_repo_owner }}
+      does not exist on the target host.
+
+- name: Materialize ansible execution paths
+  ansible.builtin.set_fact:
+    add_ansible_execution_repo_owner_home: >-
+      {{
+        add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5] | trim
+      }}
+    add_ansible_execution_repo_dir: >-
+      {{
+        (
+          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
+          | trim
+        )
+        ~ '/'
+        ~ add_ansible_execution_repo_dir_name
+      }}
+    add_ansible_execution_ssh_dir: >-
+      {{
+        (
+          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
+          | trim
+        )
+        ~ '/.ssh'
+      }}
+    add_ansible_execution_ssh_private_key_dest: >-
+      {{
+        (
+          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
+          | trim
+        )
+        ~ '/.ssh/ansible'
+      }}
+    add_ansible_execution_ssh_public_key_dest: >-
+      {{
+        (
+          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
+          | trim
+        )
+        ~ '/.ssh/ansible.pub'
+      }}
+
+- name: Ensure ansible execution repo owner home was resolved
+  ansible.builtin.assert:
+    that:
+      - add_ansible_execution_repo_owner_home | string | trim | length > 0
+      - add_ansible_execution_repo_owner_home.startswith('/')
+    fail_msg: >-
+      Could not determine a usable home directory for
+      add_ansible_execution_repo_owner {{ add_ansible_execution_repo_owner }}.
+
+- name: Ensure apt keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: add_ansible_execution_install_powershell | bool
+
+- name: Add Microsoft repo GPG key
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /etc/apt/keyrings/microsoft.asc
+    mode: "0644"
+  when: add_ansible_execution_install_powershell | bool
+
+- name: Add Microsoft apt repo
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
+      https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod
+      {{ ansible_distribution_release }} main
+    filename: microsoft-prod
+    state: present
+  when: add_ansible_execution_install_powershell | bool
+
+- name: Install ansible execution packages
+  ansible.builtin.apt:
+    name: >-
+      {{
+        add_ansible_execution_packages
+        + (
+            ['powershell']
+            if (add_ansible_execution_install_powershell | bool)
+            else []
+          )
+      }}
+    state: present
+    update_cache: true
+
+- name: Install uv for repo bootstrapping
+  ansible.builtin.pip:
+    name: uv
+    executable: pip3
+    extra_args: --break-system-packages
+  when: add_ansible_execution_install_uv | bool
+
+- name: Ensure ansible execution repo exists
+  ansible.builtin.git:
+    repo: "{{ add_ansible_execution_repo_url }}"
+    dest: "{{ add_ansible_execution_repo_dir }}"
+    version: "{{ add_ansible_execution_repo_version }}"
+    single_branch: true
+    update: "{{ not (add_ansible_execution_sync_local_repo | bool) }}"
+  become_user: "{{ add_ansible_execution_repo_owner }}"
+  environment:
+    HOME: "{{ add_ansible_execution_repo_owner_home }}"
+
+- name: Synchronize local homelab working tree to ansible execution host
+  ansible.posix.synchronize:
+    src: "{{ add_ansible_execution_local_repo_path }}/"
+    dest: "{{ add_ansible_execution_repo_dir }}/"
+    archive: true
+    compress: true
+    delete: false
+    rsync_opts: >-
+      {{
+        add_ansible_execution_sync_excludes
+        | map('regex_replace', '^(.*)$', '--exclude=\\1')
+        | list
+      }}
+  delegate_to: localhost
+  become: false
+  when: add_ansible_execution_sync_local_repo | bool
+
+- name: Ensure ansible execution repo ownership is correct
+  ansible.builtin.file:
+    path: "{{ add_ansible_execution_repo_dir }}"
+    state: directory
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    recurse: true
+
+- name: Ensure ansible execution SSH directory exists
+  ansible.builtin.file:
+    path: "{{ add_ansible_execution_ssh_dir }}"
+    state: directory
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    mode: "0700"
+
+- name: Copy ansible SSH private key for execution host
+  ansible.builtin.copy:
+    src: "{{ add_ansible_execution_ssh_private_key_source }}"
+    dest: "{{ add_ansible_execution_ssh_private_key_dest }}"
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    mode: "0600"
+  no_log: true
+
+- name: Copy ansible SSH public key for execution host
+  ansible.builtin.copy:
+    src: "{{ add_ansible_execution_ssh_public_key_source }}"
+    dest: "{{ add_ansible_execution_ssh_public_key_dest }}"
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    mode: "0644"
+
+- name: Ensure PowerShell profile directory exists
+  ansible.builtin.file:
+    path: "{{ add_ansible_execution_repo_owner_home }}/.config/powershell"
+    state: directory
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    mode: "0755"
+
+- name: Export homelab autoinstall environment for login shells
+  ansible.builtin.copy:
+    content: |
+      export HOMELAB_AUTOINSTALL_HOST={{ add_ansible_execution_autoinstall_host | quote }}
+      export HOMELAB_AUTOINSTALL_PROBE_URL={{ add_ansible_execution_autoinstall_probe_url | quote }}
+      export HOMELAB_AUTOINSTALL_HTTP_SERVER_BIN={{ add_ansible_execution_http_server_bin | quote }}
+      export HOMELAB_AUTOINSTALL_HTTP_SERVER_WORKDIR={{ (add_ansible_execution_repo_dir ~ '/srv') | quote }}
+    dest: /etc/profile.d/homelab-autoinstall.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Export homelab autoinstall environment for PowerShell sessions
+  ansible.builtin.copy:
+    content: |
+      $env:HOMELAB_AUTOINSTALL_HOST = {{ add_ansible_execution_autoinstall_host | to_json }}
+      $env:HOMELAB_AUTOINSTALL_PROBE_URL = {{ add_ansible_execution_autoinstall_probe_url | to_json }}
+      $env:HOMELAB_AUTOINSTALL_HTTP_SERVER_BIN = {{ add_ansible_execution_http_server_bin | to_json }}
+      $env:HOMELAB_AUTOINSTALL_HTTP_SERVER_WORKDIR = {{ (add_ansible_execution_repo_dir ~ '/srv') | to_json }}
+    dest: >-
+      {{
+        add_ansible_execution_repo_owner_home
+        ~ '/.config/powershell/Microsoft.PowerShell_profile.ps1'
+      }}
+    owner: "{{ add_ansible_execution_repo_owner }}"
+    group: "{{ add_ansible_execution_repo_group }}"
+    mode: "0644"
+
+- name: Check whether ansible-playbook is already installed in repo venv
+  ansible.builtin.stat:
+    path: "{{ add_ansible_execution_repo_dir }}/.venv/bin/ansible-playbook"
+  register: add_ansible_execution_repo_ansible_playbook_stat
+
+- name: Install repo venv and collections on ansible execution host
+  ansible.builtin.command:
+    argv:
+      - pwsh
+      - -File
+      - ./install.ps1
+      - -InstallVenv
+    chdir: "{{ add_ansible_execution_repo_dir }}"
+  become_user: "{{ add_ansible_execution_repo_owner }}"
+  environment:
+    HOME: "{{ add_ansible_execution_repo_owner_home }}"
+  when: not add_ansible_execution_repo_ansible_playbook_stat.stat.exists
+  changed_when: true
+
+- name: Materialize ansible execution admin helper scripts
+  ansible.builtin.set_fact:
+    add_ansible_execution_admin_scripts_extra_scripts:
+      - name: homelab-run
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd {{ add_ansible_execution_repo_dir | quote }}
+          exec pwsh ./run.ps1 "$@"
+      - name: homelab-install
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd {{ add_ansible_execution_repo_dir | quote }}
+          exec pwsh ./install.ps1 "$@"
+      - name: homelab-lint
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cd {{ add_ansible_execution_repo_dir | quote }}
+          exec pwsh ./build.ps1 "$@"

@@ -1,0 +1,51 @@
+---
+- name: Install Ansible execution environment on ansible execution hosts
+  hosts: ansible_execution
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Record incomplete deployment history for ansible execution
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-ansible-execution.yml
+        record_deployment_roles:
+          - add_ansible_execution
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - ansible-execution
+
+  tasks:
+    - name: Install ansible execution environment
+      ansible.builtin.include_role:
+        name: add_ansible_execution
+
+    - name: Install ansible execution helper scripts
+      ansible.builtin.include_role:
+        name: add_admin_scripts
+      vars:
+        add_admin_scripts_service_groups: []
+        add_admin_scripts_extra_scripts: >-
+          {{
+            add_ansible_execution_admin_scripts_extra_scripts | default([])
+          }}
+      when:
+        - add_admin_scripts_user | default('', true) | string | trim | length > 0
+        - add_ansible_execution_admin_scripts_extra_scripts | default([]) | length > 0
+
+  post_tasks:
+    - name: Record successful deployment history for ansible execution
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-ansible-execution.yml
+        record_deployment_roles:
+          - add_ansible_execution
+          - add_admin_scripts
+        record_deployment_metadata:
+          services:
+            - ansible-execution

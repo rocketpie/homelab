@@ -1,0 +1,36 @@
+---
+add_ansible_execution_packages:
+  - caddy
+  - ca-certificates
+  - git
+  - openssh-client
+  - python3-pip
+  - python3-venv
+  - rsync
+  - sshpass
+  - xorriso
+
+add_ansible_execution_repo_owner: "{{ ansible_user }}"
+add_ansible_execution_repo_group: "{{ add_ansible_execution_repo_owner }}"
+add_ansible_execution_repo_dir_name: homelab
+add_ansible_execution_repo_url: "https://github.com/rocketpie/homelab.git"
+add_ansible_execution_repo_version: main
+add_ansible_execution_sync_local_repo: true
+add_ansible_execution_local_repo_path: "{{ playbook_dir }}/.."
+add_ansible_execution_sync_excludes:
+  - .ansible/
+  - .collections/
+  - .git/
+  - .venv/
+  - __pycache__/
+  - "*.retry"
+
+add_ansible_execution_install_powershell: true
+add_ansible_execution_install_uv: true
+add_ansible_execution_ssh_private_key_source: >-
+  {{ ansible_admin_ssh_private_key_file }}
+add_ansible_execution_ssh_public_key_source: >-
+  {{ ansible_admin_ssh_private_key_file }}.pub
+add_ansible_execution_autoinstall_host: "{{ ansible_host }}"
+add_ansible_execution_autoinstall_probe_url: "http://127.0.0.1:8080/ubuntu2404"
+add_ansible_execution_http_server_bin: /usr/bin/caddy
