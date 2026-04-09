@@ -10,14 +10,26 @@
 - use-restic-server.md / Server-side retention config
     -> focus on extending the config, like adding a new repo or changing retention
 
-# restic server play
+# restic 
+## server play
     - add extensive testing, including restic repository access / restore and backup
     - make sure to check if all existing repos on the host 
     have a matching add_restic_retention_repositories
     - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
     - log retention application
+    - improve retention application service
+        - service script is repo specific.
+        it should read config file(s) which contain repository details.
+    -         
 
-# adding restic client repo guide
+## client 
+    - update (0.16.4 is < 2024!)
+        - 0.17
+            - skip-if-unchanged
+            - reduces prune memory use
+            - report snapshot size
+
+## add guide 'adding a client repo'
     - restic1/host.yml/add_restic_retention_repositories
     - restic1/vault.yml/add_restic_server_htpasswd_entries
     - repo init 
@@ -32,19 +44,9 @@ restic init
     - log changes
 
 # add ansible execution vm
-    - a vm with a clone of this repo, and all vaults
-    - able to connect to pxe, run playbooks.
+    - play should *not* create missing local `vault.yml` files.
+    instead, there should be an install step
 
-```prompt
-let's not overthink the autoinstall right now, keep it simple.
-we've got dns resolvers now - we cloud just use autoinstall.lan and point that to whatever host ip we need with a dns update.
-and for the server executable - the files srv/http_root is the important part. we could just point add {hostname}.ps1 to start the server.
-
-i've reverted the autoinstall changes.
-ansible1 was renamed admin1.
-```
-
--> branch ansible-vm
 
 
 # Lint

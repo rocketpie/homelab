@@ -11,8 +11,7 @@ memory_mb: 3072
 os_disk_gb: 30
 
 dns_aliases:
-  - "ansible.lan"
-  - "ansible.vpn.lan"
+  - "admin1.vpn.lan"
 
 add_vpn_client_overlay_ipv4: "10.13.0.12"
 
