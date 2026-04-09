@@ -39,3 +39,6 @@ host_users:
 # vault.yml:
 # host_user_passwords:
 #   networker: "SECRET_VALUE_HERE"
+#
+# add_vpn_client_config: | 
+#   SECRET_VALUE_HERE

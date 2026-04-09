@@ -84,3 +84,6 @@ host_users:
 #     rest_username: "SECRET_VALUE_HERE"
 #     rest_password: "SECRET_VALUE_HERE"
 #     repository_password: "SECRET_VALUE_HERE"
+#
+# add_vpn_client_config: | 
+#   SECRET_VALUE_HERE

@@ -10,7 +10,13 @@ param(
     [switch]$InstallApt,
 
     [Parameter(ParameterSetName = "InstallVenv")]
-    [switch]$InstallVenv
+    [switch]$InstallVenv,
+
+    [Parameter(ParameterSetName = "InstallVault")]
+    [switch]$InstallVault,
+
+    [Parameter(ParameterSetName = "InstallVault")]
+    [string]$RepoRoot = "."
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +27,7 @@ function Write-Targets {
     Write-Host "  -Help                  Show this help (default)"
     Write-Host "  -InstallApt            apt install python3.10-venv python3-pip sshpass; pip install uv"
     Write-Host "  -InstallVenv           Create venv; install requirements via uv; create .collections; install community.general"
+    Write-Host "  -InstallVault          Create missing local vault.yml files from checked-in # vault.yml: template comments"
 }
 
 Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".venv")
@@ -32,6 +39,7 @@ Set-Variable -Scope Script -Name 'vEnvRequirements' -Value (Join-Path $PSScriptR
 Set-Variable -Scope Script -Name 'ansibleCollectionsDir' -Value (Join-Path $PSScriptRoot ".collections")
 Set-Variable -Scope Script -Name 'collectionsRequirements' -Value (Join-Path $PSScriptRoot "collection-requirements.txt")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
+Set-Variable -Scope Script -Name 'initializeVaultTemplatesScript' -Value (Join-Path $PSScriptRoot "srv/Initialize-VaultTemplates.ps1")
 
 $localCollections = $(Join-Path $PSScriptRoot ".collections")
 if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
@@ -54,6 +62,9 @@ function Main {
         "InstallVenv" {
             Require-Command "uv"
             Install-Venv
+        }
+        "InstallVault" {
+            Install-VaultTemplates -RepoRoot $RepoRoot
         }
     }
 
@@ -124,6 +135,14 @@ function Install-Venv {
         Write-Host "Installing Ansible collection $($requirement)..."
         & $vEnvAnsibleGalaxy collection install -p $ansibleCollectionsDir $requirement
     }
+}
+
+function Install-VaultTemplates([string]$RepoRoot) {
+    if (-not (Test-Path -LiteralPath $initializeVaultTemplatesScript)) {
+        throw "Missing $initializeVaultTemplatesScript."
+    }
+
+    & $initializeVaultTemplatesScript -RepoRoot $RepoRoot
 }
 
 

@@ -44,9 +44,11 @@ restic init
     - log changes
 
 # add ansible execution vm
-    - play should *not* create missing local `vault.yml` files.
-    instead, there should be an install step
-
+    - play should focus:
+        - add install pwsh role
+        - git clone repository in host user home    
+    - do *not* create missing local `vault.yml` files.
+    - remove other clutter
 
 
 # Lint
