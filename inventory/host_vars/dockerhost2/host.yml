@@ -72,18 +72,19 @@ host_users:
 #   captain: "SECRET_VALUE_HERE"
 #
 # add_immich_db_password: "SECRET_VALUE_HERE"
+#
 # add_paperless_db_password: "SECRET_VALUE_HERE"
 # add_paperless_secret_key: "SECRET_VALUE_HERE"
 #
 # add_restic_client_repository_credentials:
 #   paperless:
-#     rest_username: "SECRET_VALUE_HERE"
-#     rest_password: "SECRET_VALUE_HERE"
-#     repository_password: "SECRET_VALUE_HERE"
+#       rest_username: "SECRET_VALUE_HERE"
+#       rest_password: "SECRET_VALUE_HERE"
+#       repository_password: "SECRET_VALUE_HERE"
 #   immich:
-#     rest_username: "SECRET_VALUE_HERE"
-#     rest_password: "SECRET_VALUE_HERE"
-#     repository_password: "SECRET_VALUE_HERE"
+#       rest_username: "SECRET_VALUE_HERE"
+#       rest_password: "SECRET_VALUE_HERE"
+#       repository_password: "SECRET_VALUE_HERE"
 #
-# add_vpn_client_config: | 
+# add_vpn_client_config: |
 #   SECRET_VALUE_HERE

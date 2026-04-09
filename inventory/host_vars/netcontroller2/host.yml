@@ -40,5 +40,5 @@ host_users:
 # host_user_passwords:
 #   networker: "SECRET_VALUE_HERE"
 #
-# add_vpn_client_config: | 
+# add_vpn_client_config: |
 #   SECRET_VALUE_HERE

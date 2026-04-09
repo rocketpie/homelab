@@ -61,8 +61,9 @@ eg. restic1/host.yml:
 
 `build.ps1` can regenerate these `# vault.yml:` template comments from the
 local sibling `vault.yml` files by replacing every secret value with a static
-placeholder. Keep the marker at the bottom of the target file so the sync step
-can replace the whole block reliably.
+placeholder while preserving the surrounding YAML layout, including blank lines
+and block-scalar markers such as `|`. Keep the marker at the bottom of the
+target file so the sync step can replace the whole block reliably.
 
 ## General Notes
 

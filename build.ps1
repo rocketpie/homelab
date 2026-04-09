@@ -13,6 +13,7 @@ Set-Variable -Scope Script -Name 'vEnvPython' -Value (Join-Path $vEnvPath "bin/p
 Set-Variable -Scope Script -Name 'vEnvAnsiblePlaybook' -Value (Join-Path $vEnvPath "bin/ansible-playbook")
 Set-Variable -Scope Script -Name 'vEnvAnsibleVault' -Value (Join-Path $vEnvPath "bin/ansible-vault")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
+Set-Variable -Scope Script -Name 'vaultTemplateRendererScript' -Value (Join-Path $PSScriptRoot "srv/render-vault-template.py")
 
 $localCollections = $(Join-Path $PSScriptRoot ".collections")
 if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
@@ -82,43 +83,8 @@ function Get-VaultTemplateTargetFiles([string]$VaultFilePath) {
 }
 
 function Get-VaultTemplateCommentLines([string]$VaultFilePath) {
-    $pythonScript = @'
-import sys
-import yaml
-
-PLACEHOLDER = "SECRET_VALUE_HERE"
-PRESERVE_SCALAR_KEYS = {"user"}
-
-class PlaceholderString(str):
-    pass
-
-def represent_placeholder(dumper, data):
-    return dumper.represent_scalar("tag:yaml.org,2002:str", str(data), style='"')
-
-yaml.SafeDumper.add_representer(PlaceholderString, represent_placeholder)
-
-def sanitize(value, key=None):
-    if isinstance(value, dict):
-        return {
-            subkey: sanitize(subvalue, subkey)
-            for subkey, subvalue in value.items()
-        }
-    if isinstance(value, list):
-        return [sanitize(item, key) for item in value]
-    if key in PRESERVE_SCALAR_KEYS:
-        return value
-    return PlaceholderString(PLACEHOLDER)
-
-content = sys.stdin.read()
-
-data = yaml.safe_load(content) if content.strip() else {}
-sanitized = sanitize(data)
-rendered = yaml.safe_dump(sanitized, sort_keys=False, default_flow_style=False).rstrip()
-sys.stdout.write(rendered)
-'@
-
     $vaultContent = Get-VaultTemplateSourceContent -VaultFilePath $VaultFilePath
-    $sanitizedYaml = $vaultContent | & $vEnvPython -c $pythonScript
+    $sanitizedYaml = @($vaultContent | & $vEnvPython $vaultTemplateRendererScript) -join "`n"
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to build vault template comment for $(Get-RelativeRepoPath -Path $VaultFilePath)"
     }
