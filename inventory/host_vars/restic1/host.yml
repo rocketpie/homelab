@@ -23,6 +23,7 @@ add_vpn_client_overlay_ipv4: "10.13.0.13"
 
 dns_aliases:
   - "backup.lan"
+  - "backup.vpn.lan"
 
 add_restic_server_data_dir: "/media/backups/restic-data"
 add_restic_server_listen_address: ":8000"
