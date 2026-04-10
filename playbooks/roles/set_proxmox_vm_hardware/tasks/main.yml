@@ -222,9 +222,11 @@
   register: set_proxmox_vm_hardware_migrate_status
   changed_when: false
   until: >-
-    set_proxmox_vm_hardware_migrate_status.content | default('') | regex_search(
-      '"status"\\s*:\\s*"stopped"'
-    )
+    (
+      set_proxmox_vm_hardware_migrate_status.content
+      | default('')
+      | regex_search('"status"\\s*:\\s*"stopped"')
+    ) is not none
   retries: "{{ set_proxmox_vm_hardware_migrate_retries }}"
   delay: "{{ set_proxmox_vm_hardware_migrate_delay }}"
   when:
@@ -237,9 +239,12 @@
 - name: Assert Proxmox migration completed successfully
   ansible.builtin.assert:
     that:
-      - set_proxmox_vm_hardware_migrate_status.content | default('') | regex_search(
-          '"exitstatus"\\s*:\\s*"OK"'
-        )
+      - >-
+        (
+          set_proxmox_vm_hardware_migrate_status.content
+          | default('')
+          | regex_search('"exitstatus"\\s*:\\s*"OK"')
+        ) is not none
     fail_msg: >-
       Proxmox VM migration failed for {{ vm_name }}:
       {{

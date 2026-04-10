@@ -10,9 +10,21 @@
           - add_vpn_client_interface_name | string | trim | length > 0
           - add_vpn_client_overlay_ipv4 | string | trim | length > 0
           - add_vpn_client_config | string | trim | length > 0
-          - add_vpn_client_config | regex_search('(?im)^\[Interface\]\s*$')
-          - add_vpn_client_config | regex_search('(?im)^\[Peer\]\s*$')
-          - add_vpn_client_config | regex_search(add_vpn_client_overlay_ipv4_regex)
+          - >-
+            (
+              add_vpn_client_config
+              | regex_search('(?im)^\[Interface\]\s*$')
+            ) is not none
+          - >-
+            (
+              add_vpn_client_config
+              | regex_search('(?im)^\[Peer\]\s*$')
+            ) is not none
+          - >-
+            (
+              add_vpn_client_config
+              | regex_search(add_vpn_client_overlay_ipv4_regex)
+            ) is not none
           - add_vpn_client_config_overlay_ipv4 == (add_vpn_client_overlay_ipv4 | string | trim)
         fail_msg: >-
           add_vpn_client requires an Ubuntu host and a vaulted WireGuard client

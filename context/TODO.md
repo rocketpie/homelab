@@ -3,6 +3,7 @@
     'unbound' inventory rule -> 'dns-resolver'
     'configure_disks' role -> 'set_vm_disks'
     'configure-netcontroller' play -> 'set-dns'
+    'add-rest-server' play -> 'add-restic-server'
 
 # all VMs
     MOTD
@@ -69,6 +70,30 @@ playbooks/roles/add_immich/defaults/main.yml:21
 
 no-handler: Tasks that run when changed should likely be handlers.
 playbooks/roles/set_vm_network/tasks/main.yml:42:13 Task/Handler: Flush netplan apply handler
+
+
+# warnings
+TASK [add_rclone : Validate host platform for rclone install] ***********************************************************************
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/add_rclone/tasks/main.yml:5:9
+
+3   ansible.builtin.assert:
+4     that:
+5       - ansible_system == 'Linux'
+          ^ column 9
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/add_rclone/tasks/main.yml:6:9
+
+4     that:
+5       - ansible_system == 'Linux'
+6       - ansible_architecture in ['x86_64', 'amd64']
+          ^ column 9
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
 
 
 # debug, test immich restore

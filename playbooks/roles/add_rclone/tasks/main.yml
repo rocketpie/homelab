@@ -21,7 +21,11 @@
 - name: Validate rclone remote configuration content
   ansible.builtin.assert:
     that:
-      - add_rclone_remote_config_content | regex_search('(?m)^\\[[^]]+\\]$')
+      - >-
+        (
+          add_rclone_remote_config_content
+          | regex_search('(?m)^\\[[^]]+\\]$')
+        ) is not none
     fail_msg: >-
       add_rclone_remote_config_content must contain a valid rclone remote stanza.
 
