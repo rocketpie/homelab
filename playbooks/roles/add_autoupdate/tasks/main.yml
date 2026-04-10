@@ -2,8 +2,8 @@
 - name: Assert supported platform for automatic updates
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
-      - ansible_distribution == 'Ubuntu'
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts['distribution'] == 'Ubuntu'
     fail_msg: "add_autoupdate currently supports Ubuntu hosts only"
 
 - name: Install unattended upgrade packages

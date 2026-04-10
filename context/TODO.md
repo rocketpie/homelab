@@ -72,7 +72,55 @@ no-handler: Tasks that run when changed should likely be handlers.
 playbooks/roles/set_vm_network/tasks/main.yml:42:13 Task/Handler: Flush netplan apply handler
 
 
-# warnings
+# depreaction warnings
+TASK [record_deployment : Materialize immutable deployment history values] **********************************************************
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/record_deployment/tasks/main.yml:33:42
+
+31           )
+32       }}
+33     record_deployment_entry_recorded_at: "{{ record_deployment_entry_recorded_at | default(ansible_date_time.iso86...
+                                            ^ column 42
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+
+
+TASK [add_rclone : Validate host platform for rclone install] ***********************************************************************
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/add_rclone/tasks/main.yml:5:9
+
+3   ansible.builtin.assert:
+4     that:
+5       - ansible_system == 'Linux'
+          ^ column 9
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/add_rclone/tasks/main.yml:6:9
+
+4     that:
+5       - ansible_system == 'Linux'
+6       - ansible_architecture in ['x86_64', 'amd64']
+          ^ column 9
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+
+TASK [add_restic_retention : Validate restic retention inputs] **********************************************************************
+[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
+Origin: /home/talos/homelab/playbooks/roles/add_restic_retention/tasks/main.yml:5:9
+
+3   ansible.builtin.assert:
+4     that:
+5       - ansible_system == 'Linux'
+          ^ column 9
+
+Use `ansible_facts["fact_name"]` (no `ansible_` prefix) instead.
+
+
 TASK [add_rclone : Validate host platform for rclone install] ***********************************************************************
 [DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated, top-level facts will not be auto injected after the change. This feature will be removed from ansible-core version 2.24.
 Origin: /home/talos/homelab/playbooks/roles/add_rclone/tasks/main.yml:5:9

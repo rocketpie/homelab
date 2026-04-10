@@ -2,8 +2,8 @@
 - name: Validate ansible execution inputs
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
-      - ansible_os_family == 'Debian'
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['os_family'] == 'Debian'
       - add_ansible_execution_repo_owner | string | trim | length > 0
       - add_ansible_execution_repo_dir_name | string | trim | length > 0
       - add_ansible_execution_repo_url | string | trim | length > 0
@@ -111,8 +111,8 @@
   ansible.builtin.apt_repository:
     repo: >-
       deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
-      https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod
-      {{ ansible_distribution_release }} main
+      https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod
+      {{ ansible_facts['distribution_release'] }} main
     filename: microsoft-prod
     state: present
   when: add_ansible_execution_install_powershell | bool

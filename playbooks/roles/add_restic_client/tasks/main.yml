@@ -2,7 +2,7 @@
 - name: Validate restic client inputs
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
+      - ansible_facts['system'] == 'Linux'
       - add_restic_client_service_user | string | trim | length > 0
       - add_restic_client_repositories | length > 0
     fail_msg: >-

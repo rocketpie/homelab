@@ -2,7 +2,7 @@
 - name: Validate Paperless inputs
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
+      - ansible_facts['system'] == 'Linux'
       - add_paperless_owner_user | string | trim | length > 0
       - add_paperless_db_password | string | trim | length > 0
       - add_paperless_secret_key | string | trim | length > 0

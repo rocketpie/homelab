@@ -5,8 +5,8 @@
     - name: Validate VPN client inputs
       ansible.builtin.assert:
         that:
-          - ansible_system == 'Linux'
-          - ansible_distribution == 'Ubuntu'
+          - ansible_facts['system'] == 'Linux'
+          - ansible_facts['distribution'] == 'Ubuntu'
           - add_vpn_client_interface_name | string | trim | length > 0
           - add_vpn_client_overlay_ipv4 | string | trim | length > 0
           - add_vpn_client_config | string | trim | length > 0

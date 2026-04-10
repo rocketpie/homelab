@@ -2,8 +2,8 @@
 - name: Assert supported platform for VM network configuration
   ansible.builtin.assert:
     that:
-      - ansible_os_family == 'Debian'
-      - ansible_distribution == 'Ubuntu'
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts['distribution'] == 'Ubuntu'
     fail_msg: "set_vm_network currently supports Ubuntu hosts only"
 
 - name: Assert required static network variables for VM network configuration

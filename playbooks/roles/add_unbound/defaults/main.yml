@@ -25,7 +25,7 @@ add_unbound_blocklist_refresh_on_calendar: daily
 add_unbound_local_tld: "{{ homelab_dns_local_tld | default('lan') }}"
 add_unbound_inventory_dns_enabled: true
 add_unbound_blocklist_sources: "{{ homelab_dns_blocklist_sources | default([]) }}"
-add_unbound_manual_dns_records: "{{ homelab_dns_records | default([]) }}"
+add_unbound_manual_dns_records: []
 add_unbound_server_config_file: "{{ add_unbound_include_dir }}/homelab-server.conf"
 add_unbound_forward_addrs: "{{ homelab_dns_forward_servers | default([]) }}"
 add_unbound_forward_zones: >-

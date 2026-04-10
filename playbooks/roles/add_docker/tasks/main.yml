@@ -2,8 +2,8 @@
 - name: Validate host platform for Docker install
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
-      - ansible_distribution == 'Ubuntu'
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['distribution'] == 'Ubuntu'
     fail_msg: "add_docker currently supports Ubuntu Linux hosts only."
 
 - name: Check whether configured Docker users exist
@@ -135,7 +135,7 @@
     content: >-
       deb [arch={{ add_docker_architecture.stdout | trim }}
       signed-by={{ add_docker_keyring_path }}]
-      {{ add_docker_repo_url }} {{ ansible_distribution_release }} stable
+      {{ add_docker_repo_url }} {{ ansible_facts['distribution_release'] }} stable
 
 - name: Install Docker engine packages
   ansible.builtin.apt:

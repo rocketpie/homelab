@@ -2,7 +2,7 @@
 - name: Validate Immich inputs
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
+      - ansible_facts['system'] == 'Linux'
       - add_immich_owner_user | string | trim | length > 0
       - add_immich_db_password | string | trim | length > 0
       - add_immich_time_zone | string | trim | length > 0

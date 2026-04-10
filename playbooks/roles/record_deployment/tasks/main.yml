@@ -30,7 +30,11 @@
             ) != ''
           )
       }}
-    record_deployment_entry_recorded_at: "{{ record_deployment_entry_recorded_at | default(ansible_date_time.iso8601) }}"
+    record_deployment_entry_recorded_at: >-
+      {{
+        record_deployment_entry_recorded_at
+        | default(ansible_facts['date_time']['iso8601'])
+      }}
 
 - name: Materialize deployment history start status for completion update
   ansible.builtin.set_fact:

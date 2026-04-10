@@ -12,8 +12,8 @@
       ansible.builtin.apt_repository:
         repo: >-
           deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
-          https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod
-          {{ ansible_distribution_release }} main
+          https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod
+          {{ ansible_facts['distribution_release'] }} main
         filename: "microsoft-prod"
         state: present
 

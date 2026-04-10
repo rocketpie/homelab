@@ -2,7 +2,7 @@
 - name: Validate restic retention inputs
   ansible.builtin.assert:
     that:
-      - ansible_system == 'Linux'
+      - ansible_facts['system'] == 'Linux'
       - add_restic_retention_service_user | string | trim | length > 0
       - add_restic_retention_root_dir | string | trim | length > 0
       - add_restic_retention_repositories | length > 0

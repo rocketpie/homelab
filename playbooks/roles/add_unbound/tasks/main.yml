@@ -42,7 +42,8 @@
 
 - name: Build manual DNS records from IP->aliases structure
   ansible.builtin.set_fact:
-    add_unbound_manual_dns_records: "{{ lookup('template', 'dns-records-flatten.j2') }}"
+    add_unbound_manual_dns_records: >-
+      {{ lookup('template', 'dns-records-flatten.j2') | from_json }}
   when: homelab_dns_records is defined and homelab_dns_records is mapping
 
 - name: Initialize to empty list if no global records
