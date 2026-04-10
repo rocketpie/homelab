@@ -43,8 +43,8 @@ add_rclone_flags:
   - --stats=1m
   - --stats-one-line
 
-add_rclone_timer_on_boot_sec: 10m
-add_rclone_timer_on_unit_active_sec: 6h
+add_rclone_timer_on_boot_sec: 30m
+add_rclone_timer_on_unit_active_sec: 24h
 
 add_rclone_admin_scripts_service_groups:
   - key: "rclone-sync"

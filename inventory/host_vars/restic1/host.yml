@@ -31,7 +31,7 @@ add_restic_retention_service_user: "archivar"
 add_restic_retention_repositories:
   - user: "restic-server-test"
     repository: "repo1"
-    enabled: true
+    enabled: false
     forget_args:
       - "--keep-within"
       - "2d"
@@ -85,6 +85,15 @@ add_restic_retention_repositories:
       - "--keep-monthly"
       - "6"
       - "--prune"
+  - user: "james"
+    repository: "influxdb"
+    enabled: true
+    forget_args:
+      - "--keep-within"
+      - "7d"
+      - "--keep-weekly"
+      - "8"
+      - "--prune"
 
 add_rclone_service_user: "archivar"
 add_rclone_service_group: "archivar"
@@ -112,6 +121,8 @@ host_users:
 #     password: "SECRET_VALUE_HERE"
 #   - user: "dockerhost2"
 #     password: "SECRET_VALUE_HERE"
+#   - user: "james"
+#     password: "SECRET_VALUE_HERE"
 #
 # add_restic_retention_repository_passwords:
 #   "restic-server-test/repo1": "SECRET_VALUE_HERE"
@@ -120,6 +131,7 @@ host_users:
 #   "lc3win/scans": "SECRET_VALUE_HERE"
 #   "dockerhost2/paperless": "SECRET_VALUE_HERE"
 #   "dockerhost2/immich": "SECRET_VALUE_HERE"
+#   "james/influxdb": "SECRET_VALUE_HERE"
 #
 # add_rclone_remote_config_content: |
 #   [pCloud]
@@ -127,5 +139,5 @@ host_users:
 #   token = {"access_token":"...","token_type":"bearer","expiry":"0001-01-01T00:00:00Z"}
 #   hostname = eapi.pcloud.com
 #
-# add_rclone_remote_config_content: |
+# add_vpn_client_config: |
 #   SECRET_VALUE_HERE
