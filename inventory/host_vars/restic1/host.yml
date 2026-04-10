@@ -19,6 +19,8 @@ extra_disks:
 
 # enable_autoupdate: false
 
+add_vpn_client_overlay_ipv4: "10.13.0.13"
+
 dns_aliases:
   - "backup.lan"
 
