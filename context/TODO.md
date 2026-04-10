@@ -4,6 +4,13 @@
     'configure_disks' role -> 'set_vm_disks'
     'configure-netcontroller' play -> 'set-dns'
 
+# all VMs
+    MOTD
+        remove 10-help-text
+        add /media/DISK usage info after 50-landscape-sysinfo
+        remove 50-motd-news
+        move host-status here, link home/user/host-status here.
+
 # duplicate documentation 
 - restic-retention-role.md
     -> focus on role function details
