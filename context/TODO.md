@@ -24,11 +24,28 @@
     - make sure to check if all existing repos on the host 
     have a matching add_restic_retention_repositories
     - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
+    
+# retention service     
     - log retention application
-    - improve retention application service
-        - service script is repo specific.
-        it should read config file(s) which contain repository details.
-    -         
+      i.e. write a dedicated log of all removed snapshots.
+    - refactor application service:
+      - service script is currently repo specific.
+        it should be global, and read config file(s) which contain repository details.
+    - admin script should be interactive mode, like new-resticsnapshot.ps1
+        - show status, option to actvivate / deactivate
+        - view retention log files
+        - offer loading restic variables, to be able to investigate individual repo content and snapshots        
+    - fix error:
+        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Main process exited, code=exited, status=1/FAILURE
+        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Failed with result 'exit-code'.
+        Apr 19 00:01:01 restic1 systemd[1]: Failed to start restic-retention.service - Run restic retention maintenance.
+        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Consumed 2.274s CPU time.
+
+# rclone sync
+    - admin script should be interactive
+    - show status, timer interval, 
+    - option to actvivate / deactivate
+    - option to adjust timer
 
 ## client 
     - update (0.16.4 is < 2024!)
