@@ -22,42 +22,58 @@
 ## server play
     - add extensive testing, including restic repository access / restore and backup
     - make sure to check if all existing repos on the host 
-    have a matching add_restic_retention_repositories
-    - make sure all add_restic_retention_repositories have a add_restic_retention_repository_passwords
+      have a matching local restic client repo for retention
     
-# retention service     
-    - log retention application
-      i.e. write a dedicated log of all removed snapshots.
-    - refactor application service:
-      - service script is currently repo specific.
-        it should be global, and read config file(s) which contain repository details.
-    - admin script should be interactive mode, like new-resticsnapshot.ps1
-        - show status, option to actvivate / deactivate
-        - view retention log files
-        - offer loading restic variables, to be able to investigate individual repo content and snapshots        
-    - fix error:
-        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Main process exited, code=exited, status=1/FAILURE
-        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Failed with result 'exit-code'.
-        Apr 19 00:01:01 restic1 systemd[1]: Failed to start restic-retention.service - Run restic retention maintenance.
-        Apr 19 00:01:01 restic1 systemd[1]: restic-retention.service: Consumed 2.274s CPU time.
-
 # rclone sync
     - admin script should be interactive
-    - show status, timer interval, 
+    - show status, log path, timer interval, last run time and result,
     - option to actvivate / deactivate
+    - option to run sync (up) / run sync (down)
     - option to adjust timer
 
 ## client 
-    - update (0.16.4 is < 2024!)
+    - update (ubuntu apt version 0.16.4 is < 2024!)
         - 0.17
             - skip-if-unchanged
             - reduces prune memory use
             - report snapshot size
+        - 0.18 various fixes
+    - use the official builds:
+      https://github.com/restic/restic/releases/tag/v0.18.1
+    - changes to the client, the admin scripts:
+        - one script, repo details (path, repo, password, options, retention params) > config
+            take a look at New-ResticSnapshot.json
+            add retention params
+            if a repo's path is empty, prevent snapshot / restore options
+        - no parameters: interactive mode
+            - show status, log path, configured repos, snapshot count and latest snapshot age. (timeout: 5s)
+            - enable / disable options
+            - run snapshot / restore / retention now options
+            - interactive option
+        - scheduler / service should just run `client.ps1 -RunSnapshot` 
+        - `client.ps1 -RunRetention` should be available for retention service
+        - Unify one Powershell restic-client.ps1 script to be used on windows and ubuntu servers. 
+          make powershell a dependency on ubuntu servers / restic client play. 
+        - client script should log backup and retention output.
+
+# retention service     
+    - refactor:
+        - use restic client as a dependency, but disable timer / snapshot automation
+        - instead, use timer / RunRetention automation
+        - for add_restic_client_repositories, just use the local rest-server locations
+        - leave path empty, so snapshot / restore won't work
+        - admin script is just the restic client script
+
 
 ## add guide 'adding a client repo'
-    - restic1/host.yml/add_restic_retention_repositories
-    - restic1/vault.yml/add_restic_server_htpasswd_entries
+    - target-vm/host.yml/add_restic_client_repositories
+    - target-vm/vault.yml/repository_password
+    - restic-client update
     - repo init 
+    - restic1/host.yml/add_restic_client_repositories
+    - restic1/vault.yml/repository_password
+    - restic1/vault.yml/add_restic_server_htpasswd_entries
+    - restic-server update
 ```bash
 set -a
 source /etc/restic-client/repos.d/paperless.env
