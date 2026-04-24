@@ -1,13 +1,33 @@
 ---
+- name: Resolve restic client repositories input
+  ansible.builtin.set_fact:
+    add_restic_client_effective_repositories_input: >-
+      {{
+        (
+          lookup(
+            'template',
+            inventory_dir
+            ~ '/host_vars/' ~ inventory_hostname
+            ~ '/' ~ add_restic_client_repositories_template_file
+          )
+          | from_json
+        )
+        if (
+          add_restic_client_repositories_template_file | string | trim | length > 0
+        )
+        else add_restic_client_repositories
+      }}
+
 - name: Validate restic client inputs
   ansible.builtin.assert:
     that:
       - ansible_facts['system'] == 'Linux'
+      - ansible_facts['architecture'] in ['x86_64', 'amd64']
       - add_restic_client_service_user | string | trim | length > 0
-      - add_restic_client_repositories | length > 0
+      - add_restic_client_effective_repositories_input | length > 0
     fail_msg: >-
-      add_restic_client requires a Linux host, a service user, and at least
-      one configured repository.
+      add_restic_client requires a Linux amd64 host, a service user, and at
+      least one configured repository.
 
 - name: Validate restic client repository items
   ansible.builtin.assert:
@@ -15,38 +35,86 @@
       - item.name is defined
       - item.name | string | trim | length > 0
       - item.path is defined
-      - item.path | string | trim | length > 0
-      - item.path | string | trim is match('^/')
-      - item.repository is defined
-      - item.repository | string | trim | length > 0
+      - item.path is string
+      - item.resticRepository is defined
+      - item.resticRepository | string | trim | length > 0
+      - item.repositoryPassword is defined
+      - item.repositoryPassword | string | trim | length > 0
+      - item.snapshotAllowed is defined
+      - item.restoreAllowed is defined
+      - item.forgetAllowed is defined
+      - item.snapshotAllowed | type_debug == 'bool'
+      - item.restoreAllowed | type_debug == 'bool'
+      - item.forgetAllowed | type_debug == 'bool'
       - >-
         (
-          item.backup_options is not defined
+          item.path | string | trim | length == 0
         )
         or
         (
-          item.backup_options is sequence
+          item.path | string | trim is match('^/')
+        )
+      - >-
+        (
+          item.resticBackupOptions is not defined
+        )
+        or
+        (
+          item.resticBackupOptions is sequence
           and
-          item.backup_options is not string
+          item.resticBackupOptions is not string
         )
       - >-
         (
-          item.backup_pre_command is not defined
+          item.forgetArgs is not defined
         )
         or
         (
-          item.backup_pre_command | string | trim | length > 0
+          item.forgetArgs is sequence
+          and
+          item.forgetArgs is not string
+        )
+      - >-
+        (
+          item.backupPreCommand is not defined
+        )
+        or
+        (
+          item.backupPreCommand | string | trim | length > 0
+        )
+      - >-
+        (
+          item.restUsername is not defined
+        )
+        or
+        (
+          item.restUsername is string
+        )
+      - >-
+        (
+          item.repositoryDisplay is not defined
+        )
+        or
+        (
+          item.repositoryDisplay | string | trim | length > 0
         )
     fail_msg: "Invalid add_restic_client_repositories item: {{ item | to_nice_yaml }}"
-  loop: "{{ add_restic_client_repositories }}"
+  loop: "{{ add_restic_client_effective_repositories_input }}"
   loop_control:
     label: "{{ item.name | default('unnamed-repository') }}"
 
 - name: Assert restic client repository names are unique
   ansible.builtin.assert:
     that:
-      - (add_restic_client_repositories | map(attribute='name') | list | unique | length) == (add_restic_client_repositories | length)
+      - >-
+        (
+          add_restic_client_effective_repositories_input | map(attribute='name') | list | unique | length
+        ) == (add_restic_client_effective_repositories_input | length)
     fail_msg: "add_restic_client_repositories names must be unique"
+
+- name: Include PowerShell install role for restic client runtime
+  ansible.builtin.include_role:
+    name: add_powershell
 
 - name: Check whether restic client service user exists
   ansible.builtin.command:
@@ -66,274 +134,225 @@
       add_restic_client_service_user {{ add_restic_client_service_user }}
       does not exist on the target host.
 
-- name: Reset materialized restic client state
-  ansible.builtin.set_fact:
-    add_restic_client_materialized_repositories: []
-    add_restic_client_admin_scripts_extra_scripts: []
-    add_restic_client_admin_scripts_service_groups: []
+- name: Resolve latest restic release metadata
+  ansible.builtin.uri:
+    url: "{{ add_restic_client_release_api_url }}"
+    return_content: true
+  delegate_to: localhost
+  become: false
+  register: add_restic_client_latest_release_result
+  when: add_restic_client_version == 'latest'
 
-- name: Materialize restic client repositories
+- name: Materialize effective restic version
   ansible.builtin.set_fact:
-    add_restic_client_materialized_repositories: >-
+    add_restic_client_effective_version: >-
       {{
-        (add_restic_client_materialized_repositories | default([]))
+        (
+          add_restic_client_latest_release_result.json.tag_name
+          | regex_replace('^v', '')
+        )
+        if (add_restic_client_version == 'latest')
+        else add_restic_client_version
+      }}
+
+- name: Check for currently installed restic binary
+  ansible.builtin.stat:
+    path: "{{ add_restic_client_binary_path }}"
+  register: add_restic_client_binary_stat
+
+- name: Query installed restic version
+  ansible.builtin.command:
+    argv:
+      - "{{ add_restic_client_binary_path }}"
+      - version
+  register: add_restic_client_installed_version_result
+  changed_when: false
+  when: add_restic_client_binary_stat.stat.exists
+
+- name: Materialize installed restic version
+  ansible.builtin.set_fact:
+    add_restic_client_installed_version: >-
+      {{
+        (
+          add_restic_client_installed_version_result.stdout
+          | regex_search('restic\\s+([0-9]+\\.[0-9]+\\.[0-9]+)', '\\1')
+          | default([''])
+          | first
+        )
+        if add_restic_client_binary_stat.stat.exists
+        else ''
+      }}
+
+- name: Initialize effective restic client repositories
+  ansible.builtin.set_fact:
+    add_restic_client_effective_repositories: []
+
+- name: Materialize effective restic client repositories
+  ansible.builtin.set_fact:
+    add_restic_client_effective_repositories: >-
+      {{
+        add_restic_client_effective_repositories
         + [
             item
             | combine(
                 {
-                  'key': item.name | string | trim,
-                  'uses_rest_username_placeholder': (
-                    '{rest_username}' in (item.repository | string | trim)
+                  'path': item.path | string,
+                  'resticRepository': item.resticRepository | string | trim,
+                  'repositoryPassword': item.repositoryPassword | string,
+                  'backupPreCommand': (
+                    item.backupPreCommand | default('')
                   ),
-                  'uses_rest_password_placeholder': (
-                    '{rest_password}' in (item.repository | string | trim)
-                  ),
-                  'repository_resolved': (
-                    (
-                      item.repository
-                      | string
-                      | trim
-                    )
-                    | replace(
-                        '{rest_username}',
-                        (
-                          (
-                            add_restic_client_repository_credentials[
-                              item.name | string | trim
-                            ]
-                            | default({})
-                          ).rest_username | default('')
-                        )
-                      )
-                    | replace(
-                        '{rest_password}',
-                        (
-                          (
-                            add_restic_client_repository_credentials[
-                              item.name | string | trim
-                            ]
-                            | default({})
-                          ).rest_password | default('')
-                        )
-                      )
-                  ),
-                  'repository_display': (
-                    (
-                      item.repository
-                      | string
-                      | trim
-                    )
-                    | replace(
-                        '{rest_username}',
-                        (
-                          (
-                            add_restic_client_repository_credentials[
-                              item.name | string | trim
-                            ]
-                            | default({})
-                          ).rest_username | default('')
-                        )
-                      )
-                    | replace('{rest_password}', '***')
-                  ),
-                  'uses_rest_backend': (
-                    item.repository | string | trim is match('^rest:')
-                  ),
-                  'backup_script_name': (
-                    'restic-backup-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                  ),
-                  'restore_script_name': (
-                    'restic-restore-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                  ),
-                  'backup_script_path': (
-                    add_restic_client_script_dir
-                    ~ '/'
-                    ~ (
-                      'restic-backup-'
-                      ~ (
-                        item.name
-                        | string
-                        | trim
-                        | regex_replace('[^A-Za-z0-9._-]', '-')
-                      )
-                    )
-                  ),
-                  'restore_script_path': (
-                    add_restic_client_script_dir
-                    ~ '/'
-                    ~ (
-                      'restic-restore-'
-                      ~ (
-                        item.name
-                        | string
-                        | trim
-                        | regex_replace('[^A-Za-z0-9._-]', '-')
-                      )
-                    )
-                  ),
-                  'env_file': (
-                    add_restic_client_env_dir
-                    ~ '/'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '_')
-                    )
-                    ~ '.env'
-                  ),
-                  'backup_service_name': (
-                    'restic-backup-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                    ~ '.service'
-                  ),
-                  'backup_service_unit_path': (
-                    '/etc/systemd/system/'
-                    ~ 'restic-backup-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                    ~ '.service'
-                  ),
-                  'backup_timer_name': (
-                    'restic-backup-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                    ~ '.timer'
-                  ),
-                  'backup_timer_unit_path': (
-                    '/etc/systemd/system/'
-                    ~ 'restic-backup-'
-                    ~ (
-                      item.name
-                      | string
-                      | trim
-                      | regex_replace('[^A-Za-z0-9._-]', '-')
-                    )
-                    ~ '.timer'
-                  ),
-                  'backup_schedule_enabled': (
-                    item.backup_schedule_enabled
-                    | default(add_restic_client_backup_schedule_enabled)
-                    | bool
-                  ),
-                  'backup_timer_on_calendar': (
-                    item.backup_timer_on_calendar
-                    | default(add_restic_client_backup_timer_on_calendar)
-                  ),
-                  'backup_timer_randomized_delay_sec': (
-                    item.backup_timer_randomized_delay_sec
-                    | default(add_restic_client_backup_timer_randomized_delay_sec)
-                  ),
-                  'backup_options_resolved': (
-                    item.backup_options
-                    if item.backup_options is defined
+                  'resticBackupOptions': (
+                    item.resticBackupOptions
+                    if item.resticBackupOptions is defined
                     else []
                   ),
-                  'backup_pre_command_resolved': (
-                    item.backup_pre_command | default('')
+                  'forgetArgs': (
+                    item.forgetArgs
+                    if item.forgetArgs is defined
+                    else []
                   ),
-                  'backup_path_resolved': (
-                    item.path | string | trim
+                  'restUsername': (
+                    item.restUsername
+                    if item.restUsername is defined
+                    else (
+                      (
+                        item.resticRepository
+                        | string
+                        | trim
+                        | regex_search('^rest:https?://([^:/@]+)(?::[^@]*)?@', '\\1')
+                        | default([''])
+                      )
+                      | first
+                    )
+                  ),
+                  'repositoryDisplay': (
+                    item.repositoryDisplay
+                    if item.repositoryDisplay is defined
+                    else (
+                      item.resticRepository
+                      | string
+                      | trim
+                      | regex_replace(
+                          '^(rest:https?://[^:/@]+):[^@]*@',
+                          '\\1:***@'
+                        )
+                    )
                   )
                 }
               )
           ]
       }}
-  loop: "{{ add_restic_client_repositories }}"
+  loop: "{{ add_restic_client_effective_repositories_input }}"
   loop_control:
     label: "{{ item.name }}"
 
-- name: Assert repository passwords exist for all client repositories
+- name: Assert repository display strings are redacted when credentials are embedded
   ansible.builtin.assert:
     that:
-      - item.key in add_restic_client_repository_credentials
-      - add_restic_client_repository_credentials[item.key].repository_password is defined
-      - add_restic_client_repository_credentials[item.key].repository_password | string | trim | length > 0
+      - >-
+        (
+          item.resticRepository | string | trim
+          is not match('^rest:https?://[^:/@]+:[^@]+@')
+        )
+        or
+        (
+          item.repositoryDisplay | string
+          != item.resticRepository | string
+        )
     fail_msg: >-
-      Missing add_restic_client_repository_credentials.repository_password for
-      {{ item.key }}.
-  loop: "{{ add_restic_client_materialized_repositories }}"
+      Repository {{ item.name }} embeds credentials in resticRepository, so
+      repositoryDisplay must be redacted.
+  loop: "{{ add_restic_client_effective_repositories }}"
   loop_control:
-    label: "{{ item.key }}"
+    label: "{{ item.name }}"
 
-- name: Assert rest username placeholders have matching credentials
-  ansible.builtin.assert:
-    that:
-      - add_restic_client_repository_credentials[item.key].rest_username is defined
-      - add_restic_client_repository_credentials[item.key].rest_username | string | trim | length > 0
-    fail_msg: >-
-      Missing add_restic_client_repository_credentials.{{ item.key }}.rest_username
-      for repository placeholder expansion.
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
-  when: item.uses_rest_username_placeholder
+- name: Materialize snapshot-enabled repositories
+  ansible.builtin.set_fact:
+    add_restic_client_snapshot_repositories: >-
+      {{
+        add_restic_client_effective_repositories
+        | selectattr('snapshotAllowed', 'equalto', true)
+        | list
+      }}
+    add_restic_client_restore_repositories: >-
+      {{
+        add_restic_client_effective_repositories
+        | selectattr('restoreAllowed', 'equalto', true)
+        | list
+      }}
+    add_restic_client_forget_repositories: >-
+      {{
+        add_restic_client_effective_repositories
+        | selectattr('forgetAllowed', 'equalto', true)
+        | list
+      }}
 
-- name: Assert rest password placeholders have matching credentials
-  ansible.builtin.assert:
-    that:
-      - add_restic_client_repository_credentials[item.key].rest_password is defined
-      - add_restic_client_repository_credentials[item.key].rest_password | string | trim | length > 0
-    fail_msg: >-
-      Missing add_restic_client_repository_credentials.{{ item.key }}.rest_password
-      for repository placeholder expansion.
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
-  when: item.uses_rest_password_placeholder
+- name: Materialize generated restic client config
+  ansible.builtin.set_fact:
+    add_restic_client_generated_config: >-
+      {{
+        {
+          'log': {
+            'path': add_restic_client_log_dir,
+            'retainLogs': add_restic_client_log_retain
+          },
+          'resticBinary': add_restic_client_binary_path,
+          'backupIgnoreFilename': add_restic_client_backup_ignore_filename,
+          'snapshotSchedule': {
+            'enabled': (
+              add_restic_client_snapshot_repositories | length > 0
+              and add_restic_client_snapshot_schedule_enabled
+            ),
+            'unit': add_restic_client_snapshot_timer_name
+          },
+          'retentionSchedule': {
+            'enabled': (
+              add_restic_client_forget_repositories | length > 0
+              and add_restic_client_retention_schedule_enabled
+            ),
+            'unit': add_restic_client_retention_timer_name
+          },
+          'repositories': add_restic_client_effective_repositories | list
+        }
+      }}
 
-- name: Assert rest username placeholders were fully resolved
-  ansible.builtin.assert:
-    that:
-      - "'{rest_username}' not in item.repository_resolved"
-    fail_msg: >-
-      Repository {{ item.key }} still contains {rest_username}. Add
-      add_restic_client_repository_credentials.{{ item.key }}.rest_username.
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
-
-- name: Assert rest password placeholders were fully resolved
-  ansible.builtin.assert:
-    that:
-      - "'{rest_password}' not in item.repository_resolved"
-    fail_msg: >-
-      Repository {{ item.key }} still contains {rest_password}. Add
-      add_restic_client_repository_credentials.{{ item.key }}.rest_password.
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
-
-- name: Install restic package
+- name: Install restic client packages
   ansible.builtin.apt:
     name: "{{ add_restic_client_packages }}"
     state: present
     update_cache: true
+
+- name: Download restic archive when install or update is needed
+  ansible.builtin.get_url:
+    url: "{{ add_restic_client_archive_url }}"
+    dest: "{{ add_restic_client_archive_path }}"
+    mode: "0644"
+  when: add_restic_client_installed_version != add_restic_client_effective_version
+
+- name: Extract restic binary when install or update is needed
+  ansible.builtin.shell: >-
+    set -euo pipefail &&
+    bzip2 -dc {{ add_restic_client_archive_path | quote }} > {{ add_restic_client_extracted_binary_path | quote }}
+  args:
+    executable: /bin/bash
+  when: add_restic_client_installed_version != add_restic_client_effective_version
+
+- name: Install restic binary when install or update is needed
+  ansible.builtin.copy:
+    src: "{{ add_restic_client_extracted_binary_path }}"
+    dest: "{{ add_restic_client_binary_path }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: add_restic_client_installed_version != add_restic_client_effective_version
+
+- name: Remove temporary restic extraction binary
+  ansible.builtin.file:
+    path: "{{ add_restic_client_extracted_binary_path }}"
+    state: absent
+  when: add_restic_client_installed_version != add_restic_client_effective_version
 
 - name: Ensure restic client directories exist
   ansible.builtin.file:
@@ -347,149 +366,243 @@
       owner: root
       group: "{{ add_restic_client_service_group }}"
       mode: "0750"
-    - path: "{{ add_restic_client_env_dir }}"
-      owner: root
-      group: "{{ add_restic_client_service_group }}"
-      mode: "0750"
-    - path: "{{ add_restic_client_restore_log_dir }}"
+    - path: "{{ add_restic_client_log_dir }}"
       owner: "{{ add_restic_client_service_user }}"
       group: "{{ add_restic_client_service_group }}"
       mode: "0750"
   loop_control:
     label: "{{ item.path }}"
 
-- name: Ensure configured restic restore target directories exist
-  ansible.builtin.file:
-    path: "{{ item.path }}"
-    state: directory
-    owner: "{{ add_restic_client_service_user }}"
-    group: "{{ add_restic_client_service_group }}"
-    mode: "0755"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.path }}"
-
-- name: Install restic client env files
+- name: Install shared restic client runtime script
   ansible.builtin.copy:
-    content: |
-      RESTIC_REPOSITORY={{ item.repository_resolved | quote }}
-      RESTIC_PASSWORD={{ add_restic_client_repository_credentials[item.key].repository_password | quote }}
-      RESTIC_RESTORE_PATH={{ item.path | quote }}
-    dest: "{{ item.env_file }}"
+    src: "{{ playbook_dir }}/../apps/restic-client/restic-client.ps1"
+    dest: "{{ add_restic_client_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install shared restic client schema for local validation
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../apps/restic-client/restic-client.schema.json"
+    dest: >-
+      {{
+        add_restic_client_script_path
+        | regex_replace('\\.ps1$', '.schema.json')
+      }}
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install generated restic client config
+  ansible.builtin.copy:
+    content: "{{ add_restic_client_generated_config | to_nice_json }}"
+    dest: "{{ add_restic_client_config_file }}"
     owner: root
     group: "{{ add_restic_client_service_group }}"
     mode: "0640"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
   no_log: true
 
-- name: Install restic backup scripts
-  ansible.builtin.template:
-    src: restic-client-backup.sh.j2
-    dest: "{{ item.backup_script_path }}"
-    owner: "{{ add_restic_client_service_user }}"
-    group: "{{ add_restic_client_service_group }}"
-    mode: "0750"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.backup_script_name }}"
+- name: Remove legacy restic client env directory
+  ansible.builtin.file:
+    path: "{{ add_restic_client_legacy_env_dir }}"
+    state: absent
 
-- name: Install restic restore scripts
-  ansible.builtin.template:
-    src: restic-client-restore.sh.j2
-    dest: "{{ item.restore_script_path }}"
-    owner: "{{ add_restic_client_service_user }}"
-    group: "{{ add_restic_client_service_group }}"
-    mode: "0750"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.restore_script_name }}"
+- name: Find legacy per-repository restic helper scripts
+  ansible.builtin.find:
+    paths: /usr/local/bin
+    patterns:
+      - restic-backup-*
+      - restic-restore-*
+    recurse: false
+    file_type: any
+  register: add_restic_client_legacy_script_find_result
 
-- name: Install restic backup service units
+- name: Remove legacy per-repository restic helper scripts
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ add_restic_client_legacy_script_find_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Find legacy restic unit files
+  ansible.builtin.find:
+    paths: /etc/systemd/system
+    patterns:
+      - restic-backup-*.service
+      - restic-backup-*.timer
+      - restic-retention.service
+      - restic-retention.timer
+    recurse: false
+    file_type: file
+  register: add_restic_client_legacy_unit_find_result
+
+- name: Remove legacy restic unit files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ add_restic_client_legacy_unit_find_result.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install snapshot service unit when snapshots are allowed
   ansible.builtin.template:
-    src: restic-client-backup.service.j2
-    dest: "{{ item.backup_service_unit_path }}"
+    src: restic-client-snapshot.service.j2
+    dest: "{{ add_restic_client_snapshot_service_unit_path }}"
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.backup_service_name }}"
+  when: add_restic_client_snapshot_repositories | length > 0
 
-- name: Install restic backup timer units
+- name: Remove snapshot service unit when snapshots are not allowed
+  ansible.builtin.file:
+    path: "{{ add_restic_client_snapshot_service_unit_path }}"
+    state: absent
+  when: add_restic_client_snapshot_repositories | length == 0
+
+- name: Install snapshot timer unit when snapshots are allowed
   ansible.builtin.template:
-    src: restic-client-backup.timer.j2
-    dest: "{{ item.backup_timer_unit_path }}"
+    src: restic-client-snapshot.timer.j2
+    dest: "{{ add_restic_client_snapshot_timer_unit_path }}"
     owner: root
     group: root
     mode: "0644"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.backup_timer_name }}"
+  when: add_restic_client_snapshot_repositories | length > 0
+
+- name: Remove snapshot timer unit when snapshots are not allowed
+  ansible.builtin.file:
+    path: "{{ add_restic_client_snapshot_timer_unit_path }}"
+    state: absent
+  when: add_restic_client_snapshot_repositories | length == 0
+
+- name: Install retention service unit when forget is allowed
+  ansible.builtin.template:
+    src: restic-client-retention.service.j2
+    dest: "{{ add_restic_client_retention_service_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: add_restic_client_forget_repositories | length > 0
+
+- name: Remove retention service unit when forget is not allowed
+  ansible.builtin.file:
+    path: "{{ add_restic_client_retention_service_unit_path }}"
+    state: absent
+  when: add_restic_client_forget_repositories | length == 0
+
+- name: Install retention timer unit when forget is allowed
+  ansible.builtin.template:
+    src: restic-client-retention.timer.j2
+    dest: "{{ add_restic_client_retention_timer_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: add_restic_client_forget_repositories | length > 0
+
+- name: Remove retention timer unit when forget is not allowed
+  ansible.builtin.file:
+    path: "{{ add_restic_client_retention_timer_unit_path }}"
+    state: absent
+  when: add_restic_client_forget_repositories | length == 0
 
 - name: Reload systemd after restic client unit changes
   ansible.builtin.systemd_service:
     daemon_reload: true
 
-- name: Apply restic backup timer state
+- name: Stop snapshot timer when no snapshot repositories are configured
   ansible.builtin.systemd_service:
-    name: "{{ item.backup_timer_name }}"
-    enabled: "{{ item.backup_schedule_enabled }}"
-    state: "{{ 'started' if item.backup_schedule_enabled else 'stopped' }}"
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.backup_timer_name }}"
+    name: "{{ add_restic_client_snapshot_timer_name }}"
+    enabled: false
+    state: stopped
+  failed_when: false
+  when: add_restic_client_snapshot_repositories | length == 0
 
-- name: Materialize admin wrapper scripts for restic client repositories
+- name: Apply snapshot timer state
+  ansible.builtin.systemd_service:
+    name: "{{ add_restic_client_snapshot_timer_name }}"
+    enabled: "{{ add_restic_client_snapshot_schedule_enabled }}"
+    state: >-
+      {{ 'started' if add_restic_client_snapshot_schedule_enabled else 'stopped' }}
+  when: add_restic_client_snapshot_repositories | length > 0
+
+- name: Stop retention timer when no forget repositories are configured
+  ansible.builtin.systemd_service:
+    name: "{{ add_restic_client_retention_timer_name }}"
+    enabled: false
+    state: stopped
+  failed_when: false
+  when: add_restic_client_forget_repositories | length == 0
+
+- name: Apply retention timer state
+  ansible.builtin.systemd_service:
+    name: "{{ add_restic_client_retention_timer_name }}"
+    enabled: "{{ add_restic_client_retention_schedule_enabled }}"
+    state: >-
+      {{ 'started' if add_restic_client_retention_schedule_enabled else 'stopped' }}
+  when: add_restic_client_forget_repositories | length > 0
+
+- name: Materialize admin wrapper scripts for restic client
   ansible.builtin.set_fact:
-    add_restic_client_admin_scripts_extra_scripts: >-
-      {{
-        (add_restic_client_admin_scripts_extra_scripts | default([]))
-        + [
-            {
-              'name': item.backup_script_name,
-              'link_target': item.backup_script_path
-            },
-            {
-              'name': item.restore_script_name,
-              'link_target': item.restore_script_path
-            }
-          ]
-      }}
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
+    add_restic_client_admin_scripts_extra_scripts:
+      - name: restic-client
+        link_target: "{{ add_restic_client_script_path }}"
 
-- name: Materialize admin service groups for restic backup timers
+- name: Initialize admin service groups for restic client
+  ansible.builtin.set_fact:
+    add_restic_client_admin_scripts_service_groups: []
+
+- name: Add snapshot admin service group when snapshots are configured
   ansible.builtin.set_fact:
     add_restic_client_admin_scripts_service_groups: >-
       {{
-        (add_restic_client_admin_scripts_service_groups | default([]))
+        add_restic_client_admin_scripts_service_groups
         + [
             {
-              'key': (
-                'restic-backup-'
-                ~ (item.key | regex_replace('[^A-Za-z0-9._-]', '-'))
-              ),
-              'label': 'restic backup ' ~ item.key,
+              'key': 'restic-client-snapshot',
+              'label': 'restic client snapshot',
               'status_units': [
-                item.backup_service_name,
-                item.backup_timer_name
+                add_restic_client_snapshot_service_name,
+                add_restic_client_snapshot_timer_name
               ],
               'start_enable_units': [
-                item.backup_timer_name
+                add_restic_client_snapshot_timer_name
               ],
               'start_start_units': [],
               'stop_disable_units': [
-                item.backup_timer_name
+                add_restic_client_snapshot_timer_name
               ],
               'stop_stop_units': [
-                item.backup_service_name
+                add_restic_client_snapshot_service_name
               ]
             }
           ]
       }}
-  loop: "{{ add_restic_client_materialized_repositories }}"
-  loop_control:
-    label: "{{ item.key }}"
+  when: add_restic_client_snapshot_repositories | length > 0
+
+- name: Add retention admin service group when forget is configured
+  ansible.builtin.set_fact:
+    add_restic_client_admin_scripts_service_groups: >-
+      {{
+        add_restic_client_admin_scripts_service_groups
+        + [
+            {
+              'key': 'restic-client-retention',
+              'label': 'restic client retention',
+              'status_units': [
+                add_restic_client_retention_service_name,
+                add_restic_client_retention_timer_name
+              ],
+              'start_enable_units': [
+                add_restic_client_retention_timer_name
+              ],
+              'start_start_units': [],
+              'stop_disable_units': [
+                add_restic_client_retention_timer_name
+              ],
+              'stop_stop_units': [
+                add_restic_client_retention_service_name
+              ]
+            }
+          ]
+      }}
+  when: add_restic_client_forget_repositories | length > 0

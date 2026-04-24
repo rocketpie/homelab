@@ -1,55 +1,61 @@
 # Restic Client Windows Script
 
-The `context/restic-client/New-ResticSnapshot.ps1` helper manages ad-hoc and
-scheduled restic backups for the local Windows machine.
+The shared runtime now lives at `apps/restic-client/restic-client.ps1`.
+
+This repo does not deploy Windows hosts through Ansible, but the same script
+can still be used locally on Windows with a matching JSON config.
 
 ## Interactive Use
 
 Run the script without arguments to open the interactive menu:
 
 ```powershell
-pwsh context/restic-client/New-ResticSnapshot.ps1
+pwsh apps/restic-client/restic-client.ps1
 ```
 
 Available actions:
 
 - run backup now
+- run retention now
 - show snapshots for each configured path
-- install or update the scheduled task
-- remove the scheduled task
+- restore files for repositories that allow restore
+- run a custom restic command with the configured environment
 
 ## Non-Interactive Use
 
 The script also supports explicit actions:
 
 ```powershell
-pwsh context/restic-client/New-ResticSnapshot.ps1 -Action Backup
-pwsh context/restic-client/New-ResticSnapshot.ps1 -Action ShowSnapshots
-pwsh context/restic-client/New-ResticSnapshot.ps1 -Action InstallSchedule
-pwsh context/restic-client/New-ResticSnapshot.ps1 -Action RemoveSchedule
+pwsh apps/restic-client/restic-client.ps1 -RunSnapshot
+pwsh apps/restic-client/restic-client.ps1 -RunRetention
+pwsh apps/restic-client/restic-client.ps1 -ShowStatus
 ```
-
-The scheduled task created by the script runs the `Backup` action directly, so
-scheduled executions stay non-interactive.
 
 ## Config
 
-`context/restic-client/New-ResticSnapshot.json` now supports an optional
-`scheduledTask` block:
+Use `apps/restic-client/restic-client.schema.json` as the schema reference for
+your local config.
+
+Repository entries use explicit capability flags:
 
 ```json
-"scheduledTask": {
-  "name": "New-ResticSnapshot",
-  "description": "Run configured restic snapshots",
-  "dailyAt": "02:00"
+{
+  "name": "documents",
+  "path": "D:\\Documents",
+  "resticRepository": "rest:http://user:password@backup.lan:8000/user/documents",
+  "repositoryPassword": "RESTIC_REPOSITORY_PASSWORD",
+  "snapshotAllowed": true,
+  "restoreAllowed": true,
+  "forgetAllowed": false,
+  "resticBackupOptions": [
+    "--skip-if-unchanged"
+  ],
+  "forgetArgs": []
 }
 ```
 
-If the block is missing, the script falls back to sensible defaults:
-
-- task name: script file name
-- description: generated from the script name
-- daily trigger time: `02:00`
+Windows-specific scheduled-task management is no longer part of the shared
+script.
 
 ## Backup Ignore Files
 

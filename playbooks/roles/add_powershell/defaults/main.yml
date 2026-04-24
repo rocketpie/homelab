@@ -1,0 +1,10 @@
+---
+add_powershell_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gpg
+
+add_powershell_repo_key_path: /etc/apt/keyrings/microsoft.asc
+add_powershell_repo_filename: microsoft-prod
+add_powershell_package_name: powershell

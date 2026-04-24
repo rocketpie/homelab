@@ -1,0 +1,137 @@
+[
+  {
+    "name": "restic-server-test-repo1",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/restic-server-test/repo1",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['restic-server-test-repo1'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": false,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "2d",
+      "--keep-weekly",
+      "1",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/restic-server-test/repo1"
+  },
+  {
+    "name": "lc3win-d",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/lc3win/d",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['lc3win-d'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "7d",
+      "--keep-weekly",
+      "4",
+      "--keep-monthly",
+      "6",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/lc3win/d"
+  },
+  {
+    "name": "lc3win-documents",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/lc3win/documents",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['lc3win-documents'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "30d",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/lc3win/documents"
+  },
+  {
+    "name": "lc3win-scans",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/lc3win/scans",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['lc3win-scans'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "14d",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/lc3win/scans"
+  },
+  {
+    "name": "dockerhost2-paperless",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/dockerhost2/paperless",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['dockerhost2-paperless'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "7d",
+      "--keep-weekly",
+      "4",
+      "--keep-monthly",
+      "6",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/dockerhost2/paperless"
+  },
+  {
+    "name": "dockerhost2-immich",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/dockerhost2/immich",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['dockerhost2-immich'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "7d",
+      "--keep-weekly",
+      "4",
+      "--keep-monthly",
+      "6",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/dockerhost2/immich"
+  },
+  {
+    "name": "james-influxdb",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/james/influxdb",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['james-influxdb'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "7d",
+      "--keep-weekly",
+      "8",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/james/influxdb"
+  }
+]

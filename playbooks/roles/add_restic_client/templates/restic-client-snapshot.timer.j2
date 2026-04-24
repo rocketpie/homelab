@@ -1,0 +1,11 @@
+[Unit]
+Description=Run configured restic client snapshot timer
+
+[Timer]
+OnCalendar={{ add_restic_client_snapshot_schedule_on_calendar }}
+RandomizedDelaySec={{ add_restic_client_snapshot_timer_randomized_delay_sec }}
+Persistent=true
+Unit={{ add_restic_client_snapshot_service_name }}
+
+[Install]
+WantedBy=timers.target

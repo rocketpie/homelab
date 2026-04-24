@@ -6,7 +6,7 @@ param(
     [Parameter(ParameterSetName = "Help")]
     [switch]$Help,
 
-    [Parameter(ParameterSetName = "Run", Position = 1)]
+    [Parameter(ParameterSetName = "Run", Position = 0)]
     [ArgumentCompleter({
             param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
 
@@ -19,7 +19,10 @@ param(
             Where-Object { $_ -like "$wordToComplete*" } |
             Sort-Object
         })]
-    [string]$Playbook
+    [string]$Playbook,
+
+    [Parameter(ParameterSetName = "Run", ValueFromRemainingArguments = $true)]
+    [string[]]$AnsibleArgs = @()
 )
 
 Set-StrictMode -Version Latest
@@ -59,10 +62,10 @@ function Main([string]$PlaybookName) {
 
     Write-Host "Running: $playbookPath (inventory: $inventory)"
     if ($PSBoundParameters['Debug']) {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath -v --vault-password-file $vaultPasswordScript
+        & $vEnvAnsiblePlaybook -i $inventory $playbookPath -v @AnsibleArgs --vault-password-file $vaultPasswordScript
     }
     else {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
+        & $vEnvAnsiblePlaybook -i $inventory $playbookPath @AnsibleArgs --vault-password-file $vaultPasswordScript
     }
 }
 

@@ -10,9 +10,11 @@
       - test_restic_server_auth_entry.user | string | trim | length > 0
       - test_restic_server_auth_entry.password is defined
       - test_restic_server_auth_entry.password | string | trim | length > 0
+      - test_restic_server_restic_client_script_path | string | trim | length > 0
+      - test_restic_server_restic_client_config_file | string | trim | length > 0
     fail_msg: "Missing required vars for test_restic_server"
 
-- name: Verify rest-server health and HTTP behavior
+- name: Verify rest-server and generated restic client setup
   block:
     - name: Check whether rest-server service is active
       ansible.builtin.command:
@@ -103,7 +105,371 @@
           status={{ test_restic_server_http_authenticated_result.status }}
           content={{ test_restic_server_http_authenticated_result.content | default('(no content)') }}
 
-    - name: Show rest-server test summary
+    - name: Check whether restic client runtime script exists
+      ansible.builtin.stat:
+        path: "{{ test_restic_server_restic_client_script_path }}"
+      register: test_restic_server_restic_client_script_stat
+
+    - name: Assert restic client runtime script exists
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_restic_client_script_stat.stat.exists
+        fail_msg: >-
+          Missing generated restic client runtime script at
+          {{ test_restic_server_restic_client_script_path }}.
+
+    - name: Check whether generated restic client config exists
+      ansible.builtin.stat:
+        path: "{{ test_restic_server_restic_client_config_file }}"
+      register: test_restic_server_restic_client_config_stat
+
+    - name: Assert generated restic client config exists
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_restic_client_config_stat.stat.exists
+        fail_msg: >-
+          Missing generated restic client config at
+          {{ test_restic_server_restic_client_config_file }}.
+
+    - name: Read generated restic client config
+      ansible.builtin.slurp:
+        src: "{{ test_restic_server_restic_client_config_file }}"
+      register: test_restic_server_restic_client_config_slurp
+
+    - name: Materialize generated restic client config
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config: >-
+          {{
+            test_restic_server_restic_client_config_slurp.content
+            | b64decode
+            | from_json
+          }}
+
+    - name: Assert generated restic client config has repositories
+      ansible.builtin.assert:
+        that:
+          - test_restic_server_restic_client_config.repositories | length > 0
+          - test_restic_server_restic_client_config.resticBinary | string | trim | length > 0
+          - test_restic_server_restic_client_config.log.path | string | trim | length > 0
+        fail_msg: "Generated restic client config is missing required fields."
+
+    - name: Run generated restic client status command
+      ansible.builtin.command:
+        argv:
+          - pwsh
+          - -NoProfile
+          - -File
+          - "{{ test_restic_server_restic_client_script_path }}"
+          - -ConfigPath
+          - "{{ test_restic_server_restic_client_config_file }}"
+          - -ShowStatus
+      register: test_restic_server_restic_client_status_result
+      changed_when: false
+
+    - name: Initialize restic client config warnings
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config_warnings: []
+
+    - name: Warn when snapshot or restore is allowed but path is empty
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config_warnings: >-
+          {{
+            test_restic_server_restic_client_config_warnings
+            + [
+                "Repository "
+                ~ item.name
+                ~ " allows snapshot or restore, but path is empty."
+              ]
+          }}
+      loop: "{{ test_restic_server_restic_client_config.repositories }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - (item.snapshotAllowed | bool) or (item.restoreAllowed | bool)
+        - item.path | string | trim | length == 0
+
+    - name: Warn when forget is allowed but forgetArgs is empty
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config_warnings: >-
+          {{
+            test_restic_server_restic_client_config_warnings
+            + [
+                "Repository "
+                ~ item.name
+                ~ " allows forget, but forgetArgs is empty."
+              ]
+          }}
+      loop: "{{ test_restic_server_restic_client_config.repositories }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - item.forgetAllowed | bool
+        - item.forgetArgs | length == 0
+
+    - name: Warn when snapshot settings exist but snapshot is not allowed
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config_warnings: >-
+          {{
+            test_restic_server_restic_client_config_warnings
+            + [
+                "Repository "
+                ~ item.name
+                ~ " defines snapshot settings, but snapshotAllowed is false."
+              ]
+          }}
+      loop: "{{ test_restic_server_restic_client_config.repositories }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - not (item.snapshotAllowed | bool)
+        - >-
+          (
+            (item.backupPreCommand | default('') | string | trim | length > 0)
+            or
+            (item.resticBackupOptions | default([]) | length > 0)
+          )
+
+    - name: Warn when forget args exist but forget is not allowed
+      ansible.builtin.set_fact:
+        test_restic_server_restic_client_config_warnings: >-
+          {{
+            test_restic_server_restic_client_config_warnings
+            + [
+                "Repository "
+                ~ item.name
+                ~ " defines forgetArgs, but forgetAllowed is false."
+              ]
+          }}
+      loop: "{{ test_restic_server_restic_client_config.repositories }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - not (item.forgetAllowed | bool)
+        - item.forgetArgs | length > 0
+
+    - name: Discover on-disk restic repositories on the server
+      ansible.builtin.find:
+        paths: "{{ add_restic_server_data_dir }}"
+        patterns: config
+        recurse: true
+        file_type: file
+      register: test_restic_server_discovered_repository_config_result
+
+    - name: Materialize generated forget-managed repository keys
+      ansible.builtin.set_fact:
+        test_restic_server_generated_forget_repository_keys: >-
+          {{
+            test_restic_server_restic_client_config.repositories
+            | selectattr('forgetAllowed', 'equalto', true)
+            | map(attribute='resticRepository')
+            | map('regex_replace', '^.*/([^/]+)/([^/]+)$', '\\1/\\2')
+            | list
+          }}
+        test_restic_server_discovered_repository_keys: >-
+          {{
+            test_restic_server_discovered_repository_config_result.files
+            | map(attribute='path')
+            | map('regex_replace', '^.*/([^/]+)/([^/]+)/config$', '\\1/\\2')
+            | list
+          }}
+
+    - name: Materialize client-side repo and access user records from inventory
+      ansible.builtin.set_fact:
+        test_restic_server_client_repo_records_json: >-
+          {%- set records = [] -%}
+          {%- for host_name in groups['restic_client'] | default([]) -%}
+          {%- set repositories = (
+            (
+              lookup(
+                'template',
+                inventory_dir
+                ~ '/host_vars/' ~ host_name
+                ~ '/' ~ hostvars[host_name].add_restic_client_repositories_template_file
+              )
+              | from_json
+            )
+            if (
+              hostvars[host_name].add_restic_client_repositories_template_file
+              | default('')
+              | string
+              | trim
+              | length > 0
+            )
+            else (hostvars[host_name].add_restic_client_repositories | default([]))
+          ) -%}
+          {%- for repository in repositories -%}
+          {%- set resolved_repository = (repository.resticRepository | default(repository.repository | default('')) | string | trim) -%}
+          {%- if resolved_repository is match('^rest:https?://') -%}
+          {%- set repo_key = resolved_repository | regex_replace('^rest:https?://(?:[^@]+@)?[^/]+/', '') -%}
+          {%- set access_user = (repository.restUsername | default(repo_key | regex_replace('/.*$', '')) | string | trim) -%}
+          {%- set _ = records.append({
+            'host': host_name,
+            'name': repository.name,
+            'repo_key': repo_key,
+            'access_user': access_user
+          }) -%}
+          {%- endif -%}
+          {%- endfor -%}
+          {%- endfor -%}
+          {{ records | to_json }}
+
+    - name: Parse client-side repo and access user records
+      ansible.builtin.set_fact:
+        test_restic_server_client_repo_records: >-
+          {{ test_restic_server_client_repo_records_json | from_json }}
+
+    - name: Materialize inventory consistency warning inputs
+      ansible.builtin.set_fact:
+        test_restic_server_access_users: >-
+          {{
+            add_restic_server_htpasswd_entries
+            | default([])
+            | map(attribute='user')
+            | list
+          }}
+        test_restic_server_client_repo_keys: >-
+          {{
+            test_restic_server_client_repo_records
+            | map(attribute='repo_key')
+            | list
+          }}
+        test_restic_server_client_access_users: >-
+          {{
+            test_restic_server_client_repo_records
+            | map(attribute='access_user')
+            | list
+            | reject('equalto', '')
+            | unique
+            | list
+          }}
+
+    - name: Initialize inventory consistency warnings
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: []
+
+    - name: Warn when configured access users have no client-side repos
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: >-
+          {{
+            test_restic_server_inventory_warnings
+            + [
+                "rest-server access user " ~ item ~ " has no client-side repository."
+              ]
+          }}
+      loop: >-
+        {{
+          test_restic_server_access_users
+          | difference(test_restic_server_client_access_users)
+        }}
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Warn when client-side repo access users are missing from the server
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: >-
+          {{
+            test_restic_server_inventory_warnings
+            + [
+                "Client-side access user " ~ item ~ " is missing from add_restic_server_htpasswd_entries."
+              ]
+          }}
+      loop: >-
+        {{
+          test_restic_server_client_access_users
+          | difference(test_restic_server_access_users)
+        }}
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Warn when client-side repos do not have a server-side forget config counterpart
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: >-
+          {{
+            test_restic_server_inventory_warnings
+            + [
+                "Client-side repository " ~ item ~ " has no matching forget-managed repository on the server."
+              ]
+          }}
+      loop: >-
+        {{
+          test_restic_server_client_repo_keys
+          | difference(test_restic_server_generated_forget_repository_keys)
+        }}
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Warn when on-disk repositories are missing a forget-managed config entry
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: >-
+          {{
+            test_restic_server_inventory_warnings
+            + [
+                "On-disk repository " ~ item ~ " has no matching forget-managed config entry."
+              ]
+          }}
+      loop: >-
+        {{
+          test_restic_server_discovered_repository_keys
+          | difference(test_restic_server_generated_forget_repository_keys)
+        }}
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Warn when forget-managed repositories do not exist on disk yet
+      ansible.builtin.set_fact:
+        test_restic_server_inventory_warnings: >-
+          {{
+            test_restic_server_inventory_warnings
+            + [
+                "Forget-managed repository " ~ item ~ " is configured, but no on-disk repo exists yet."
+              ]
+          }}
+      loop: >-
+        {{
+          test_restic_server_generated_forget_repository_keys
+          | difference(test_restic_server_discovered_repository_keys)
+        }}
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Optionally probe a configured repository through the generated restic client config
+      ansible.builtin.shell: >-
+        set -euo pipefail &&
+        python3 - <<'PY'
+        import json
+        import os
+        import subprocess
+        config_path = {{ test_restic_server_restic_client_config_file | to_json }}
+        repository_name = {{ test_restic_server_probe_repository_name | to_json }}
+        with open(config_path, 'r', encoding='utf-8') as handle:
+            config = json.load(handle)
+        repo = next((item for item in config['repositories'] if item['name'] == repository_name), None)
+        if repo is None:
+            raise SystemExit(f"Repository {repository_name} not found in generated config")
+        env = os.environ.copy()
+        env['RESTIC_REPOSITORY'] = repo['resticRepository']
+        env['RESTIC_PASSWORD'] = repo['repositoryPassword']
+        subprocess.run([config['resticBinary'], 'snapshots', '--json'], env=env, check=True)
+        PY
+      args:
+        executable: /bin/bash
+      register: test_restic_server_repository_probe_result
+      changed_when: false
+      when: test_restic_server_run_repository_probe | bool
+
+    - name: Show generated restic client config warnings
+      ansible.builtin.debug:
+        msg: "{{ test_restic_server_restic_client_config_warnings }}"
+      changed_when: false
+      when: test_restic_server_restic_client_config_warnings | length > 0
+
+    - name: Show inventory consistency warnings
+      ansible.builtin.debug:
+        msg: "{{ test_restic_server_inventory_warnings }}"
+      changed_when: false
+      when: test_restic_server_inventory_warnings | length > 0
+
+    - name: Show rest-server and restic client test summary
       ansible.builtin.debug:
         msg:
           service_name: "{{ test_restic_server_service_name }}"
@@ -112,6 +478,9 @@
           authenticated_probe_url: "{{ test_restic_server_authenticated_probe_url }}"
           unauthenticated_status: "{{ test_restic_server_http_unauthenticated_result.status }}"
           authenticated_status: "{{ test_restic_server_http_authenticated_result.status }}"
+          generated_repo_count: "{{ test_restic_server_restic_client_config.repositories | length }}"
+          config_warning_count: "{{ test_restic_server_restic_client_config_warnings | length }}"
+          inventory_warning_count: "{{ test_restic_server_inventory_warnings | length }}"
       changed_when: false
 
   rescue:
@@ -140,6 +509,32 @@
       changed_when: false
       failed_when: false
 
+    - name: Troubleshoot capture recent restic client snapshot journal entries
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - restic-client-snapshot.service
+          - -n
+          - "50"
+          - --no-pager
+      register: test_restic_server_restic_client_snapshot_journal_result
+      changed_when: false
+      failed_when: false
+
+    - name: Troubleshoot capture recent restic client retention journal entries
+      ansible.builtin.command:
+        argv:
+          - journalctl
+          - -u
+          - restic-client-retention.service
+          - -n
+          - "50"
+          - --no-pager
+      register: test_restic_server_restic_client_retention_journal_result
+      changed_when: false
+      failed_when: false
+
     - name: Troubleshoot capture listening TCP sockets for rest-server port
       ansible.builtin.shell: >-
         set -o pipefail &&
@@ -160,8 +555,14 @@
           systemctl status:
           {{ test_restic_server_status_result.stdout | default('(no output)') }}
 
-          journalctl:
+          journalctl rest-server:
           {{ test_restic_server_journal_result.stdout | default('(no output)') }}
+
+          journalctl restic-client-snapshot:
+          {{ test_restic_server_restic_client_snapshot_journal_result.stdout | default('(no output)') }}
+
+          journalctl restic-client-retention:
+          {{ test_restic_server_restic_client_retention_journal_result.stdout | default('(no output)') }}
 
           listening sockets:
           {{ test_restic_server_port_result.stdout | default('(no output)') }}

@@ -1,0 +1,50 @@
+---
+- name: Validate host platform for PowerShell install
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['architecture'] in ['x86_64', 'amd64']
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: "add_powershell currently supports Debian-family Linux amd64 hosts only."
+
+- name: Install PowerShell apt prerequisites
+  ansible.builtin.apt:
+    name: "{{ add_powershell_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure apt keyring directory exists for PowerShell
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Microsoft apt repository key for PowerShell
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: "{{ add_powershell_repo_key_path }}"
+    mode: "0644"
+
+- name: Install Microsoft apt repository for PowerShell
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64 signed-by={{ add_powershell_repo_key_path }}]
+      https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod
+      {{ ansible_facts['distribution_release'] }} main
+    filename: "{{ add_powershell_repo_filename }}"
+    state: present
+
+- name: Install PowerShell package
+  ansible.builtin.apt:
+    name: "{{ add_powershell_package_name }}"
+    state: present
+    update_cache: true
+
+- name: Verify pwsh command
+  ansible.builtin.command:
+    argv:
+      - pwsh
+      - -Version
+  changed_when: false

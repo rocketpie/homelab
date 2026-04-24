@@ -53,7 +53,8 @@ On `restic1`, the `add_admin_scripts` role installs scripts for `archivar`
 covering:
 
 - `rest-server`
-- `restic-retention`
+- `restic-client`
+- `restic-client-retention`
 - `rclone-sync`
 - `pull-rclone-remote`
 

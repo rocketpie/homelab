@@ -13,30 +13,30 @@
         record_deployment_playbook: add-rest-server.yml
         record_deployment_roles:
           - add_restic_server
-          - add_restic_retention
+          - add_restic_client
           - add_rclone
           - add_admin_scripts
         record_deployment_metadata:
           services:
             - rest-server
-            - restic-retention
+            - restic-client-retention
             - rclone
 
   roles:
     - role: add_restic_server
-    - role: add_restic_retention
+    - role: add_restic_client
     - role: add_rclone
     - role: add_admin_scripts
       vars:
         add_admin_scripts_service_groups: >-
           {{
             (add_restic_server_admin_scripts_service_groups | default([]))
-            + (add_restic_retention_admin_scripts_service_groups | default([]))
+            + (add_restic_client_admin_scripts_service_groups | default([]))
             + (add_rclone_admin_scripts_service_groups | default([]))
           }}
         add_admin_scripts_extra_scripts: >-
           {{
-            (add_restic_retention_admin_scripts_extra_scripts | default([]))
+            (add_restic_client_admin_scripts_extra_scripts | default([]))
             + (add_rclone_admin_scripts_extra_scripts | default([]))
           }}
 
@@ -49,11 +49,11 @@
         record_deployment_playbook: add-rest-server.yml
         record_deployment_roles:
           - add_restic_server
-          - add_restic_retention
+          - add_restic_client
           - add_rclone
           - add_admin_scripts
         record_deployment_metadata:
           services:
             - rest-server
-            - restic-retention
+            - restic-client-retention
             - rclone

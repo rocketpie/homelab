@@ -1,23 +1,57 @@
 ---
+add_restic_client_version: latest
+add_restic_client_release_api_url: https://api.github.com/repos/restic/restic/releases/latest
+add_restic_client_archive_platform: linux_amd64
+add_restic_client_archive_filename: >-
+  restic_{{ add_restic_client_effective_version }}_{{ add_restic_client_archive_platform }}.bz2
+add_restic_client_archive_url: >-
+  https://github.com/restic/restic/releases/download/v{{ add_restic_client_effective_version }}/{{ add_restic_client_archive_filename }}
+add_restic_client_archive_path: >-
+  /var/tmp/{{ add_restic_client_archive_filename }}
+add_restic_client_extracted_binary_path: >-
+  /var/tmp/restic-{{ add_restic_client_effective_version }}
+
 add_restic_client_packages:
-  - restic
+  - bzip2
+  - ca-certificates
 
 add_restic_client_service_user: "{{ add_admin_scripts_user | default('root') }}"
 add_restic_client_service_group: "{{ add_restic_client_service_user }}"
 
-add_restic_client_binary_path: /usr/bin/restic
+add_restic_client_binary_path: /usr/local/bin/restic
+add_restic_client_script_path: /usr/local/bin/restic-client.ps1
+add_restic_client_pwsh_binary_path: /usr/bin/pwsh
+
 add_restic_client_config_dir: /etc/restic-client
-add_restic_client_env_dir: "{{ add_restic_client_config_dir }}/repos.d"
-add_restic_client_script_dir: /usr/local/bin
-add_restic_client_restore_log_dir: /var/log/restic-client
+add_restic_client_config_file: "{{ add_restic_client_config_dir }}/restic-client.json"
+add_restic_client_log_dir: /var/log/restic-client
 add_restic_client_backup_ignore_filename: .backupignore
+add_restic_client_log_retain: "30:00:00:00"
+add_restic_client_legacy_env_dir: "{{ add_restic_client_config_dir }}/repos.d"
+
+add_restic_client_snapshot_service_name: restic-client-snapshot.service
+add_restic_client_snapshot_service_unit_path: >-
+  /etc/systemd/system/{{ add_restic_client_snapshot_service_name }}
+add_restic_client_snapshot_timer_name: restic-client-snapshot.timer
+add_restic_client_snapshot_timer_unit_path: >-
+  /etc/systemd/system/{{ add_restic_client_snapshot_timer_name }}
+add_restic_client_snapshot_schedule_enabled: false
+add_restic_client_snapshot_schedule_on_calendar: daily
+add_restic_client_snapshot_timer_randomized_delay_sec: 30m
+
+add_restic_client_retention_service_name: restic-client-retention.service
+add_restic_client_retention_service_unit_path: >-
+  /etc/systemd/system/{{ add_restic_client_retention_service_name }}
+add_restic_client_retention_timer_name: restic-client-retention.timer
+add_restic_client_retention_timer_unit_path: >-
+  /etc/systemd/system/{{ add_restic_client_retention_timer_name }}
+add_restic_client_retention_schedule_enabled: false
+add_restic_client_retention_schedule_on_calendar: daily
+add_restic_client_retention_timer_randomized_delay_sec: 30m
 
 add_restic_client_repositories: []
-add_restic_client_repository_credentials: {}
-
-add_restic_client_backup_schedule_enabled: false
-add_restic_client_backup_timer_on_calendar: daily
-add_restic_client_backup_timer_randomized_delay_sec: 30m
+add_restic_client_repositories_template_file: ""
+add_restic_client_repository_secrets: {}
 
 add_restic_client_admin_scripts_service_groups: []
 add_restic_client_admin_scripts_extra_scripts: []

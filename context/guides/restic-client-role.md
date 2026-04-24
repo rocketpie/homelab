@@ -1,98 +1,183 @@
 # Restic Client Role
 
-The `add_restic_client` role installs `restic`, renders backup and restore
-scripts per configured repository, and installs disabled-by-default backup
-timers that can be enabled later.
+The `add_restic_client` role installs `pwsh`, installs `restic` from the
+official upstream release archive, renders one generated JSON config, and
+installs one shared `restic-client.ps1` runtime.
+
+The source-of-truth app files live under `apps/restic-client/`.
 
 ## Repository Config Shape
 
-Non-secret metadata belongs in the host vars:
+`add_restic_client_repositories` now uses the same field names as the generated
+runtime JSON. In practice, the inventory is a YAML representation of the final
+repository objects, and the role writes that list straight into
+`restic-client.json`.
+
+If the repository list gets large, prefer a sibling
+`add_restic_client_repositories.json.j2` file under the host's `host_vars`
+directory and point `host.yml` at it:
 
 ```yaml
-add_restic_client_repositories:
-  - name: "paperless"
-    path: "/media/paperless-data/export"
-    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
-    backup_schedule_enabled: false
+add_restic_client_repositories_template_file: "add_restic_client_repositories.json.j2"
 ```
 
-Repository credentials belong in the host vault:
+The role renders that file with Jinja and parses the result as JSON before it
+generates `restic-client.json`.
+
+You can still keep secrets in vaulted vars and reference them from the repo
+entries:
 
 ```yaml
-add_restic_client_repository_credentials:
+add_restic_client_repositories_template_file: "add_restic_client_repositories.json.j2"
+```
+
+```json
+[
+  {
+    "name": "paperless",
+    "path": "/media/paperless-data/export",
+    "resticRepository": "rest:http://{{ add_restic_client_repository_secrets.paperless.rest_username }}:{{ add_restic_client_repository_secrets.paperless.rest_password }}@backup.lan:8000/{{ add_restic_client_repository_secrets.paperless.rest_username }}/paperless",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets.paperless.repository_password }}",
+    "snapshotAllowed": true,
+    "restoreAllowed": true,
+    "forgetAllowed": false,
+    "backupPreCommand": "/usr/local/bin/paperless-export-backup",
+    "resticBackupOptions": [
+      "--skip-if-unchanged"
+    ],
+    "forgetArgs": [],
+    "restUsername": "{{ add_restic_client_repository_secrets.paperless.rest_username }}",
+    "repositoryDisplay": "rest:http://{{ add_restic_client_repository_secrets.paperless.rest_username }}:***@backup.lan:8000/{{ add_restic_client_repository_secrets.paperless.rest_username }}/paperless"
+  }
+]
+```
+
+One workable secret helper map is:
+
+```yaml
+add_restic_client_repository_secrets:
   paperless:
     rest_username: "REST_SERVER_USERNAME"
     rest_password: "REST_SERVER_ACCESS_PASSWORD"
     repository_password: "RESTIC_REPOSITORY_PASSWORD"
 ```
 
+Capability flags are explicit:
+
+- `snapshotAllowed` controls snapshot runs and snapshot menu actions
+- `restoreAllowed` controls restore menu actions
+- `forgetAllowed` controls retention runs and forget menu actions
+
+Rules:
+
+- `path` no longer disables anything implicitly
+- `backupPreCommand` and `resticBackupOptions` are snapshot-only settings
+- `forgetArgs` are forget-only settings
+- if `snapshotAllowed` or `restoreAllowed` is true while `path` is empty,
+  the runtime and test play warn
+- if `forgetAllowed` is true while `forgetArgs` is empty, the runtime and
+  test play warn
+
 ## Runtime Behavior
 
-Each configured repository gets:
+The role installs:
 
-- a `restic-backup-<name>` script
-- a `restic-restore-<name>` script
-- a `restic-backup-<name>.service` unit
-- a `restic-backup-<name>.timer` unit
+- `restic-client.ps1`
+- one generated `restic-client.json`
+- `restic-client-snapshot.service` and `.timer` if any repo allows snapshots
+- `restic-client-retention.service` and `.timer` if any repo allows forget
+- one admin helper link named `restic-client`
 
-The scripts load `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, and the restore target
-path from a root-managed env file.
+The runtime supports:
 
-For backups, the generated Linux helper also auto-discovers `.backupignore`
-files in the repository `path` and its first child level, and passes each one
-to restic with `--iexclude-file`. This mirrors the behavior of
-`context/restic-client/New-ResticSnapshot.ps1`.
+- no arguments: interactive mode
+- `-RunSnapshot`
+- `-RunRetention`
+- `-ShowStatus`
 
-If needed, a repository can also run one `backup_pre_command` before `restic
-backup`. This is useful for applications like Paperless that need to refresh an
-export directory before the filesystem backup runs.
+Interactive mode shows:
 
-The restore script restores in place with:
-`restic restore <snapshot> --target / --include <path>`
+- the generated config path
+- log path
+- snapshot and retention timer state
+- configured repositories and their allowed actions
+- snapshot count and latest snapshot age with a short timeout
 
-By default, `restic-restore-<name>` launches the restore in the background with
-`nohup` so it keeps running if the SSH session disconnects. Output is written
-under `add_restic_client_restore_log_dir`, which defaults to
-`/var/log/restic-client`.
+The runtime logs snapshot and retention output under
+`add_restic_client_log_dir`, which defaults to `/var/log/restic-client`.
 
-Use `--foreground` if you want to keep the restore attached to the current
-terminal instead.
+## Schedule Strings
 
-The backup timer is installed but disabled unless
-`backup_schedule_enabled: true` is set for that repository.
+Scheduling stays on systemd timers instead of cron.
 
-Example:
+Use:
 
-```bash
-restic-backup-paperless
-restic-restore-paperless
-restic-restore-paperless latest
-restic-restore-paperless 7c9c4f15
-restic-restore-paperless --foreground latest
-```
+- `add_restic_client_snapshot_schedule_on_calendar`
+- `add_restic_client_retention_schedule_on_calendar`
 
-Example pre-backup hook:
+Examples:
+
+- `daily`
+- `Mon..Fri 02:00`
+- `hourly`
+- `*-*-* *:00:00`
+
+Why not cron:
+
+- systemd timers are already the repo standard for Linux services
+- `Persistent=true` catches up missed runs after downtime
+- timer status is visible through the same admin scripts and `systemctl`
+  workflow
+
+## Adding A Client Repo
+
+To add a new VM-side repo and its matching server-side forget config:
+
+1. Add a new repository entry to the target host's
+   `add_restic_client_repositories.json.j2`, using the final JSON field names.
+2. Add matching secrets to the target host's
+   `add_restic_client_repository_secrets` if you want to keep credentials out
+   of the main host vars file.
+3. Run `./run.ps1 playbooks/add-restic-client.yml`.
+4. Initialize the repository from the client host.
+5. Add the matching `rest-server` access user on `restic1` if needed.
+6. Add the matching local server-side repository entry to
+   `inventory/host_vars/restic1/host.yml` with:
+   `snapshotAllowed: false`, `restoreAllowed: false`,
+   `forgetAllowed: true`, `path: ""`, and a local `resticRepository` path.
+7. Add the matching repository password entry to
+   `restic1`'s `add_restic_client_repository_secrets`.
+8. Run `./run.ps1 playbooks/add-rest-server.yml`.
+9. Run `./run.ps1 playbooks/test-restic-server.yml` and review warnings.
+
+Example local server-side entry:
 
 ```yaml
-add_restic_client_repositories:
-  - name: "paperless"
-    path: "/media/paperless-data/export"
-    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
-    backup_pre_command: "/usr/local/bin/paperless-export-backup"
+- name: "dockerhost2-paperless"
+  resticRepository: "/media/backups/restic-data/dockerhost2/paperless"
+  repositoryPassword: >-
+    {{ add_restic_client_repository_secrets['dockerhost2-paperless'].repository_password }}
+  path: ""
+  snapshotAllowed: false
+  restoreAllowed: false
+  forgetAllowed: true
+  resticBackupOptions: []
+  forgetArgs:
+    - "--keep-within"
+    - "7d"
+    - "--keep-weekly"
+    - "4"
+    - "--prune"
+  restUsername: ""
+  repositoryDisplay: "/media/backups/restic-data/dockerhost2/paperless"
 ```
 
-If the repository URL contains `{rest_username}` and `{rest_password}`, the role
-replaces those placeholders from
-`add_restic_client_repository_credentials.<name>` before writing the env file.
-The helper scripts print a redacted repository string so the embedded password
-is not echoed back to the terminal.
+## Admin Scripts
 
-Example ignore file for excluding a generated subtree from snapshots:
+For hosts that also use `add_admin_scripts`, the admin user gets:
 
-```text
-/thumbs
-```
-
-For hosts that also use `add_admin_scripts`, the same script name is installed
-in the admin user's home directory as a wrapper, and timer start/stop helpers
-are exposed through the normal service-group scripts.
+- `restic-client`
+- `start-restic-client-snapshot` and `stop-restic-client-snapshot` when the
+  snapshot timer exists
+- `start-restic-client-retention` and `stop-restic-client-retention` when the
+  retention timer exists

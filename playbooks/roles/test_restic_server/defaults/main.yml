@@ -27,3 +27,9 @@ test_restic_server_authenticated_probe_path: >-
   {{ test_restic_server_auth_entry.user | string | trim ~ '/' }}
 test_restic_server_authenticated_probe_url: >-
   {{ test_restic_server_base_url ~ test_restic_server_authenticated_probe_path }}
+
+test_restic_server_restic_client_script_path: /usr/local/bin/restic-client.ps1
+test_restic_server_restic_client_config_file: /etc/restic-client/restic-client.json
+test_restic_server_restic_client_log_dir: /var/log/restic-client
+test_restic_server_run_repository_probe: false
+test_restic_server_probe_repository_name: restic-server-test-repo1

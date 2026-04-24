@@ -1,0 +1,16 @@
+[Unit]
+Description=Run configured restic client snapshot job
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ add_restic_client_service_user }}
+Group={{ add_restic_client_service_group }}
+ExecStart={{ add_restic_client_pwsh_binary_path }} -NoProfile -File {{ add_restic_client_script_path }} -ConfigPath {{ add_restic_client_config_file }} -RunSnapshot
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths={{ add_restic_client_log_dir }}

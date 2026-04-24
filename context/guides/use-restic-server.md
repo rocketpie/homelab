@@ -88,54 +88,60 @@ Why?
   all snapshots within the time window instead of only the newest one in each
   bucket
 
-### Server-side retention config
+### Server-side forget config
 
-`restic1` runs one scheduled maintenance service that loops over every
-configured repository.
-
-Non-secret repository metadata should live in
-`inventory/host_vars/restic1/host.yml`.
+`restic1` now uses the same `add_restic_client` role as normal clients.
+Server-side maintenance is modeled as local repositories with explicit
+capabilities.
 
 Example shape:
 
 ```yaml
-add_restic_retention_service_user: "archivar"
-add_restic_retention_repositories:
-  - user: "archivar"
-    repository: "repo1"
-    enabled: true
-    forget_args:
-      - "--keep-within-daily"
-      - "14d"
-      - "--keep-within-weekly"
-      - "8w"
-      - "--keep-within-monthly"
-      - "12m"
-      - "--prune"
+add_restic_client_service_user: "archivar"
+add_restic_client_retention_schedule_enabled: true
+add_restic_client_repositories_template_file: "add_restic_client_repositories.json.j2"
 ```
 
-The `user` here matches `add_restic_server_htpasswd_entries`
-`user`s.
-
-Repository passwords should live in the host vault, keyed by
-`<user>/<repository>`.
-
-Example vault shape:
-
-```yaml
-# add_restic_retention_repository_passwords:
-#   "archivar/repo1": "RESTIC_REPO_PASSWORD"
+```json
+[
+  {
+    "name": "dockerhost2-paperless",
+    "path": "",
+    "resticRepository": "/media/backups/restic-data/dockerhost2/paperless",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['dockerhost2-paperless'].repository_password }}",
+    "snapshotAllowed": false,
+    "restoreAllowed": false,
+    "forgetAllowed": true,
+    "resticBackupOptions": [],
+    "forgetArgs": [
+      "--keep-within",
+      "7d",
+      "--keep-weekly",
+      "4",
+      "--keep-monthly",
+      "6",
+      "--prune"
+    ],
+    "restUsername": "",
+    "repositoryDisplay": "/media/backups/restic-data/dockerhost2/paperless"
+  }
+]
 ```
 
-The service operates against the local on-disk repository path derived from
-`add_restic_server_data_dir`, not through the append-only HTTP endpoint.
+`add_restic_client_repositories` uses the same field names as the generated
+runtime JSON, so the inventory is already the final repo-config shape. If you
+prefer, keep passwords and REST credentials in vaulted helper vars such as
+`add_restic_client_repository_secrets`.
 
-Runtime behavior:
+The generated runtime operates against the local on-disk repository path, not
+through the append-only HTTP endpoint.
 
-- warn and skip when a configured repository does not exist yet
-- warn when a discovered on-disk repository has no matching retention config
-- run as `archivar`, which matches the current service-account model on
-  `restic1`
+The test play warns when:
+
+- a VM-side repo has no matching server-side forget config
+- an on-disk repo has no forget-managed config entry
+- a configured access user has no client-side repos
+- a client-side access user is missing from `add_restic_server_htpasswd_entries`
 
 ## Client-Side Environment Variables
 

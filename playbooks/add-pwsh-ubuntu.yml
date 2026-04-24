@@ -1,36 +1,7 @@
 - name: Install PowerShell (pwsh) on Ubuntu/Debian
   hosts: targets
   become: true
-  tasks:
-    - name: Add Microsoft repo GPG key
-      ansible.builtin.get_url:
-        url: https://packages.microsoft.com/keys/microsoft.asc
-        dest: /etc/apt/keyrings/microsoft.asc
-        mode: "0644"
+  gather_facts: true
 
-    - name: Add Microsoft apt repo
-      ansible.builtin.apt_repository:
-        repo: >-
-          deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
-          https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod
-          {{ ansible_facts['distribution_release'] }} main
-        filename: "microsoft-prod"
-        state: present
-
-    - name: Update apt cache
-      ansible.builtin.apt:
-        update_cache: true
-
-    - name: Install powershell
-      ansible.builtin.apt:
-        name: powershell
-        state: present
-
-    - name: Verify pwsh
-      ansible.builtin.command: pwsh -v
-      register: pwsh_ver
-      changed_when: false
-
-    - name: Print pwsh version
-      ansible.builtin.debug:
-        var: pwsh_ver.stdout
+  roles:
+    - role: add_powershell

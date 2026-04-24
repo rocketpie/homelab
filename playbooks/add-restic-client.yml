@@ -16,7 +16,8 @@
           - add_admin_scripts
         record_deployment_metadata:
           services:
-            - restic-client
+            - restic-client-snapshot
+            - restic-client-retention
 
   roles:
     - role: add_restic_client
@@ -43,4 +44,5 @@
           - add_admin_scripts
         record_deployment_metadata:
           services:
-            - restic-client
+            - restic-client-snapshot
+            - restic-client-retention

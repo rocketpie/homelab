@@ -48,16 +48,7 @@ add_immich_time_zone: "Europe/Berlin"
 
 add_admin_scripts_user: "captain"
 
-add_restic_client_repositories:
-  - name: "paperless"
-    path: "/media/paperless-data/export"
-    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/paperless"
-    backup_pre_command: "/usr/local/bin/paperless-export-backup"
-    backup_schedule_enabled: false
-  - name: "immich"
-    path: "/media/immich-data/library"
-    repository: "rest:http://{rest_username}:{rest_password}@backup.lan:8000/{rest_username}/immich"
-    backup_schedule_enabled: false
+add_restic_client_repositories_template_file: "add_restic_client_repositories.json.j2"
 
 host_users:
   - name: "captain"
@@ -76,15 +67,15 @@ host_users:
 # add_paperless_db_password: "SECRET_VALUE_HERE"
 # add_paperless_secret_key: "SECRET_VALUE_HERE"
 #
-# add_restic_client_repository_credentials:
+# add_restic_client_repository_secrets:
 #   paperless:
-#       rest_username: "SECRET_VALUE_HERE"
-#       rest_password: "SECRET_VALUE_HERE"
-#       repository_password: "SECRET_VALUE_HERE"
+#     rest_username: "SECRET_VALUE_HERE"
+#     rest_password: "SECRET_VALUE_HERE"
+#     repository_password: "SECRET_VALUE_HERE"
 #   immich:
-#       rest_username: "SECRET_VALUE_HERE"
-#       rest_password: "SECRET_VALUE_HERE"
-#       repository_password: "SECRET_VALUE_HERE"
+#     rest_username: "SECRET_VALUE_HERE"
+#     rest_password: "SECRET_VALUE_HERE"
+#     repository_password: "SECRET_VALUE_HERE"
 #
 # add_vpn_client_config: |
 #   SECRET_VALUE_HERE

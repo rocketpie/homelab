@@ -1,0 +1,33 @@
+[
+  {
+    "name": "paperless",
+    "path": "/media/paperless-data/export",
+    "resticRepository": "rest:http://{{ add_restic_client_repository_secrets.paperless.rest_username }}:{{ add_restic_client_repository_secrets.paperless.rest_password }}@backup.lan:8000/{{ add_restic_client_repository_secrets.paperless.rest_username }}/paperless",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets.paperless.repository_password }}",
+    "snapshotAllowed": true,
+    "restoreAllowed": true,
+    "forgetAllowed": false,
+    "backupPreCommand": "/usr/local/bin/paperless-export-backup",
+    "resticBackupOptions": [
+      "--skip-if-unchanged"
+    ],
+    "forgetArgs": [],
+    "restUsername": "{{ add_restic_client_repository_secrets.paperless.rest_username }}",
+    "repositoryDisplay": "rest:http://{{ add_restic_client_repository_secrets.paperless.rest_username }}:***@backup.lan:8000/{{ add_restic_client_repository_secrets.paperless.rest_username }}/paperless"
+  },
+  {
+    "name": "immich",
+    "path": "/media/immich-data/library",
+    "resticRepository": "rest:http://{{ add_restic_client_repository_secrets.immich.rest_username }}:{{ add_restic_client_repository_secrets.immich.rest_password }}@backup.lan:8000/{{ add_restic_client_repository_secrets.immich.rest_username }}/immich",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets.immich.repository_password }}",
+    "snapshotAllowed": true,
+    "restoreAllowed": true,
+    "forgetAllowed": false,
+    "resticBackupOptions": [
+      "--skip-if-unchanged"
+    ],
+    "forgetArgs": [],
+    "restUsername": "{{ add_restic_client_repository_secrets.immich.rest_username }}",
+    "repositoryDisplay": "rest:http://{{ add_restic_client_repository_secrets.immich.rest_username }}:***@backup.lan:8000/{{ add_restic_client_repository_secrets.immich.rest_username }}/immich"
+  }
+]

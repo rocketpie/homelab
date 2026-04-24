@@ -1,0 +1,34 @@
+{
+  "log": {
+    "path": "/var/log/restic-client",
+    "retainLogs": "30:00:00:00"
+  },
+  "resticBinary": "/usr/local/bin/restic",
+  "backupIgnoreFilename": ".backupignore",
+  "snapshotSchedule": {
+    "enabled": false,
+    "unit": "restic-client-snapshot.timer"
+  },
+  "retentionSchedule": {
+    "enabled": true,
+    "unit": "restic-client-retention.timer"
+  },
+  "repositories": [
+    {
+      "name": "paperless",
+      "path": "/media/paperless-data/export",
+      "resticRepository": "rest:http://paperless:SECRET@backup.lan:8000/paperless/paperless",
+      "repositoryPassword": "RESTIC_REPOSITORY_PASSWORD",
+      "snapshotAllowed": true,
+      "restoreAllowed": true,
+      "forgetAllowed": false,
+      "backupPreCommand": "/usr/local/bin/paperless-export-backup",
+      "resticBackupOptions": [
+        "--skip-if-unchanged"
+      ],
+      "forgetArgs": [],
+      "restUsername": "paperless",
+      "repositoryDisplay": "rest:http://paperless:***@backup.lan:8000/paperless/paperless"
+    }
+  ]
+}
