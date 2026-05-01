@@ -39,8 +39,7 @@ function Invoke-Tests([string]$TestFilter) {
      
     # interactive mode
     Test_InteractiveSetEnvironmentVariables_SetsEnvVariables
-    "restic init..."
-    Initialize-TestResticRepository | Out-Null
+    Initialize-TestResticRepository
      
     # snapshots
     Test_RunSnapshot_Success
@@ -53,7 +52,7 @@ function Invoke-Tests([string]$TestFilter) {
     
     # snapshot retention
     Test_RunSnapshot_Success
-    Test_RunRetentionNow_RemovesFirstSnapshot
+    Test_RunRetention_RemovesFirstSnapshot
     
     # timer 
     Test_EnableTimer_InstallsTimer
@@ -197,13 +196,13 @@ function Test_InteractiveRestore_Success {
     Set-ContextConcludeRun
 }
 
-function Test_RunRetentionNow_RemovesFirstSnapshot {
+function Test_RunRetention_RemovesFirstSnapshot {
     $beforeSnapshots = @(Get-TestSnapshots | Sort-Object { [datetime]$_.time })
     $oldestSnapshotId = $beforeSnapshots[0].id
     $TestContext.Config.repositories[0].forgetArgs = @('--keep-last', '1', '--prune')
 
     Set-ContextPrepareRun
-    & $TestContext.ResticClientPs1 -Dial @('2') | Add-Content -Path $TestContext.CurrentLogFile
+    & $TestContext.ResticClientPs1 -RunRetention | Add-Content -Path $TestContext.CurrentLogFile
 
     $afterSnapshots = @(Get-TestSnapshots | Sort-Object { [datetime]$_.time })
     $afterSnapshotIds = @($afterSnapshots | Select-Object -ExpandProperty id)
@@ -261,7 +260,7 @@ function Test_DisableTimer_Success {
 88  88 888888 88ood8 88     888888 88  Yb 8bodP'
 #>
 function Wait([int]$Seconds) {
-    "waiting $($Seconds)s..."
+    "`nwaiting $($Seconds)s..."
     Start-Sleep -Seconds $Seconds
 }
 
@@ -315,7 +314,8 @@ function Invoke-TestRestic {
 }
 
 function Initialize-TestResticRepository {
-    Invoke-TestRestic -ArgumentList @('init')
+    "`nrestic init..."
+    Invoke-TestRestic -ArgumentList @('init') | Out-Null
 }
 
 function Get-TestSnapshots {
@@ -535,7 +535,7 @@ function Remove-TestBasePath {
 }
     
 function Reset-DefaultTestConfig {
-    "Resetting test config to default..."   
+    "`nResetting test config to default..."   
     $TestContext.Config.log.path = $TestContext.TestLogPath
     $TestContext.Config.log.retainLogs = "30:00:00:00"
     $TestContext.Config.resticBinary = "restic"

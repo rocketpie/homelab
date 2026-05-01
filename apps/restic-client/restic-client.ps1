@@ -420,9 +420,10 @@ function Invoke-InteractiveRestore {
     }
 
     Test-WriteAccess -Path $script:Config.log.path
+    $restoreSubPath = ConvertTo-ResticRestorePath -Path $SelectedRepository.path
     $logFilePath = Initialize-LogFile -OperationName ('restore-' + $SelectedRepository.name)
     "Starting restore for '$($SelectedRepository.name)' snapshot '$snapshot'..." | Out-Logged -LogFilePath $logFilePath
-    $result = Invoke-ResticCommand -Repository $SelectedRepository -ArgumentList @('restore', $snapshot, '--target', '/', '--include', $SelectedRepository.path)
+    $result = Invoke-ResticCommand -Repository $SelectedRepository -ArgumentList @('restore', "$snapshot`:$restoreSubPath", '--target', $SelectedRepository.path)
     Write-LoggedCommandResult -LogFilePath $logFilePath -Result $result
 }
 
@@ -783,6 +784,35 @@ function Invoke-HostCommand {
     }
 
     return ($lines -join [Environment]::NewLine)
+}
+
+function ConvertTo-ResticRestorePath {
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    $resolvedPath = [string](Resolve-Path -Path $Path)
+    if (-not $IsWindows) {
+        return $resolvedPath
+    }
+
+    $qualifier = Split-Path -Path $resolvedPath -Qualifier
+    if ([string]::IsNullOrWhiteSpace($qualifier)) {
+        return ($resolvedPath -replace '\\', '/')
+    }
+
+    $driveName = $qualifier.TrimEnd(':', '\', '/')
+    $relativePath = $resolvedPath.Substring($qualifier.Length).TrimStart('\')
+    if ([string]::IsNullOrWhiteSpace($relativePath)) {
+        return '/' + $driveName
+    }
+
+    return '/{0}/{1}' -f $driveName, ($relativePath -replace '\\', '/')
 }
 
 function Initialize-LogFile {
