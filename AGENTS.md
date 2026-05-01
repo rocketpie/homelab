@@ -2,6 +2,7 @@
 
 This file is the entrypoint for coding agents working in this repository.
 
+Rule: never run elevated commands. Instruct the user to do so, and ask for the output.
 Rule: never use absolute paths anywhere. Paths should always be relative to the repository root, or relative to the file they appear in.
 Rule: never interact with *vault.yml files.
 

@@ -1,0 +1,16 @@
+[
+  {
+    "name": "restic-server-test-repo1",
+    "snapshotAllowed": true,
+    "restoreAllowed": true,
+    "forgetAllowed": true,
+    "resticRepository": "/restic-data/restic-server-test/repo1",
+    "repositoryPassword": "{{ add_restic_client_repository_secrets['restic-server-test-repo1'].repository_password }}",
+    "path": "/home/archivar/test-data",
+    "forgetArgs": [
+      "--keep-last",
+      "1",
+      "--prune"
+    ],
+  },
+]

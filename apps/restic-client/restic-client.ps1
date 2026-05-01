@@ -491,14 +491,14 @@ function Set-ScheduleStateWindows {
     )    
 
     $taskName = "$($ThisFileName)-$($ScheduledCommand)"
-    $installedTask = Get-ScheduledTask -TaskName $taskName
+    $installedTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     if ($null -eq $installedTask) {
         Write-Warning "task '$($taskName)' is not installed"
         if ($Enabled) {
             "installing task '$($taskName)'..."    
             Install-ScheduledTaskWindows -TaskName $taskName -Command $ScheduledCommand                 
         }
-        $installedTask = Get-ScheduledTask -TaskName $taskName
+        $installedTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     }
         
     if ($null -eq $installedTask) {
@@ -548,13 +548,14 @@ function Install-ScheduledTaskWindows {
 
     $pwshPath = (Get-Command 'pwsh' -ErrorAction Stop).Source
     $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -WindowStyle Hidden -File `"$ThisFilePath`" -$($Command)"
+    $taskDescription = "$ThisFileName scheduled task"
     
     $time = Read-Choice "run $($TaskName) daily, at? [19:00]"    
 
     $params = @{
         TaskPath    = 'Homelab'
-        TaskName    = $ThisFileName
-        Description = $Config.scheduledTask.description
+        TaskName    = $TaskName
+        Description = $taskDescription
         Action      = $taskAction
         Trigger     = (New-ScheduledTaskTrigger -Daily -At $time)
         Settings    = (New-ScheduledTaskSettingsSet -StartWhenAvailable)
@@ -563,9 +564,9 @@ function Install-ScheduledTaskWindows {
 
     Register-ScheduledTask @params | Out-Null
 
-    $installedTask = Get-ScheduledTask -TaskName $ThisFileName 
+    $installedTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($null -eq $installedTask) {
-        throw "failed to verify installation of scheduled task '$($ThisFileName)'"
+        throw "failed to verify installation of scheduled task '$($TaskName)'"
     }
         
     "scheduled task '$($installedTask.TaskName)' installed or updated for $(([datetime]$installedTask.Triggers[0].StartBoundary).ToString('HH:mm'))"

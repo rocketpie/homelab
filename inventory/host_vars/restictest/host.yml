@@ -1,0 +1,43 @@
+vmid: 22999
+proxmox_node: "n2"
+
+proxmox_ostype: "l26"
+proxmox_iso_filename: "ubuntu-24.04.4-live-server-amd64-autoinstall.iso"
+
+cores: 2
+memory_mb: 3072
+os_disk_gb: 40
+
+enable_autoupdate: false
+
+add_restic_server_data_dir: "/restic-data"
+add_restic_server_listen_address: ":8000"
+add_restic_server_service_user: "archivar"
+add_restic_server_service_group: "archivar"
+
+add_restic_client_service_user: "archivar"
+add_restic_client_service_group: "archivar"
+add_restic_client_retention_schedule_enabled: true
+add_restic_client_repositories_template_file: "add_restic_client_repositories.json.j2"
+
+add_admin_scripts_user: "archivar"
+
+host_users:
+  - name: "archivar"
+    description: "restic client test account"
+    groups:
+      - sudo
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"
+
+# vault.yml:
+# host_user_passwords:
+#   archivar: "SECRET_VALUE_HERE"
+#
+# add_restic_server_htpasswd_entries:
+#   - user: "restic-server-test"
+#     password: "SECRET_VALUE_HERE"
+#   
+# add_restic_client_repository_secrets:
+#   restic-server-test-repo1:
+#     repository_password: "SECRET_VALUE_HERE"

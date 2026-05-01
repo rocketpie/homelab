@@ -91,6 +91,9 @@ restic init
     - do *not* create missing local `vault.yml` files.
     - remove other clutter
 
+# lint line endings
+    - sometimes, dos2unix some file solves a problem.
+    - build / lint should make sure to check for this
 
 # Lint
 Running ansible-lint...
