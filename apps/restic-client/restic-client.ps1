@@ -6,7 +6,9 @@ param(
     [switch]$RunSnapshot,
     [switch]$RunRetention,
     [switch]$ShowStatus,
-    [string]$ConfigPath
+    [string]$ConfigPath,
+    # pre-commit user input, to interactive menu options, eg. for testing
+    [string[]]$Dial
 )
 
 Set-StrictMode -Version Latest
@@ -21,16 +23,17 @@ $script:ThisFilePath = $MyInvocation.MyCommand.Definition
 $script:ThisFileVersion = '1.0'
 $script:DefaultCommandTimeoutSeconds = 300
 $script:StatusCommandTimeoutSeconds = 5
+$script:DialQueue = [System.Collections.Generic.Queue[string]]::new()
+foreach ($item in $Dial) {
+    $script:DialQueue.Enqueue($item)
+}
 
 function Main {
     if (@($RunSnapshot, $RunRetention, $ShowStatus).Where({ $_ }).Count -gt 1) {
         throw 'Use only one of -RunSnapshot, -RunRetention, or -ShowStatus.'
     }
 
-    $resolvedConfigPath = Resolve-ConfigPath -ConfigPath $ConfigPath
-    $script:ConfigPath = $resolvedConfigPath
-    $script:Config = Read-ConfigFile -ConfigPath $resolvedConfigPath
-    $script:ConfigWarnings = @(Get-ConfigurationWarnings -Config $script:Config)
+    Read-ConfigFile -ConfigPath $ConfigPath
 
     if ($RunSnapshot) {
         Start-ConfiguredSnapshots
@@ -50,8 +53,56 @@ function Main {
     Invoke-InteractiveMenu
 }
 
-function Resolve-ConfigPath {
-    [CmdletBinding()]
+function Read-ConfigFile {
+    param(
+        [string]$ConfigPath
+    )
+
+    $script:ConfigFile = Resolve-Path -Path (Resolve-ConfigFile -ConfigPath $ConfigPath)
+    if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) {
+        throw "Cannot find config file '$ConfigFile'."
+    }
+
+    $schemaPath = Join-Path $PSScriptRoot "$($ThisFileName).schema.json"
+    if (Test-Path -LiteralPath $schemaPath) {
+        Test-Json -LiteralPath $ConfigFile -SchemaFile $schemaPath | Out-Null
+    }
+
+    $config = Get-Content -LiteralPath $ConfigFile -Raw | ConvertFrom-Json
+    if ($config.repositories.Count -lt 1) {
+        throw 'The config must contain at least one repository.'
+    }
+
+    $script:ConfigWarnings = [System.Collections.Generic.List[string]]::new()
+    foreach ($repository in @($Config.repositories)) {
+        $hasSnapshotSettings = (-not [string]::IsNullOrWhiteSpace($repository.backupPreCommand)) -or (@($repository.resticBackupOptions).Count -gt 0)
+
+        if (($repository.snapshotAllowed -or $repository.restoreAllowed) -and [string]::IsNullOrWhiteSpace($repository.path)) {
+            $script:ConfigWarnings.Add("Repository '$($repository.name)' allows snapshot or restore, but path is empty.")
+        }
+
+        if ($repository.forgetAllowed -and @($repository.forgetArgs).Count -eq 0) {
+            $script:ConfigWarnings.Add("Repository '$($repository.name)' allows forget, but forgetArgs is empty.")
+        }
+
+        if ($hasSnapshotSettings -and -not $repository.snapshotAllowed) {
+            $script:ConfigWarnings.Add("Repository '$($repository.name)' defines snapshot settings, but snapshotAllowed is false.")
+        }
+
+        if (@($repository.forgetArgs).Count -gt 0 -and -not $repository.forgetAllowed) {
+            $script:ConfigWarnings.Add("Repository '$($repository.name)' defines forgetArgs, but forgetAllowed is false.")
+        }
+
+        $repository | Add-Member -MemberType NoteProperty -Name 'repositoryDisplay' -Value $repository.resticRepository
+        if ($repository.resticRepository -match '(rest:https?://[^:]+):([^@]+)(@.*)') {
+            $repository.repositoryDisplay = "$($Matches[1])***$($Matches[3])"
+        }
+    }
+
+    $script:Config = $config
+}
+
+function Resolve-ConfigFile {
     param(
         [string]$ConfigPath
     )
@@ -64,7 +115,7 @@ function Resolve-ConfigPath {
         return $env:RESTIC_CLIENT_CONFIG_FILE
     }
 
-    $siblingConfigPath = Join-Path $PSScriptRoot "$script:ThisFileName.json"
+    $siblingConfigPath = Join-Path $PSScriptRoot "$($script:ThisFileName).json"
     if (Test-Path -LiteralPath $siblingConfigPath) {
         return $siblingConfigPath
     }
@@ -76,102 +127,54 @@ function Resolve-ConfigPath {
     return '/etc/restic-client/restic-client.json'
 }
 
-function Read-ConfigFile {
-    [CmdletBinding()]
-    param(
-        [string]$ConfigPath
-    )
-
-    if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
-        throw "Cannot find config file '$ConfigPath'."
-    }
-
-    $schemaPath = Join-Path $PSScriptRoot "$script:ThisFileName.schema.json"
-    if (Test-Path -LiteralPath $schemaPath) {
-        Test-Json -LiteralPath $ConfigPath -SchemaFile $schemaPath | Out-Null
-    }
-
-    $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
-    if ($config.repositories.Count -lt 1) {
-        throw 'The config must contain at least one repository.'
-    }
-
-    return $config
-}
-
-function Get-ConfigurationWarnings {
-    [CmdletBinding()]
-    param(
-        [object]$Config
-    )
-
-    $warnings = [System.Collections.Generic.List[string]]::new()
-    foreach ($repository in @($Config.repositories)) {
-        $hasSnapshotSettings = (-not [string]::IsNullOrWhiteSpace($repository.backupPreCommand)) -or (@($repository.resticBackupOptions).Count -gt 0)
-
-        if (($repository.snapshotAllowed -or $repository.restoreAllowed) -and [string]::IsNullOrWhiteSpace($repository.path)) {
-            $warnings.Add("Repository '$($repository.name)' allows snapshot or restore, but path is empty.")
-        }
-
-        if ($repository.forgetAllowed -and @($repository.forgetArgs).Count -eq 0) {
-            $warnings.Add("Repository '$($repository.name)' allows forget, but forgetArgs is empty.")
-        }
-
-        if ($hasSnapshotSettings -and -not $repository.snapshotAllowed) {
-            $warnings.Add("Repository '$($repository.name)' defines snapshot settings, but snapshotAllowed is false.")
-        }
-
-        if (@($repository.forgetArgs).Count -gt 0 -and -not $repository.forgetAllowed) {
-            $warnings.Add("Repository '$($repository.name)' defines forgetArgs, but forgetAllowed is false.")
-        }
-    }
-
-    return $warnings
-}
-
 function Invoke-InteractiveMenu {
-    while ($true) {
-        Show-Status
-        ''
-        'Select an action:'
-        '  1. Run snapshot now'
-        '  2. Run retention now'
-        '  3. Show snapshots'
-        '  4. Restore files'
-        '  5. Run custom restic command'
-        '  6. Enable snapshot timer'
-        '  7. Disable snapshot timer'
-        '  8. Enable retention timer'
-        '  9. Disable retention timer'
-        '  0. Exit'
-        ''
+    Show-Status
+    ''
+    'Select an action:'
+    '  1. Run snapshot now'
+    '  2. Run retention now'
+    '  3. Show snapshots'
+    '  4. Interactive Restore'
+    '  5. Set Enviroment Variables'
+    '  6. Enable snapshot timer'
+    '  7. Disable snapshot timer'
+    '  8. Enable retention timer'
+    '  9. Disable retention timer'
+    ''
 
-        $choice = Read-Host 'Choice [0-9]'
-        switch ($choice) {
-            '1' { Start-ConfiguredSnapshots }
-            '2' { Start-ConfiguredRetention }
-            '3' { Show-ConfiguredSnapshots }
-            '4' { Invoke-InteractiveRestore }
-            '5' { Invoke-InteractiveCustomResticCommand }
-            '6' { Set-ScheduleState -Schedule $script:Config.snapshotSchedule -Enabled $true }
-            '7' { Set-ScheduleState -Schedule $script:Config.snapshotSchedule -Enabled $false }
-            '8' { Set-ScheduleState -Schedule $script:Config.retentionSchedule -Enabled $true }
-            '9' { Set-ScheduleState -Schedule $script:Config.retentionSchedule -Enabled $false }
-            '0' { return }
-            default {
-                "Invalid choice '$choice'."
-            }
+    $choice = Read-Choice 'Choice [0-9]'
+    switch ($choice) {
+        '1' { Start-ConfiguredSnapshots }
+        '2' { Start-ConfiguredRetention }
+        '3' { Show-ConfiguredSnapshots }
+        '4' { Invoke-InteractiveRestore }
+        '5' { Invoke-SetEnvironmentVariables }
+        '6' { Set-ScheduleState -ScheduledCommand 'RunSnapshot' -Enabled $true }
+        '7' { Set-ScheduleState -ScheduledCommand 'RunSnapshot' -Enabled $false }
+        '8' { Set-ScheduleState -ScheduledCommand 'RunRetention' -Enabled $true }
+        '9' { Set-ScheduleState -ScheduledCommand 'RunRetention' -Enabled $false }
+        default {
+            "unknown option '$choice'."
         }
-
-        ''
-        [void](Read-Host 'Press Enter to return to the menu')
     }
+}
+
+# prompts user input, unless pre-dialed input exists.
+function Read-Choice {
+    Param([string]$Prompt)
+
+    if ($DialQueue.Count -ge 1) {
+        Write-Debug "'$Prompt' -> '$($DialQueue.Peek())' (pre dialed)"
+        return $DialQueue.Dequeue()
+    }
+
+    return (Read-Host $Prompt)
 }
 
 function Show-Status {
     ''
-    "$script:ThisFileName $script:ThisFileVersion"
-    "Config: $(Resolve-PathText -Path $script:ConfigPath)"
+    "$($script:ThisFileName) $($script:ThisFileVersion)"
+    "Config: $($script:ConfigFile)"
     "Log path: $($script:Config.log.path)"
     "Snapshot timer: $(Get-ScheduleSummary -Schedule $script:Config.snapshotSchedule)"
     "Retention timer: $(Get-ScheduleSummary -Schedule $script:Config.retentionSchedule)"
@@ -197,20 +200,6 @@ function Show-Status {
         foreach ($warning in $script:ConfigWarnings) {
             "  WARN: $warning"
         }
-    }
-}
-
-function Resolve-PathText {
-    [CmdletBinding()]
-    param(
-        [string]$Path
-    )
-
-    try {
-        return (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path
-    }
-    catch {
-        return $Path
     }
 }
 
@@ -415,56 +404,37 @@ function Invoke-InteractiveRestore {
         return
     }
 
-    $repository = Select-Repository -Repositories $restoreRepositories -Prompt 'Choose a repository to restore:'
-    if ($null -eq $repository) {
+    Select-Repository -Repositories $restoreRepositories -Prompt 'Choose a repository to restore:'
+    if ($null -eq $SelectedRepository) {
         return
     }
 
-    if ([string]::IsNullOrWhiteSpace($repository.path)) {
-        "Repository '$($repository.name)' has no path configured."
+    if ([string]::IsNullOrWhiteSpace($SelectedRepository.path)) {
+        "Repository '$($SelectedRepository.name)' has no path configured."
         return
     }
 
-    $snapshot = Read-Host "Snapshot [latest]"
+    $snapshot = Read-Choice "Snapshot [latest]"
     if ([string]::IsNullOrWhiteSpace($snapshot)) {
         $snapshot = 'latest'
     }
 
     Test-WriteAccess -Path $script:Config.log.path
-    $logFilePath = Initialize-LogFile -OperationName ('restore-' + $repository.name)
-    "Starting restore for '$($repository.name)' snapshot '$snapshot'..." | Out-Logged -LogFilePath $logFilePath
-    $result = Invoke-ResticCommand -Repository $repository -ArgumentList @('restore', $snapshot, '--target', '/', '--include', $repository.path)
+    $logFilePath = Initialize-LogFile -OperationName ('restore-' + $SelectedRepository.name)
+    "Starting restore for '$($SelectedRepository.name)' snapshot '$snapshot'..." | Out-Logged -LogFilePath $logFilePath
+    $result = Invoke-ResticCommand -Repository $SelectedRepository -ArgumentList @('restore', $snapshot, '--target', '/', '--include', $SelectedRepository.path)
     Write-LoggedCommandResult -LogFilePath $logFilePath -Result $result
 }
 
-function Invoke-InteractiveCustomResticCommand {
-    $repository = Select-Repository -Repositories @($script:Config.repositories) -Prompt 'Choose a repository for a custom command:'
-    if ($null -eq $repository) {
+function Invoke-SetEnvironmentVariables {
+    Select-Repository -Repositories @($Config.repositories) -Prompt 'select repository to load:'
+    if ($null -eq $SelectedRepository) {
         return
     }
 
-    $argumentText = Read-Host 'Enter restic arguments'
-    if ([string]::IsNullOrWhiteSpace($argumentText)) {
-        'No arguments entered.'
-        return
-    }
-
-    $arguments = [System.Management.Automation.PSParser]::Tokenize($argumentText, [ref]$null) |
-        Where-Object { $_.Type -eq 'CommandArgument' -or $_.Type -eq 'Command' } |
-        ForEach-Object { $_.Content }
-
-    if ($arguments.Count -eq 0) {
-        'No usable arguments entered.'
-        return
-    }
-
-    $result = Invoke-ResticCommand -Repository $repository -ArgumentList $arguments
-    if (-not [string]::IsNullOrWhiteSpace($result.StandardOutput)) {
-        $result.StandardOutput.TrimEnd("`r", "`n")
-    }
-    if (-not [string]::IsNullOrWhiteSpace($result.StandardError)) {
-        $result.StandardError.TrimEnd("`r", "`n")
-    }
+    $env:RESTIC_REPOSITORY = [string]$SelectedRepository.resticRepository
+    $env:RESTIC_PASSWORD = [string]$SelectedRepository.repositoryPassword
+    return
 }
 
 function Select-Repository {
@@ -474,48 +444,91 @@ function Select-Repository {
         [string]$Prompt
     )
 
-    if ($Repositories.Count -eq 0) {
-        return $null
-    }
-
+    $script:SelectedRepository = $null
+    
     ''
+    if ($Repositories.Count -eq 0) {
+        'no options available'
+        return
+    }
+    
     $Prompt
     for ($index = 0; $index -lt $Repositories.Count; $index++) {
         '{0}. {1}' -f ($index + 1), $Repositories[$index].name
     }
 
-    $choice = Read-Host "Choice [1-$($Repositories.Count)]"
+    $choice = Read-Choice "Choice [1-$($Repositories.Count)]"
     if ($choice -notmatch '^[0-9]+$') {
-        return $null
+        return
     }
 
     $choiceIndex = [int]$choice - 1
     if ($choiceIndex -lt 0 -or $choiceIndex -ge $Repositories.Count) {
-        return $null
+        return
     }
 
-    return $Repositories[$choiceIndex]
+    $script:SelectedRepository = $Repositories[$choiceIndex]
 }
 
 function Set-ScheduleState {
-    [CmdletBinding()]
     param(
-        [object]$Schedule,
+        [string]$ScheduledCommand,
         [bool]$Enabled
-    )
-
-    if ($null -eq $Schedule) {
-        'Schedule is not configured.'
-        return
-    }
+    )    
 
     if ($IsWindows) {
-        'Windows schedule management is not implemented in this script.'
+        Set-ScheduleStateWindows -ScheduledCommand $ScheduledCommand -Enabled $Enabled
+    }
+    else {
+        Set-ScheduleStateLinux -ScheduledCommand $ScheduledCommand -Enabled $Enabled
+    }
+}
+
+function Set-ScheduleStateWindows {
+    param(
+        [string]$ScheduledCommand,
+        [bool]$Enabled
+    )    
+
+    $taskName = "$($ThisFileName)-$($ScheduledCommand)"
+    $installedTask = Get-ScheduledTask -TaskName $taskName
+    if ($null -eq $installedTask) {
+        Write-Warning "task '$($taskName)' is not installed"
+        if ($Enabled) {
+            "installing task '$($taskName)'..."    
+            Install-ScheduledTaskWindows -TaskName $taskName -Command $ScheduledCommand                 
+        }
+        $installedTask = Get-ScheduledTask -TaskName $taskName
+    }
+        
+    if ($null -eq $installedTask) {
+        throw "failed to find or install task '$($taskName)'"
+    }
+
+    if ($Enabled -eq $installedTask.Settings.Enabled) {
+        "task '$($taskName)' is already $(if ($Enabled) { 'enabled' } else { 'disabled' })"
         return
     }
 
-    $command = if ($Enabled) { @('enable', '--now', $Schedule.unit) } else { @('disable', '--now', $Schedule.unit) }
-    $result = Invoke-NativeCommand -FileName 'sudo' -ArgumentList (@('systemctl') + $command)
+    $installedTask.Settings.Enabled = $Enabled
+    Set-ScheduledTask $installedTask
+}
+
+function Set-ScheduleStateLinux {
+    param(
+        [string]$ScheduledCommand,
+        [bool]$Enabled
+    )    
+
+    $command = 'disable'
+    if ($Enabled) {
+        $command = 'enable'
+    }
+    
+    $unitCommand = $ScheduledCommand.Replace('Run', '').ToLower()
+    $unitName = "restic-client-$($unitCommand).timer"
+        
+    $result = Invoke-NativeCommand -FileName 'sudo' -ArgumentList @('systemctl', $command, '--now', $unitName)
     if (-not [string]::IsNullOrWhiteSpace($result.StandardOutput)) {
         $result.StandardOutput.TrimEnd("`r", "`n")
     }
@@ -523,6 +536,51 @@ function Set-ScheduleState {
         $result.StandardError.TrimEnd("`r", "`n")
     }
 }
+
+
+
+function Install-ScheduledTaskWindows {
+    Param(
+        [string]$TaskName,
+        [string]$Command
+    )
+    Test-ScheduledTaskSupport
+
+    $pwshPath = (Get-Command 'pwsh' -ErrorAction Stop).Source
+    $taskAction = New-ScheduledTaskAction -Execute $pwshPath -Argument "-NoProfile -WindowStyle Hidden -File `"$ThisFilePath`" -$($Command)"
+    
+    $time = Read-Choice "run $($TaskName) daily, at? [19:00]"    
+
+    $params = @{
+        TaskPath    = 'Homelab'
+        TaskName    = $ThisFileName
+        Description = $Config.scheduledTask.description
+        Action      = $taskAction
+        Trigger     = (New-ScheduledTaskTrigger -Daily -At $time)
+        Settings    = (New-ScheduledTaskSettingsSet -StartWhenAvailable)
+        Force       = $true
+    }
+
+    Register-ScheduledTask @params | Out-Null
+
+    $installedTask = Get-ScheduledTask -TaskName $ThisFileName 
+    if ($null -eq $installedTask) {
+        throw "failed to verify installation of scheduled task '$($ThisFileName)'"
+    }
+        
+    "scheduled task '$($installedTask.TaskName)' installed or updated for $(([datetime]$installedTask.Triggers[0].StartBoundary).ToString('HH:mm'))"
+}
+
+function Test-ScheduledTaskSupport {
+    if (-not $IsWindows) {
+        throw "scheduled task management is only supported on Windows"
+    }
+
+    if ($null -eq (Get-Command 'Register-ScheduledTask' -ErrorAction SilentlyContinue)) {
+        throw "scheduled task cmdlets are not available in this PowerShell session"
+    }
+}
+
 
 function Test-ResticBinary {
     if ($null -eq (Get-Command $script:Config.resticBinary -ErrorAction SilentlyContinue)) {
@@ -570,7 +628,7 @@ function Get-ResticIgnoreFiles {
 
     return @(
         Get-ChildItem -LiteralPath $Path -File -Filter $script:Config.backupIgnoreFilename -Depth 1 -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
+        Select-Object -ExpandProperty FullName
     )
 }
 

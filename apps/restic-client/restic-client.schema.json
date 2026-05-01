@@ -95,8 +95,14 @@
             "type": "string",
             "minLength": 1
           },
-          "path": {
-            "type": "string"
+          "snapshotAllowed": {
+            "type": "boolean"
+          },
+          "restoreAllowed": {
+            "type": "boolean"
+          },
+          "forgetAllowed": {
+            "type": "boolean"
           },
           "resticRepository": {
             "type": "string",
@@ -106,14 +112,8 @@
             "type": "string",
             "minLength": 1
           },
-          "snapshotAllowed": {
-            "type": "boolean"
-          },
-          "restoreAllowed": {
-            "type": "boolean"
-          },
-          "forgetAllowed": {
-            "type": "boolean"
+          "path": {
+            "type": "string"
           },
           "backupPreCommand": {
             "type": "string"
@@ -129,12 +129,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "restUsername": {
-            "type": "string"
-          },
-          "repositoryDisplay": {
-            "type": "string"
           }
         }
       }

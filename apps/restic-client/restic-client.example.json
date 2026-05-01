@@ -16,19 +16,17 @@
   "repositories": [
     {
       "name": "paperless",
-      "path": "/media/paperless-data/export",
-      "resticRepository": "rest:http://paperless:SECRET@backup.lan:8000/paperless/paperless",
-      "repositoryPassword": "RESTIC_REPOSITORY_PASSWORD",
       "snapshotAllowed": true,
       "restoreAllowed": true,
       "forgetAllowed": false,
+      "resticRepository": "rest:http://paperless:SECRET@backup.lan:8000/paperless/paperless",
+      "repositoryPassword": "RESTIC_REPOSITORY_PASSWORD",
+      "path": "/media/paperless-data/export",
       "backupPreCommand": "/usr/local/bin/paperless-export-backup",
       "resticBackupOptions": [
         "--skip-if-unchanged"
       ],
-      "forgetArgs": [],
-      "restUsername": "paperless",
-      "repositoryDisplay": "rest:http://paperless:***@backup.lan:8000/paperless/paperless"
+      "forgetArgs": []
     }
   ]
 }
