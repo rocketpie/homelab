@@ -25,9 +25,11 @@ $ErrorActionPreference = "Stop"
 function Write-Targets {
     Write-Host "Targets:"
     Write-Host "  -Help                  Show this help (default)"
-    Write-Host "  -InstallApt            apt install python3.10-venv python3-pip sshpass; pip install uv"
-    Write-Host "  -InstallVenv           Create venv; install requirements via uv; create .collections; install community.general"
+    Write-Host "  -InstallApt            Legacy WSL only: install python3-venv, python3-pip, sshpass, xorriso, uv"
+    Write-Host "  -InstallVenv           Legacy WSL only: create .venv, install requirements, create .collections"
     Write-Host "  -InstallVault          Create missing local vault.yml files from checked-in # vault.yml: template comments"
+    Write-Host ""
+    Write-Host "The dev container already contains the Ansible toolchain; no install step is needed there."
 }
 
 Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".venv")
@@ -41,8 +43,8 @@ Set-Variable -Scope Script -Name 'collectionsRequirements' -Value (Join-Path $PS
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 Set-Variable -Scope Script -Name 'initializeVaultTemplatesScript' -Value (Join-Path $PSScriptRoot "srv/Initialize-VaultTemplates.ps1")
 
-$localCollections = $(Join-Path $PSScriptRoot ".collections")
-if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+$localCollections = Join-Path $PSScriptRoot ".collections"
+if ((Test-Path $localCollections) -and (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections))) {
     $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
 }
 
@@ -56,10 +58,18 @@ function Main {
         }
 
         "InstallApt" {
+            if (Test-DevContainerToolchain) {
+                Write-Host "Ansible is already installed in the dev container image; -InstallApt is not needed."
+                break
+            }
             Install-AptDeps
             Install-UvGlobal
         }
         "InstallVenv" {
+            if (Test-DevContainerToolchain) {
+                Write-Host "Ansible is already installed in the dev container image; -InstallVenv is not needed."
+                break
+            }
             Require-Command "uv"
             Install-Venv
         }
@@ -75,6 +85,10 @@ function Require-Command([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw "Missing dependency: '$Name' not found on PATH."
     }
+}
+
+function Test-DevContainerToolchain {
+    return (Test-Path "/opt/ansible/venv/bin/ansible-playbook")
 }
 
 function Ensure-Venv {
@@ -101,22 +115,18 @@ function Ensure-ToolsInVenv {
 function Install-AptDeps {
     Require-Command "sudo"
     Require-Command "apt-get"
-    Write-Host "apt-get install -y python3.10-venv python3-pip sshpass xorriso..."
+    Write-Host "apt-get install -y python3-venv python3-pip sshpass xorriso..."
     & sudo apt-get update
-    & sudo apt-get install -y python3.10-venv python3-pip sshpass xorriso
+    & sudo apt-get install -y python3-venv python3-pip sshpass xorriso
 }
 
 function Install-UvGlobal {
-    Require-Command "python3"
-    Require-Command "pip3"
+    Require-Command "curl"
 
-    Write-Host "installing uv using pip (https://docs.astral.sh/uv/)..."
-    pip3 install uv
+    Write-Host "installing uv (https://docs.astral.sh/uv/)..."
+    & sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
 
-    Write-Host "adding uv to PATH (python3 -m uv tool update-shell)..."
-    python3 -m uv tool update-shell
-
-    Write-Host "uv installed globally. restart your shell for PATH changes to take effect."
+    Write-Host "uv installed. Restart your shell for PATH changes to take effect."
 }
 
 function Install-Venv {

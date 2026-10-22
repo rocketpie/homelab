@@ -25,20 +25,55 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".venv")
-Set-Variable -Scope Script -Name 'vEnvPython' -Value (Join-Path $vEnvPath "bin/python")
-Set-Variable -Scope Script -Name 'vEnvAnsiblePlaybook' -Value (Join-Path $vEnvPath "bin/ansible-playbook")
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 Set-Variable -Scope Script -Name 'defaultAnsibleSshKeyPath' -Value (Join-Path $HOME ".ssh/ansible")
 
-$localCollections = $(Join-Path $PSScriptRoot ".collections")
-if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+$localCollections = Join-Path $PSScriptRoot ".collections"
+$devContainerToolchain = Test-Path "/opt/ansible/venv/bin/ansible-playbook"
+if ((Test-Path $localCollections) -and (-not $devContainerToolchain) -and (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections))) {
     $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
 }
 
-function Main([string]$PlaybookName) {
-    Ensure-Venv
-    Ensure-ToolsInVenv
+$debugEnabled = $PSBoundParameters.ContainsKey('Debug')
+
+function Write-Help {
+    Write-Host "Usage:"
+    Write-Host "  pwsh run.ps1 <playbook> [-Debug]"
+    Write-Host "  pwsh run.ps1 -Help"
+    Write-Host ""
+    Write-Host "Arguments:"
+    Write-Host "  <playbook>             Playbook file from playbooks/, e.g. add-vm.yml (tab-completion lists them)"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -Help                  Show this help (default)"
+    Write-Host "  -Debug                 Run ansible-playbook with -v"
+    Write-Host ""
+    Write-Host "This is a convenience wrapper around ansible-playbook. For the current pwsh session it:"
+    Write-Host "  - accepts tab-completion for playbook names"
+    Write-Host "  - prompts for the Ansible Vault password once and keeps it in `$env:ANSIBLE_VAULT_PASSWORD"
+    Write-Host "  - starts ssh-agent and loads ~/.ssh/ansible, so the key passphrase is asked at most once"
+    Write-Host ""
+    Write-Host "The vault password and SSH key passphrase stay in memory only. Nothing is written to disk,"
+    Write-Host "and nothing survives closing this shell."
+}
+
+function Main {
+    switch ($PSCmdlet.ParameterSetName) {
+        default {
+            Write-Help
+        }
+        "Help" {
+            Write-Help
+        }
+
+        "Run" {
+            Invoke-Playbook -PlaybookName $Playbook
+        }
+    }
+}
+
+function Invoke-Playbook([string]$PlaybookName) {
+    Require-Command "ansible-playbook"
     Ensure-AnsibleSshKeyLoaded
 
     $inventory = Join-Path $PSScriptRoot "inventory/hosts.yml"
@@ -58,31 +93,18 @@ function Main([string]$PlaybookName) {
     }
 
     Write-Host "Running: $playbookPath (inventory: $inventory)"
-    if ($PSBoundParameters['Debug']) {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath -v --vault-password-file $vaultPasswordScript
+    if ($debugEnabled) {
+        Write-Host "Debug enabled: forwarding -v to ansible-playbook"
+        & ansible-playbook -i $inventory $playbookPath -v --vault-password-file $vaultPasswordScript
     }
     else {
-        & $vEnvAnsiblePlaybook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
+        & ansible-playbook -i $inventory $playbookPath --vault-password-file $vaultPasswordScript
     }
 }
 
 function Require-Command([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "Missing dependency: '$Name' not found on PATH."
-    }
-}
-
-function Ensure-Venv {
-    if (-not (Test-Path $vEnvPython)) {
-        Require-Command "python3"
-        Write-Host "Creating venv at $vEnvPath"
-        & python3 -m venv $vEnvPath
-    }
-}
-
-function Ensure-ToolsInVenv {
-    if (-not (Test-Path $vEnvAnsiblePlaybook)) {
-        throw "ansible-playbook not found in venv. Did you run -InstallVenv?"
+        throw "Missing dependency: '$Name' not found on PATH. Use the dev container, or activate .venv for the legacy WSL workflow."
     }
 }
 
@@ -171,4 +193,4 @@ function Start-SshAgent {
     Write-Host "Started ssh-agent for this PowerShell session."
 }
 
-Main -PlaybookName $Playbook
+Main

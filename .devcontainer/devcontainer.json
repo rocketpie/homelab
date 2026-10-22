@@ -1,7 +1,9 @@
 {
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "context": ".."
     },
+    "remoteUser": "vscode",
     "runArgs": ["-p", "4928:4928"],
     "mounts": [
         {
@@ -10,6 +12,18 @@
             "type": "bind"
         }
     ],
+    "containerEnv": {
+        "ANSIBLE_COLLECTIONS_PATH": "/opt/ansible/collections",
+        "ANSIBLE_PYTHON": "/opt/ansible/venv/bin/python"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "eamodio.gitlens"
+            ]
+        }
+    },
     "forwardPorts": [4928],
+    "postCreateCommand": "cd /workspace && pwsh ./tests/verify-devcontainer.ps1",
     "postStartCommand": "opencode service set hostname 0.0.0.0 && opencode service set port 4928 && opencode pair"
 }

@@ -1,0 +1,10 @@
+.git
+.gitignore
+.venv
+.collections
+__pycache__
+*.pyc
+*.retry
+**/.vault_pass
+**/vault.yml
+**/autoinstall-local.yml

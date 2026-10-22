@@ -8,26 +8,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Set-Variable -Scope Script -Name 'vEnvPath' -Value (Join-Path $PSScriptRoot ".venv")
-Set-Variable -Scope Script -Name 'vEnvPython' -Value (Join-Path $vEnvPath "bin/python")
-Set-Variable -Scope Script -Name 'vEnvAnsiblePlaybook' -Value (Join-Path $vEnvPath "bin/ansible-playbook")
-Set-Variable -Scope Script -Name 'vEnvAnsibleVault' -Value (Join-Path $vEnvPath "bin/ansible-vault")
+$ansiblePython = if ($env:ANSIBLE_PYTHON) {
+    $env:ANSIBLE_PYTHON
+}
+elseif (Test-Path (Join-Path $PSScriptRoot ".venv/bin/python")) {
+    Join-Path $PSScriptRoot ".venv/bin/python"
+}
+else {
+    "python3"
+}
+
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 Set-Variable -Scope Script -Name 'vaultTemplateRendererScript' -Value (Join-Path $PSScriptRoot "srv/render-vault-template.py")
 
-$localCollections = $(Join-Path $PSScriptRoot ".collections")
-if (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections)) {
+$localCollections = Join-Path $PSScriptRoot ".collections"
+$devContainerToolchain = Test-Path "/opt/ansible/venv/bin/ansible-playbook"
+if ((Test-Path $localCollections) -and (-not $devContainerToolchain) -and (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections))) {
     $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
 }
 
 function Main {
-    Ensure-Venv
-    Ensure-ToolsInVenv
+    Ensure-AnsibleTools
     Sync-VaultTemplateComments
-
-    $ansibleLint = Join-Path $vEnvPath "bin/ansible-lint"
-
-    if (-not (Test-Path $ansibleLint)) { throw "ansible-lint not found in venv. Ensure it's in $vEnvRequirements and run -InstallVenv." }
 
     $vaultExcludes = Get-ChildItem -Path $PSScriptRoot -Recurse -Filter "vault.yml" -File |
     ForEach-Object {
@@ -43,7 +45,10 @@ function Main {
     $ansibleLintArgs += $PSScriptRoot
 
     Write-Host "Running ansible-lint..."
-    & $ansibleLint @ansibleLintArgs
+    & ansible-lint @ansibleLintArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "ansible-lint failed with exit code $LASTEXITCODE"
+    }
 }
 
 function Get-RelativeRepoPath([string]$Path) {
@@ -84,7 +89,7 @@ function Get-VaultTemplateTargetFiles([string]$VaultFilePath) {
 
 function Get-VaultTemplateCommentLines([string]$VaultFilePath) {
     $vaultContent = Get-VaultTemplateSourceContent -VaultFilePath $VaultFilePath
-    $sanitizedYaml = @($vaultContent | & $vEnvPython $vaultTemplateRendererScript) -join "`n"
+    $sanitizedYaml = @($vaultContent | & $ansiblePython $vaultTemplateRendererScript) -join "`n"
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to build vault template comment for $(Get-RelativeRepoPath -Path $VaultFilePath)"
     }
@@ -113,7 +118,7 @@ function Get-VaultTemplateSourceContent([string]$VaultFilePath) {
 
     Ensure-VaultPassword
 
-    $decryptedVaultContent = & $vEnvAnsibleVault view $VaultFilePath --vault-password-file $vaultPasswordScript
+    $decryptedVaultContent = & ansible-vault view $VaultFilePath --vault-password-file $vaultPasswordScript
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to decrypt $(Get-RelativeRepoPath -Path $VaultFilePath) for vault template sync"
     }
@@ -157,28 +162,21 @@ function Update-VaultTemplateCommentBlock(
     Set-Content -LiteralPath $TargetFilePath -Encoding utf8NoBOM -Value $updatedLines
 }
 
-
 function Require-Command([string]$Name) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "Missing dependency: '$Name' not found on PATH."
+        throw "Missing dependency: '$Name' not found on PATH. Use the dev container, or activate .venv for the legacy WSL workflow."
     }
 }
 
-function Ensure-Venv {
-    if (-not (Test-Path $vEnvPython)) {
-        Require-Command "python3"
-        Write-Host "Creating venv at $vEnvPath"
-        & python3 -m venv $vEnvPath
-    }
-}
+function Ensure-AnsibleTools {
+    Require-Command "ansible-lint"
+    Require-Command "ansible-vault"
 
-function Ensure-ToolsInVenv {
-    if (-not (Test-Path $vEnvAnsiblePlaybook)) {
-        throw "ansible-playbook not found in venv. Did you run -InstallVenv?"
+    if (Test-Path $ansiblePython) {
+        return
     }
-    if (-not (Test-Path $vEnvAnsibleVault)) {
-        throw "ansible-vault not found in venv. Did you run -InstallVenv?"
-    }
+
+    Require-Command $ansiblePython
 }
 
 function Ensure-VaultPassword {

@@ -17,7 +17,7 @@ For `restic1`, see the template comment at the bottom of
 After adding, removing, or changing users, rerun:
 
 ```powershell
-./run.ps1 playbooks/add-rest-server.yml
+pwsh run.ps1 add-rest-server.yml
 ```
 
 That play updates the managed htpasswd file and restarts `rest-server` if

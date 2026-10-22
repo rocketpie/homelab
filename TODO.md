@@ -1,3 +1,4 @@
+# VPN Gateway Setup
 - add_firewall once: extract fail2ban bantimes from current config -> defaults
 - add_firewall task says 
     'Allow HTTP and HTTPS TCP ports through the firewall' and 
@@ -11,3 +12,7 @@
 - inventory/host_vars/vserver1 rename? verify content
 
 # long-term image update strategy?
+
+# Dev Container
+- how to handle ansible ssh key? vault files?
+- move venv-requirements.txt collection-requirements.txt to .devcontainer?
