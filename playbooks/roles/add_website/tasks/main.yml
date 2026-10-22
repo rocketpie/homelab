@@ -1,0 +1,138 @@
+---
+- name: Validate website inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - add_website_domain | string | trim | length > 0
+      - >-
+        (add_website_publish_port | string | trim | length == 0)
+        or (add_website_publish_port | int > 0)
+      - >-
+        (add_website_publish_port | string | trim | length == 0)
+        or (add_website_publish_port | int < 65536)
+      - >-
+        (add_website_publish_port | string | trim | length == 0)
+        or (add_website_publish_bind | string | trim | length > 0)
+      - >-
+        (add_website_join_proxy_network | bool)
+        or (add_website_publish_port | string | trim | length > 0)
+    fail_msg: >-
+      add_website requires an Ubuntu host and a domain. A website host that is
+      not on the gateway must publish a host port for the gateway proxy.
+
+- name: Check Docker Compose availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  changed_when: false
+
+- name: Ensure website directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ add_website_owner }}"
+    group: "{{ add_website_group }}"
+    mode: "0755"
+  loop:
+    - "{{ add_website_project_dir }}"
+    - "{{ add_website_content_dir }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Inspect the shared reverse-proxy network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ add_website_proxy_network_name }}"
+  register: add_website_proxy_network
+  changed_when: false
+  failed_when: false
+  when: add_website_join_proxy_network | bool
+
+- name: Create the shared reverse-proxy network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - "{{ add_website_proxy_network_name }}"
+  when:
+    - add_website_join_proxy_network | bool
+    - add_website_proxy_network is defined
+    - add_website_proxy_network.rc != 0
+  changed_when: true
+
+- name: Copy website content from the Ansible controller
+  ansible.builtin.copy:
+    src: "{{ add_website_content_src }}/"
+    dest: "{{ add_website_content_dir }}/"
+    owner: "{{ add_website_owner }}"
+    group: "{{ add_website_group }}"
+    mode: "preserve"
+    directory_mode: "0755"
+  when: add_website_content_src | string | trim | length > 0
+
+- name: Install placeholder website page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ add_website_content_dir }}/index.html"
+    owner: "{{ add_website_owner }}"
+    group: "{{ add_website_group }}"
+    mode: "0644"
+    force: false
+  when:
+    - add_website_placeholder_enabled | bool
+    - add_website_content_src | string | trim | length == 0
+
+- name: Render website Docker Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ add_website_compose_file }}"
+    owner: "{{ add_website_owner }}"
+    group: "{{ add_website_group }}"
+    mode: "0640"
+
+- name: Pull website container image
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - pull
+    chdir: "{{ add_website_project_dir }}"
+  changed_when: false
+  when: add_website_pull_images | bool
+
+- name: Deploy website container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - up
+      - --detach
+      - --remove-orphans
+    chdir: "{{ add_website_project_dir }}"
+  register: add_website_compose_up
+  changed_when: >-
+    (
+      (add_website_compose_up.stdout | default(''))
+      ~ (add_website_compose_up.stderr | default(''))
+    ) is search('(Created|Started|Recreated|Pulled)')
+
+- name: Show website container status
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - ps
+    chdir: "{{ add_website_project_dir }}"
+  register: add_website_compose_ps
+  changed_when: false
+
+- name: Display website container status
+  ansible.builtin.debug:
+    msg: "{{ add_website_compose_ps.stdout_lines }}"

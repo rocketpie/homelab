@@ -1,0 +1,10 @@
+---
+- name: Restart Caddy
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - restart
+      - caddy
+    chdir: "{{ add_vpn_gateway_project_dir }}"
+  changed_when: true

@@ -1,0 +1,14 @@
+[DEFAULT]
+bantime = {{ add_firewall_fail2ban_bantime }}
+findtime = {{ add_firewall_fail2ban_findtime }}
+maxretry = {{ add_firewall_fail2ban_maxretry }}
+banaction = ufw
+banaction_allports = ufw
+ignoreip = {{ add_firewall_fail2ban_ignoreip | join(' ') }}
+
+[sshd]
+enabled = {{ add_firewall_fail2ban_sshd_enabled | ternary('true', 'false') }}
+backend = systemd
+# Ubuntu 24.04+ uses ssh.service; sshd-session children stay in that unit.
+journalmatch = _SYSTEMD_UNIT=ssh.service
+port = {{ add_firewall_ssh_port | int }}

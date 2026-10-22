@@ -1,0 +1,12 @@
+{
+    email {{ add_vpn_gateway_acme_email }}
+}
+
+{% for route in add_vpn_gateway_routes %}
+{% for hostname in route.hostnames %}
+{{ hostname }} {
+    reverse_proxy {{ route.upstream }}
+}
+
+{% endfor %}
+{% endfor %}

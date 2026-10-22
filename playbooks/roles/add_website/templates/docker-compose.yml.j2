@@ -1,0 +1,21 @@
+services:
+  website:
+    image: {{ add_website_image }}
+    container_name: {{ add_website_container_name }}
+    restart: unless-stopped
+{% if add_website_publish_port | string | trim | length > 0 %}
+    ports:
+      - "{{ add_website_publish_bind }}:{{ add_website_publish_port | int }}:80/tcp"
+{% endif %}
+    volumes:
+      - {{ add_website_content_dir }}:/usr/share/nginx/html:ro
+{% if add_website_join_proxy_network | bool %}
+    networks:
+      - proxy
+{% endif %}
+{% if add_website_join_proxy_network | bool %}
+networks:
+  proxy:
+    external: true
+    name: {{ add_website_proxy_network_name }}
+{% endif %}

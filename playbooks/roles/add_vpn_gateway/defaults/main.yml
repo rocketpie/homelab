@@ -1,0 +1,50 @@
+---
+add_vpn_gateway_project_dir: /opt/vpn-gateway
+add_vpn_gateway_compose_file: "{{ add_vpn_gateway_project_dir }}/docker-compose.yml"
+add_vpn_gateway_caddyfile_path: "{{ add_vpn_gateway_project_dir }}/Caddyfile"
+add_vpn_gateway_wg_easy_data_dir: "{{ add_vpn_gateway_project_dir }}/wg-easy"
+add_vpn_gateway_owner: root
+add_vpn_gateway_group: root
+
+add_vpn_gateway_acme_email: ""
+
+# Caddy routes. Each route maps one or more public hostnames to an upstream.
+# Examples:
+#   - hostnames: ["vpn.co3d.eu"]
+#     upstream: "wg-easy:80"
+#   - hostnames: ["co3d.eu"]
+#     upstream: "website:80"
+# A later split can point an upstream at a VPN-connected homelab address.
+add_vpn_gateway_routes: []
+
+add_vpn_gateway_proxy_network_name: vpn-gateway-proxy
+
+add_vpn_gateway_caddy_image: caddy:2.10-alpine
+add_vpn_gateway_caddy_container_name: vpn-gateway-caddy
+add_vpn_gateway_caddy_http_port: 80
+add_vpn_gateway_caddy_https_port: 443
+add_vpn_gateway_caddy_http3: true
+
+add_vpn_gateway_wg_easy_image: ghcr.io/wg-easy/wg-easy:15.1
+add_vpn_gateway_wg_easy_container_name: wg-easy
+add_vpn_gateway_wg_easy_proxy_port: 80
+add_vpn_gateway_wg_easy_wg_port: 51820
+add_vpn_gateway_wg_easy_init_username: admin
+add_vpn_gateway_wg_easy_init_password: ""
+add_vpn_gateway_wg_easy_init_host: ""
+add_vpn_gateway_wg_easy_init_dns: "1.1.1.1,8.8.8.8"
+add_vpn_gateway_wg_easy_init_ipv4_cidr: ""
+add_vpn_gateway_wg_easy_init_ipv6_cidr: ""
+add_vpn_gateway_wg_easy_disable_ipv6: false
+
+# Path on the Ansible controller to a wg-easy v15 SQLite database
+# (/etc/wireguard/wg-easy.db). When set, the file is seeded into the data
+# directory on the first run.
+add_vpn_gateway_wg_easy_migration_source: ""
+
+add_vpn_gateway_wg_easy_network_subnet: 10.42.42.0/24
+add_vpn_gateway_wg_easy_network_subnet6: fdcc:ad94:bacf:61a3::/64
+add_vpn_gateway_wg_easy_network_address: 10.42.42.42
+add_vpn_gateway_wg_easy_network_address6: fdcc:ad94:bacf:61a3::2a
+
+add_vpn_gateway_pull_images: false

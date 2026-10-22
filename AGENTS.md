@@ -54,6 +54,7 @@ If relevant, also inspect:
 
 ## Working Conventions
 
+- The dev container owns the Ansible toolchain; `install.ps1` is only for the legacy WSL workflow.
 - Keep changes focused and minimal.
 - Follow existing Ansible and PowerShell patterns already used in the repo.
 - Use the repository naming convention:

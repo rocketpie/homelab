@@ -1,0 +1,136 @@
+---
+- name: Validate firewall inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['os_family'] == 'Debian'
+      - add_firewall_ssh_port | int > 0
+      - add_firewall_ssh_port | int < 65536
+      - add_firewall_allowed_tcp_ports is sequence
+      - add_firewall_allowed_tcp_ports is not string
+      - add_firewall_allowed_udp_ports is sequence
+      - add_firewall_allowed_udp_ports is not string
+      - add_firewall_wireguard_ports is sequence
+      - add_firewall_wireguard_ports is not string
+      - >-
+        not (add_firewall_fail2ban_enabled | bool)
+        or (add_firewall_enable_ufw | bool)
+    fail_msg: >-
+      add_firewall requires a Debian-family Linux host and valid port lists.
+      fail2ban uses the UFW ban action, so UFW must be enabled when fail2ban is
+      enabled.
+
+- name: Install firewall packages
+  ansible.builtin.apt:
+    name: "{{ add_firewall_packages }}"
+    state: present
+    update_cache: true
+
+- name: Configure UFW default incoming policy
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  when: add_firewall_enable_ufw | bool
+
+- name: Configure UFW default outgoing policy
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  when: add_firewall_enable_ufw | bool
+
+# Allow SSH before enabling UFW so a remote run cannot lock itself out.
+- name: Allow SSH through the firewall
+  community.general.ufw:
+    rule: allow
+    port: "{{ add_firewall_ssh_port | int }}"
+    proto: tcp
+    comment: SSH
+  when: add_firewall_enable_ufw | bool
+
+- name: Allow HTTP and HTTPS TCP ports through the firewall
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | int }}"
+    proto: tcp
+    comment: "HTTP(S) {{ item }}"
+  loop: "{{ add_firewall_allowed_tcp_ports }}"
+  loop_control:
+    label: "{{ item }}"
+  when: add_firewall_enable_ufw | bool
+
+- name: Allow HTTP/3 and other configured UDP ports through the firewall
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | int }}"
+    proto: udp
+    comment: "UDP {{ item }}"
+  loop: "{{ add_firewall_allowed_udp_ports }}"
+  loop_control:
+    label: "{{ item }}"
+  when: add_firewall_enable_ufw | bool
+
+# WireGuard needs an inbound UDP port. This is the only VPN-specific exception
+# to the "SSH and web traffic only" baseline.
+- name: Allow WireGuard UDP ports through the firewall
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | int }}"
+    proto: udp
+    comment: "WireGuard {{ item }}"
+  loop: "{{ add_firewall_wireguard_ports }}"
+  loop_control:
+    label: "{{ item }}"
+  when: add_firewall_enable_ufw | bool
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  when: add_firewall_enable_ufw | bool
+
+- name: Install fail2ban packages
+  ansible.builtin.apt:
+    name: "{{ add_firewall_fail2ban_packages }}"
+    state: present
+    update_cache: true
+  when: add_firewall_fail2ban_enabled | bool
+
+- name: Configure fail2ban
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: "{{ add_firewall_fail2ban_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+  when: add_firewall_fail2ban_enabled | bool
+
+- name: Gather service facts before managing fail2ban
+  ansible.builtin.service_facts:
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: "{{ add_firewall_fail2ban_enabled | bool }}"
+    state: "{{ 'started' if add_firewall_fail2ban_enabled | bool else 'stopped' }}"
+  when: >-
+    add_firewall_fail2ban_enabled | bool
+    or 'fail2ban.service' in ansible_facts.services
+
+- name: Apply pending fail2ban config changes before verification
+  ansible.builtin.meta: flush_handlers
+  when: add_firewall_fail2ban_enabled | bool
+
+- name: Verify the fail2ban sshd jail is active
+  ansible.builtin.command:
+    argv:
+      - fail2ban-client
+      - status
+      - sshd
+  register: add_firewall_fail2ban_sshd_status
+  changed_when: false
+  when: add_firewall_fail2ban_enabled | bool
+
+- name: Display the fail2ban sshd jail status
+  ansible.builtin.debug:
+    msg: "{{ add_firewall_fail2ban_sshd_status.stdout_lines }}"
+  when: add_firewall_fail2ban_enabled | bool

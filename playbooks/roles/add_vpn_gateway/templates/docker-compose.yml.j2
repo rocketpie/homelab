@@ -1,0 +1,80 @@
+services:
+  caddy:
+    image: {{ add_vpn_gateway_caddy_image }}
+    container_name: {{ add_vpn_gateway_caddy_container_name }}
+    restart: unless-stopped
+    ports:
+      - "{{ add_vpn_gateway_caddy_http_port }}:80/tcp"
+      - "{{ add_vpn_gateway_caddy_https_port }}:443/tcp"
+{% if add_vpn_gateway_caddy_http3 | bool %}
+      - "{{ add_vpn_gateway_caddy_https_port }}:443/udp"
+{% endif %}
+    volumes:
+      - {{ add_vpn_gateway_caddyfile_path }}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy
+    depends_on:
+      - wg-easy
+
+  wg-easy:
+    image: {{ add_vpn_gateway_wg_easy_image }}
+    container_name: {{ add_vpn_gateway_wg_easy_container_name }}
+    restart: unless-stopped
+    environment:
+      PORT: "{{ add_vpn_gateway_wg_easy_proxy_port }}"
+      HOST: "0.0.0.0"
+{% if add_vpn_gateway_wg_easy_disable_ipv6 | bool %}
+      DISABLE_IPV6: "true"
+{% endif %}
+{% if add_vpn_gateway_wg_easy_init_enabled | bool %}
+      INIT_ENABLED: "true"
+      INIT_USERNAME: {{ add_vpn_gateway_wg_easy_init_username | replace('$', '$$') | quote }}
+      INIT_PASSWORD: {{ add_vpn_gateway_wg_easy_init_password | replace('$', '$$') | quote }}
+      INIT_HOST: {{ add_vpn_gateway_wg_easy_init_host | replace('$', '$$') | quote }}
+      INIT_PORT: "{{ add_vpn_gateway_wg_easy_wg_port }}"
+      INIT_DNS: {{ add_vpn_gateway_wg_easy_init_dns | quote }}
+{% if add_vpn_gateway_wg_easy_init_ipv4_cidr | string | trim | length > 0 and add_vpn_gateway_wg_easy_init_ipv6_cidr | string | trim | length > 0 %}
+      INIT_IPV4_CIDR: {{ add_vpn_gateway_wg_easy_init_ipv4_cidr | quote }}
+      INIT_IPV6_CIDR: {{ add_vpn_gateway_wg_easy_init_ipv6_cidr | quote }}
+{% endif %}
+{% endif %}
+    volumes:
+      - {{ add_vpn_gateway_wg_easy_data_dir }}:/etc/wireguard
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "{{ add_vpn_gateway_wg_easy_wg_port }}:{{ add_vpn_gateway_wg_easy_wg_port }}/udp"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      wg:
+        ipv4_address: {{ add_vpn_gateway_wg_easy_network_address }}
+{% if not add_vpn_gateway_wg_easy_disable_ipv6 | bool %}
+        ipv6_address: {{ add_vpn_gateway_wg_easy_network_address6 }}
+{% endif %}
+      proxy: {}
+
+networks:
+  proxy:
+    external: true
+    name: {{ add_vpn_gateway_proxy_network_name }}
+  wg:
+    driver: bridge
+{% if not add_vpn_gateway_wg_easy_disable_ipv6 | bool %}
+    enable_ipv6: true
+{% endif %}
+    ipam:
+      config:
+        - subnet: {{ add_vpn_gateway_wg_easy_network_subnet }}
+{% if not add_vpn_gateway_wg_easy_disable_ipv6 | bool %}
+        - subnet: {{ add_vpn_gateway_wg_easy_network_subnet6 }}
+{% endif %}
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -9,6 +9,8 @@ add_docker_packages:
   - containerd.io
   - docker-buildx-plugin
   - docker-compose-plugin
+
+add_docker_reverse_proxy_packages:
   - haproxy
 
 add_docker_keyring_dir: /etc/apt/keyrings

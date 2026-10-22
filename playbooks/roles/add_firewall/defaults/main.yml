@@ -1,0 +1,25 @@
+---
+add_firewall_packages:
+  - ufw
+add_firewall_ssh_port: 22
+add_firewall_allowed_tcp_ports:
+  - 80
+  - 443
+add_firewall_allowed_udp_ports:
+  - 443
+add_firewall_wireguard_ports:
+  - 51820
+add_firewall_enable_ufw: true
+
+add_firewall_fail2ban_enabled: true
+add_firewall_fail2ban_packages:
+  - fail2ban
+  - python3-systemd
+add_firewall_fail2ban_bantime: 1h
+add_firewall_fail2ban_findtime: 10m
+add_firewall_fail2ban_maxretry: 5
+add_firewall_fail2ban_ignoreip:
+  - 127.0.0.1/8
+  - ::1
+add_firewall_fail2ban_sshd_enabled: true
+add_firewall_fail2ban_config_path: /etc/fail2ban/jail.local

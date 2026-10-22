@@ -8,6 +8,13 @@ __pycache__/
 .vault_pass
 vault.yml
 
+# wg-easy runtime state contains VPN private keys and client material.
+# Migration backups belong outside the repository; these patterns are only a
+# safety net against accidental commits.
+wg-easy.db
+wg-easy.db-shm
+wg-easy.db-wal
+
 inventory/group_vars/all/autoinstall-local.yml
 context/homelab-ca/ca.*
 context/homelab-ca/client/

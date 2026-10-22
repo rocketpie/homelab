@@ -1,0 +1,28 @@
+---
+add_website_project_dir: /opt/website
+add_website_compose_file: "{{ add_website_project_dir }}/docker-compose.yml"
+add_website_content_dir: "{{ add_website_project_dir }}/content"
+add_website_owner: root
+add_website_group: root
+
+add_website_domain: ""
+add_website_content_src: ""
+add_website_placeholder_enabled: true
+
+add_website_image: nginx:stable-alpine
+add_website_container_name: website
+
+# When the website runs on the gateway host, attach it to the gateway's shared
+# Docker network and let Caddy reach it as "website:80".
+# When it moves to a separate VPN-connected host, disable this and publish a
+# host port instead.
+add_website_proxy_network_name: vpn-gateway-proxy
+add_website_join_proxy_network: "{{ inventory_hostname in groups['vpn_gateway'] | default([]) }}"
+
+# Empty means do not publish a host port. For a split website host, set a bind
+# address (ideally the VPN overlay IP) and a port, then point the gateway route
+# at that address.
+add_website_publish_bind: "127.0.0.1"
+add_website_publish_port: ""
+
+add_website_pull_images: false

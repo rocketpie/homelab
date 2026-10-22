@@ -1,0 +1,62 @@
+---
+- name: Configure public gateway
+  hosts: vpn_gateway:website
+  become: true
+  gather_facts: true
+  vars:
+    add_vserver_record_deployment_roles: >-
+      {{
+        ['add_autoupdate', 'add_docker']
+        + (
+            ['add_website']
+            if inventory_hostname in groups['website'] | default([])
+            else []
+          )
+        + (
+            ['add_firewall', 'add_vpn_gateway']
+            if inventory_hostname in groups['vpn_gateway'] | default([])
+            else []
+          )
+      }}
+
+  pre_tasks:
+    - name: Record incomplete deployment history for the public gateway
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: start
+        record_deployment_playbook: add-public-gateway.yml
+        record_deployment_roles: "{{ add_vserver_record_deployment_roles }}"
+        record_deployment_metadata:
+          services:
+            - docker
+            - firewall
+            - fail2ban
+            - wg-easy
+            - website
+
+  roles:
+    - role: add_autoupdate
+    - role: add_docker
+    - role: add_website
+      when: inventory_hostname in groups['website'] | default([])
+    - role: add_firewall
+      when: inventory_hostname in groups['vpn_gateway'] | default([])
+    - role: add_vpn_gateway
+      when: inventory_hostname in groups['vpn_gateway'] | default([])
+
+  post_tasks:
+    - name: Record successful deployment history for the public gateway
+      ansible.builtin.include_role:
+        name: record_deployment
+      vars:
+        record_deployment_phase: finish
+        record_deployment_playbook: add-public-gateway.yml
+        record_deployment_roles: "{{ add_vserver_record_deployment_roles }}"
+        record_deployment_metadata:
+          services:
+            - docker
+            - firewall
+            - fail2ban
+            - wg-easy
+            - website

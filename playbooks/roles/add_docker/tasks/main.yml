@@ -143,6 +143,12 @@
     state: present
     update_cache: true
 
+- name: Install Docker reverse proxy packages
+  ansible.builtin.apt:
+    name: "{{ add_docker_reverse_proxy_packages }}"
+    state: present
+  when: add_docker_reverse_proxy_enabled | bool
+
 - name: Ensure Docker service is enabled and started
   ansible.builtin.systemd_service:
     name: docker
@@ -171,6 +177,7 @@
 - name: Refresh host CA trust store
   ansible.builtin.command:
     cmd: update-ca-certificates
+  changed_when: true
   when:
     - add_docker_reverse_proxy_enabled | bool
     - add_docker_ca_cert_install.changed
@@ -203,11 +210,17 @@
   ansible.builtin.meta: flush_handlers
   when: add_docker_reverse_proxy_enabled | bool
 
+- name: Gather service facts before managing HAProxy
+  ansible.builtin.service_facts:
+
 - name: Ensure HAProxy service matches desired Docker reverse proxy state
   ansible.builtin.systemd_service:
     name: "{{ add_docker_haproxy_service_name }}"
     enabled: "{{ add_docker_reverse_proxy_enabled | bool }}"
     state: "{{ 'started' if add_docker_reverse_proxy_enabled | bool else 'stopped' }}"
+  when: >-
+    add_docker_reverse_proxy_enabled | bool
+    or (add_docker_haproxy_service_name ~ '.service') in ansible_facts.services
 
 - name: Ensure configured users can access Docker
   ansible.builtin.user:

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ add_website_domain }}</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #101820;
+            color: #f2f2f2;
+            font-family: system-ui, sans-serif;
+        }
+
+        main {
+            max-width: 42rem;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        code {
+            color: #9ad1d4;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>{{ add_website_domain }}</h1>
+        <p>This site is served by nginx from the website Docker stack.</p>
+        <p>Replace <code>{{ add_website_content_dir }}/index.html</code> or set
+            <code>add_website_content_src</code> to deploy your own content.</p>
+    </main>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# Public vServer host vars.
+#
+# The host is a member of both the vpn_gateway and website inventory groups.
+# The gateway owns Caddy and wg-easy; the website role adds the static site.
+
+ansible_user: root
+# ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519"
+
+add_firewall_ssh_port: 22
+
+add_vpn_gateway_acme_email: "lars@co3d.eu"
+add_vpn_gateway_wg_easy_init_host: "vpn.co3d.eu"
+add_vpn_gateway_routes:
+  - hostnames:
+      - "vpn.co3d.eu"
+    upstream: "wg-easy:80"
+  - hostnames:
+      - "co3d.eu"
+    upstream: "website:80"
+  # Later, route a public name to a VPN-connected homelab service:
+  # - hostnames:
+  #     - "service.vpn.co3d.eu"
+  #   upstream: "10.13.0.20:8080"
+
+add_website_domain: "co3d.eu"
+
+# Optional: copy a local directory into /opt/website/content on every run.
+# add_website_content_src: "{{ playbook_dir }}/../srv/website"
+
+# When the website moves to a separate VPN-connected host, add that host to the
+# website group, set a VPN bind address and port, and change the gateway route
+# upstream to that address:
+# add_website_publish_bind: "10.13.0.20"
+# add_website_publish_port: 8080
+
+# Optional: seed an existing wg-easy v15 SQLite database.
+# Keep the file outside the repository; the DB patterns in .gitignore are only
+# a safety net against accidental commits.
+# add_vpn_gateway_wg_easy_migration_source: "{{ lookup('env', 'HOME') }}/wg-easy-backup/wg-easy.db"
+
+# Optional: set this to true to pull newer images on the next playbook run.
+# add_vpn_gateway_pull_images: false
+# add_website_pull_images: false
+
+# vault.yml:
+# add_vpn_gateway_wg_easy_init_password: "SECRET_VALUE_HERE"
