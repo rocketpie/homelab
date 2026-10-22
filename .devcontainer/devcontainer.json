@@ -1,0 +1,15 @@
+{
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "runArgs": ["-p", "4928:4928"],
+    "mounts": [
+        {
+            "source": "${localWorkspaceFolder}",
+            "target": "/workspace",
+            "type": "bind"
+        }
+    ],
+    "forwardPorts": [4928],
+    "postStartCommand": "opencode service set hostname 0.0.0.0 && opencode service set port 4928 && opencode pair"
+}
