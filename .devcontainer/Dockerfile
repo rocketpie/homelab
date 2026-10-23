@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/base:ubuntu
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 # Install OpenCode 2 as the vscode user (installs to ~/.opencode/bin).
 USER vscode
@@ -12,7 +12,7 @@ RUN ln -sf /home/vscode/.opencode/bin/opencode /usr/local/bin/opencode
 ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
-RUN apt-get update \
+RUN apt-get update -o Acquire::Retries=2 \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -24,14 +24,32 @@ RUN apt-get update \
         sshpass \
         wget \
         xorriso \
-    && . /etc/os-release \
-    && wget -q "https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb \
-    && dpkg -i /tmp/packages-microsoft-prod.deb \
-    && rm -f /tmp/packages-microsoft-prod.deb \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends powershell \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install PowerShell from the Microsoft package repository.
+RUN set -eux; \
+    . /etc/os-release; \
+    url="https://packages.microsoft.com/config/ubuntu/${VERSION_ID}/packages-microsoft-prod.deb"; \
+    deb=/tmp/packages-microsoft-prod.deb; \
+    if ! curl -fsSL \
+        --retry 2 \
+        --retry-delay 5 \
+        --retry-all-errors \
+        --connect-timeout 30 \
+        --output "$deb" \
+        "$url"; then \
+        echo "troubleshoot: could not download $url"; \
+        printf 'troubleshoot: %-12s mtu=%s\n' eth0 "$(cat /sys/class/net/eth0/mtu 2>/dev/null || echo unknown)"; \
+        exit 1; \
+    fi; \
+    dpkg -i "$deb"; \
+    rm -f "$deb"; \
+    apt-get update -o Acquire::Retries=3; \
+    apt-get install -y --no-install-recommends powershell; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 
 # Install the Ansible toolchain into the image. The repo-local .venv and
 # .collections directories are only needed by the legacy WSL workflow.
