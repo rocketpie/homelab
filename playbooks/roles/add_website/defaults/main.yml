@@ -9,6 +9,27 @@ add_website_domain: ""
 add_website_content_src: ""
 add_website_placeholder_enabled: true
 
+# CI publishing. An external site repository pushes content into
+# add_website_content_dir over SSH as this user. The user has no sudo and owns
+# only the content directory.
+# Set add_website_publish_user to "" to disable the account and the key setup.
+add_website_publish_user: "website-deploy"
+add_website_publish_packages:
+  - openssh-client
+  - rsync
+add_website_publish_key_path: /root/website-publish
+add_website_publish_readme_path: "{{ add_website_publish_key_path }}.README.md"
+
+# The key pair is regenerated on every playbook run by default. Copy the new
+# private key into the CI secret after each run, or set this to false to keep
+# the existing key.
+add_website_publish_key_rotate: true
+
+# Content ownership follows the publish user when it is enabled, so CI can
+# replace and delete files created by Ansible.
+add_website_content_owner: "{{ add_website_publish_user | default(add_website_owner, true) }}"
+add_website_content_group: "{{ add_website_publish_user | default(add_website_group, true) }}"
+
 add_website_image: nginx:stable-alpine
 add_website_container_name: website
 

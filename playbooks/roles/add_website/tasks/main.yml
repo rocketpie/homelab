@@ -29,18 +29,115 @@
       - version
   changed_when: false
 
-- name: Ensure website directories exist
+- name: Install website publishing packages
+  ansible.builtin.apt:
+    name: "{{ add_website_publish_packages }}"
+    state: present
+    update_cache: true
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Create the website publish user
+  ansible.builtin.user:
+    name: "{{ add_website_publish_user }}"
+    home: "/home/{{ add_website_publish_user }}"
+    shell: /bin/bash
+    create_home: true
+    password_lock: true
+    state: present
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Inspect the website publish key
+  ansible.builtin.stat:
+    path: "{{ add_website_publish_key_path }}"
+  register: add_website_publish_key
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Remove the previous website publish key pair
   ansible.builtin.file:
     path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ add_website_publish_key_path }}"
+    - "{{ add_website_publish_key_path }}.pub"
+  when:
+    - add_website_publish_user | string | trim | length > 0
+    - >-
+      (add_website_publish_key_rotate | bool)
+      or not (add_website_publish_key.stat.exists | default(false))
+
+- name: Generate the website publish key pair
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -q
+      - -t
+      - ed25519
+      - -N
+      - ""
+      - -C
+      - "{{ add_website_publish_user }}@{{ inventory_hostname }}"
+      - -f
+      - "{{ add_website_publish_key_path }}"
+  changed_when: true
+  when:
+    - add_website_publish_user | string | trim | length > 0
+    - >-
+      (add_website_publish_key_rotate | bool)
+      or not (add_website_publish_key.stat.exists | default(false))
+
+- name: Set website publish key permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - path: "{{ add_website_publish_key_path }}"
+      mode: "0600"
+    - path: "{{ add_website_publish_key_path }}.pub"
+      mode: "0644"
+  loop_control:
+    label: "{{ item.path }}"
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Read the website publish public key
+  ansible.builtin.slurp:
+    src: "{{ add_website_publish_key_path }}.pub"
+  register: add_website_publish_public_key
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Authorize the website publish public key
+  ansible.posix.authorized_key:
+    user: "{{ add_website_publish_user }}"
+    key: "{{ add_website_publish_public_key.content | b64decode }}"
+    exclusive: true
+    state: present
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Install website publish instructions
+  ansible.builtin.template:
+    src: website-publish-README.md.j2
+    dest: "{{ add_website_publish_readme_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: add_website_publish_user | string | trim | length > 0
+
+- name: Ensure website project directory exists
+  ansible.builtin.file:
+    path: "{{ add_website_project_dir }}"
     state: directory
     owner: "{{ add_website_owner }}"
     group: "{{ add_website_group }}"
     mode: "0755"
-  loop:
-    - "{{ add_website_project_dir }}"
-    - "{{ add_website_content_dir }}"
-  loop_control:
-    label: "{{ item }}"
+
+- name: Ensure website content directory exists
+  ansible.builtin.file:
+    path: "{{ add_website_content_dir }}"
+    state: directory
+    owner: "{{ add_website_content_owner }}"
+    group: "{{ add_website_content_group }}"
+    mode: "0755"
 
 - name: Inspect the shared reverse-proxy network
   ansible.builtin.command:
@@ -71,9 +168,9 @@
   ansible.builtin.copy:
     src: "{{ add_website_content_src }}/"
     dest: "{{ add_website_content_dir }}/"
-    owner: "{{ add_website_owner }}"
-    group: "{{ add_website_group }}"
-    mode: "preserve"
+    owner: "{{ add_website_content_owner }}"
+    group: "{{ add_website_content_group }}"
+    mode: "0644"
     directory_mode: "0755"
   when: add_website_content_src | string | trim | length > 0
 
@@ -81,8 +178,8 @@
   ansible.builtin.template:
     src: index.html.j2
     dest: "{{ add_website_content_dir }}/index.html"
-    owner: "{{ add_website_owner }}"
-    group: "{{ add_website_group }}"
+    owner: "{{ add_website_content_owner }}"
+    group: "{{ add_website_content_group }}"
     mode: "0644"
     force: false
   when:

@@ -15,9 +15,15 @@ add_firewall_fail2ban_enabled: true
 add_firewall_fail2ban_packages:
   - fail2ban
   - python3-systemd
-add_firewall_fail2ban_bantime: 1h
-add_firewall_fail2ban_findtime: 10m
-add_firewall_fail2ban_maxretry: 5
+add_firewall_fail2ban_bantime: 2m
+add_firewall_fail2ban_bantime_increment: true
+add_firewall_fail2ban_bantime_multipliers:
+  - 1
+  - 4
+  - 1800
+  - 54000
+add_firewall_fail2ban_findtime: 2h
+add_firewall_fail2ban_maxretry: 7
 add_firewall_fail2ban_ignoreip:
   - 127.0.0.1/8
   - ::1

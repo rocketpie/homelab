@@ -2,6 +2,13 @@
     email {{ add_vpn_gateway_acme_email }}
 }
 
+# Redirect every plaintext HTTP request to HTTPS. Caddy inserts its
+# automatic host-matched redirects before this catch-all, so configured
+# sites keep their automatic redirects and unknown hosts are redirected too.
+http:// {
+    redir https://{host}{uri} 308
+}
+
 {% for route in add_vpn_gateway_routes %}
 {% for hostname in route.hostnames %}
 {{ hostname }} {

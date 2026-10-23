@@ -24,6 +24,20 @@ function Assert-Command([string]$Name) {
     Write-Host "[ok] $Name"
 }
 
+function Get-InventoryGroupHostNames($Group) {
+    if ($null -eq $Group -or $null -eq $Group.hosts) {
+        return @()
+    }
+
+    # ansible-inventory has emitted both an object keyed by host name and a
+    # plain list of host names across ansible-core versions.
+    if ($Group.hosts -is [System.Management.Automation.PSCustomObject]) {
+        return @($Group.hosts.PSObject.Properties.Name)
+    }
+
+    return @($Group.hosts)
+}
+
 Assert-Command "ansible-inventory"
 Assert-Command "ansible-playbook"
 Assert-Command "ansible-lint"
@@ -40,15 +54,8 @@ if ($LASTEXITCODE -ne 0) {
     throw "ansible-inventory failed for $inventory."
 }
 
-$vpnGatewayHosts = @()
-if ($null -ne $inventoryJson.vpn_gateway -and $null -ne $inventoryJson.vpn_gateway.hosts) {
-    $vpnGatewayHosts = @($inventoryJson.vpn_gateway.hosts.PSObject.Properties.Name)
-}
-
-$websiteHosts = @()
-if ($null -ne $inventoryJson.website -and $null -ne $inventoryJson.website.hosts) {
-    $websiteHosts = @($inventoryJson.website.hosts.PSObject.Properties.Name)
-}
+$vpnGatewayHosts = Get-InventoryGroupHostNames $inventoryJson.vpn_gateway
+$websiteHosts = Get-InventoryGroupHostNames $inventoryJson.website
 
 $vserverHostNames = @(($vpnGatewayHosts + $websiteHosts) | Select-Object -Unique)
 if ($vserverHostNames.Count -eq 0) {

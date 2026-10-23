@@ -16,7 +16,7 @@ flowchart TB
     end
 
     subgraph DC["Datacenter"]
-        VSPUB["vserver1<br/>static public IP<br/>vpn.co3d.eu"]
+        VSPUB["gateway2<br/>static public IP<br/>vpn.co3d.eu"]
         CADDY["Caddy<br/>public TLS + reverse proxy"]
         WGEASY["wg-easy<br/>road-warrior hub<br/>10.13.0.0/24"]
         SITEV["site link<br/>10.14.0.1"]
@@ -61,7 +61,7 @@ logical overlay, not a dedicated circuit.
 The physical path for the site link is:
 
 ```text
-gw1 -> home LAN -> FritzBox -> ISP -> Internet -> vserver1
+gw1 -> home LAN -> FritzBox -> ISP -> Internet -> gateway2
 ```
 
 The FritzBox is the home router, not a LAN-only device. It owns the ephemeral
@@ -69,7 +69,7 @@ public IP, performs NAT, and carries the tunnel's outer UDP traffic. There is no
 dedicated connection between home and the datacenter.
 
 Because the home public IP is ephemeral and can change daily, **`gw1` is the
-tunnel initiator** and `vserver1` is the stable rendezvous point. That has three
+tunnel initiator** and `gateway2` is the stable rendezvous point. That has three
 consequences:
 
 - A home IP change causes a re-handshake, not a configuration change. No public
@@ -80,7 +80,7 @@ consequences:
   dead path is detected quickly.
 
 Road-warrior clients follow the same rule: they initiate to the static
-`vserver1` endpoint. Caddy's path to a home-hosted service goes over the same
+`gateway2` endpoint. Caddy's path to a home-hosted service goes over the same
 site link, which is why the public edge needs a routed leg into the tunnel.
 
 Key idea: the public edge has one routed leg into the private network. A service
@@ -102,7 +102,7 @@ sequenceDiagram
     autonumber
     actor Phone
     participant Net as Internet
-    participant VS as vserver1 / wg-easy
+    participant VS as gateway2 / wg-easy
     participant FB as Home FritzBox
     participant GW as gw1
     participant DNS as Unbound
@@ -131,7 +131,7 @@ What this proves:
 - The phone uses the same name and certificate as it does at home.
 - DNS must be pushed as the Unbound LAN address, not a per-host overlay
   address.
-- The return path from `gw1` to `vserver1` is the site link; the phone's own
+- The return path from `gw1` to `gateway2` is the site link; the phone's own
   internet path is unrelated to the home WAN.
 - No Caddy route exists for `immich.lan`; this is VPN/WLAN-only access.
 
@@ -157,14 +157,14 @@ sequenceDiagram
     DH->>App: localhost:2283
     App-->>DH: response
     DH-->>Phone: TLS response, homelab CA
-    Note over Phone,App: no VPN, no vserver1, no gw1, no public gateway round trip
+    Note over Phone,App: no VPN, no gateway2, no gw1, no public gateway round trip
 ```
 
 What this proves:
 
 - This is the primary home path and the reason the home LAN route exists.
 - Ad blocking still applies because the FritzBox forwards to Unbound.
-- `gw1`, `vserver1`, and the VPN can all be down without affecting this path.
+- `gw1`, `gateway2`, and the VPN can all be down without affecting this path.
 - The same `immich.lan` name and certificate work here and in path 1.
 
 ### 3. Laptop away from home, no VPN, opens a public service that lives inside
@@ -177,7 +177,7 @@ sequenceDiagram
     autonumber
     actor Laptop
     participant Net as Internet
-    participant VS as vserver1
+    participant VS as gateway2
     participant Caddy as Caddy
     participant FB as Home FritzBox
     participant GW as gw1
@@ -185,7 +185,7 @@ sequenceDiagram
     participant App as Internal service
 
     Laptop->>Net: DNS query for service.co3d.eu
-    Net-->>Laptop: static vserver1 IP
+    Net-->>Laptop: static gateway2 IP
     Laptop->>VS: HTTPS service.co3d.eu:443
     VS->>Caddy: terminate Let's Encrypt TLS
     Caddy->>FB: site link to 192.168.178.201:443, over the internet
@@ -207,7 +207,7 @@ What this proves:
   WireGuard tunnel.
 - The internal service must accept the internal name in Host/SNI. Caddy rewrites
   the header, or the service gets a separate binding for the public name.
-- A home internet outage takes this path down even though `vserver1` is healthy.
+- A home internet outage takes this path down even though `gateway2` is healthy.
 
 ### 4. Laptop at home, VPN off, SSH to the public gateway
 
@@ -220,7 +220,7 @@ sequenceDiagram
     participant FB as Home FritzBox
     participant DNS as Unbound
     participant Net as Internet
-    participant VS as vserver1
+    participant VS as gateway2
 
     Laptop->>FB: join home WLAN, DNS query for vpn.co3d.eu
     FB->>DNS: forward query
@@ -237,7 +237,7 @@ What this proves:
 - The public gateway is reachable for administration without the VPN.
 - This path deliberately crosses the internet even though the laptop is at
   home; it does not use the site link.
-- The only public SSH surface is `vserver1`. Internal hosts remain reachable
+- The only public SSH surface is `gateway2`. Internal hosts remain reachable
   only from the LAN or VPN.
 - If public SSH is not wanted, restrict 22/tcp to the VPN and keep this path as
   a break-glass exception.
@@ -246,9 +246,9 @@ What this proves:
 
 | Component | Host | Responsibility |
 | --- | --- | --- |
-| Public reverse proxy | `vserver1` | Let's Encrypt TLS, public routes, auth, rate limits |
-| VPN hub | `vserver1` | wg-easy road-warrior peers, `10.13.0.0/24` |
-| Site link | `vserver1` ↔ `gw1` | Route the home LAN into the public edge, `10.14.0.0/24` |
+| Public reverse proxy | `gateway2` | Let's Encrypt TLS, public routes, auth, rate limits |
+| VPN hub | `gateway2` | wg-easy road-warrior peers, `10.13.0.0/24` |
+| Site link | `gateway2` ↔ `gw1` | Route the home LAN into the public edge, `10.14.0.0/24` |
 | Home gateway | `gw1` | VPN ↔ LAN routing, allowlist firewall, static route target |
 | Recursive DNS | `netcontroller1`/`netcontroller2` | Unbound, local records, blocklists, DNSSEC |
 | DHCP + DNS forwarder | FritzBox | Addresses, default gateway, forwards DNS to Unbound |
@@ -271,7 +271,7 @@ through the VPN or the home WLAN.
 ### The missing data plane
 
 Caddy currently runs on a Docker bridge network and wg-easy creates its
-WireGuard interface inside its own container. The `vserver1` host therefore has
+WireGuard interface inside its own container. The `gateway2` host therefore has
 no route to `10.13.0.0/24` or `192.168.178.0/24`. Caddy can reach containers on
 its own Docker network, but not VPN peers or LAN services.
 
@@ -279,7 +279,7 @@ The target design needs a deliberate data plane. Options, in order of
 preference:
 
 1. **Host-level site link + Caddy on the host network.** Run a dedicated
-   WireGuard interface on `vserver1` for `gw1`, and run Caddy with host
+   WireGuard interface on `gateway2` for `gw1`, and run Caddy with host
    networking. Caddy binds 80/443 directly, the kernel routes to `gw1`, and
    there is no Docker NAT in the path. This is the easiest model to reason
    about.
@@ -301,7 +301,7 @@ wg-easy features it may not support.
 ### Public TLS
 
 - Caddy obtains Let's Encrypt certificates with HTTP-01 or TLS-ALPN.
-- Public names must resolve to `vserver1` before the first run.
+- Public names must resolve to `gateway2` before the first run.
 - No wildcard is required. A wildcard would need DNS-01, which is harder with
   self-hosted authoritative DNS.
 - Caddy renews automatically. See `context/guides/public-gateway-setup.md` for
@@ -327,21 +327,21 @@ The route model already supports an upstream such as
 
 1. The site link must be up and the route to `192.168.178.0/24` must exist.
 2. `gw1` must allow the public edge to reach that service IP and port.
-3. The return path must reach `vserver1` (static route on the FritzBox or SNAT
+3. The return path must reach `gateway2` (static route on the FritzBox or SNAT
    on `gw1`).
 4. Caddy terminates public TLS; the internal leg may be HTTP over WireGuard or
    HTTPS with the homelab CA. HTTP over the tunnel is simpler and still
    encrypted.
 
 If the home internet is down, a public service hosted at home is down even
-though `vserver1` is up. That is an accepted consequence of hosting it at home.
-Services that must survive a home outage belong on `vserver1`.
+though `gateway2` is up. That is an accepted consequence of hosting it at home.
+Services that must survive a home outage belong on `gateway2`.
 
 ## VPN
 
 ### Road-warrior hub
 
-- wg-easy on `vserver1`, UDP 51820.
+- wg-easy on `gateway2`, UDP 51820.
 - Client pool `10.13.0.0/24`.
 - One peer per device. Revoke lost devices; do not share configs.
 - wg-easy state lives in its SQLite database; back it up before upgrades.
@@ -352,7 +352,7 @@ Services that must survive a home outage belong on `vserver1`.
 
 | Profile | `AllowedIPs` | Internet path | Internal access | Ad blocking |
 | --- | --- | --- | --- | --- |
-| Full tunnel | `0.0.0.0/0`, `::/0` | through `vserver1` | yes | yes, via pushed DNS |
+| Full tunnel | `0.0.0.0/0`, `::/0` | through `gateway2` | yes | yes, via pushed DNS |
 | Split tunnel | `10.13.0.0/24`, `192.168.178.0/24` | direct | yes | DNS only, if DNS is pushed and routed |
 | DNS-only | `10.13.0.0/24` plus the DNS address | direct | no, unless LAN is included | yes |
 
@@ -386,18 +386,18 @@ Turning the VPN off at home costs nothing functionally:
 
 - DNS filtering still applies, because the FritzBox forwards to Unbound.
 - Internal names still resolve to LAN addresses.
-- Traffic stays on the local network and does not touch `vserver1`.
+- Traffic stays on the local network and does not touch `gateway2`.
 - The home WLAN is the trusted network; the VPN's encryption and public exit
   are not needed there.
 
 If the VPN stays on at home, the phone may route the LAN into the tunnel, which
-sends traffic to `vserver1` and back through `gw1`. The name still works, but the
+sends traffic to `gateway2` and back through `gw1`. The name still works, but the
 path is suboptimal. Whether it happens depends on the client:
 
 | Client behavior | Result |
 | --- | --- |
 | Keeps the on-link WLAN route ahead of the VPN default route | direct path, no action needed |
-| Sends all traffic, including the LAN, into the tunnel | hairpin through `vserver1` and `gw1` |
+| Sends all traffic, including the LAN, into the tunnel | hairpin through `gateway2` and `gw1` |
 | Supports excluding local networks from the tunnel | direct path while the VPN stays on |
 | Supports SSID-based on-demand rules | VPN can be disabled automatically at home |
 
@@ -494,7 +494,7 @@ address. `.vpn.lan` aliases require `add_vpn_client_overlay_ipv4` and should be
 phased out.
 
 Public names are not managed by Unbound. They live at the authoritative DNS
-provider and must point at `vserver1`.
+provider and must point at `gateway2`.
 
 ### Blocklists
 
@@ -559,11 +559,11 @@ control.
 
 `co3d.eu` authoritative DNS is self-hosted. Two cases:
 
-- **Authoritative DNS on `vserver1`.** Acceptable for public availability. Back
+- **Authoritative DNS on `gateway2`.** Acceptable for public availability. Back
   it up and monitor it.
 - **Authoritative DNS only at home.** Not acceptable for public services. A home
-  outage would break public name resolution even though `vserver1` is up. Move
-  the public zone to a reliable provider or run it on `vserver1` with a
+  outage would break public name resolution even though `gateway2` is up. Move
+  the public zone to a reliable provider or run it on `gateway2` with a
   secondary.
 
 This is an open decision because the current provider was not specified.
@@ -644,7 +644,7 @@ HTTP.
 
 ### Public TLS
 
-- Let's Encrypt through Caddy at `vserver1`.
+- Let's Encrypt through Caddy at `gateway2`.
 - HSTS on public names is reasonable once the certificate flow is stable.
 - Internal HSTS is optional. Avoid a long `max-age` until certificate rotation
   is routine, because a bad internal certificate becomes hard to bypass.
@@ -674,9 +674,9 @@ for other apps.
 
 | Source | Destination | Ports | Policy |
 | --- | --- | --- | --- |
-| Internet | `vserver1` | 22/tcp | allow, key-only, fail2ban |
-| Internet | `vserver1` | 80/tcp, 443/tcp, 443/udp | allow |
-| Internet | `vserver1` | 51820/udp | allow |
+| Internet | `gateway2` | 22/tcp | allow, key-only, fail2ban |
+| Internet | `gateway2` | 80/tcp, 443/tcp, 443/udp | allow |
+| Internet | `gateway2` | 51820/udp | allow |
 | Internet | home LAN | any | deny; no port forwarding |
 | VPN client | Unbound | 53/tcp, 53/udp | allow |
 | VPN client | allowlisted service IPs | 443/tcp, explicit ports | allow |
@@ -687,9 +687,9 @@ for other apps.
 | Guest WLAN | internet | any | allow |
 | Guest WLAN | home LAN | any | deny |
 | Guest WLAN | Unbound | 53 | allow if blocking is wanted |
-| `gw1` | `vserver1` | 51820/udp | allow outbound |
-| `vserver1` | `gw1` | site-link ports | allow |
-| `vserver1` | allowlisted LAN services | explicit ports | allow |
+| `gw1` | `gateway2` | 51820/udp | allow outbound |
+| `gateway2` | `gw1` | site-link ports | allow |
+| `gateway2` | allowlisted LAN services | explicit ports | allow |
 | IoT | internet | any | allow, with DNS filtering |
 | IoT | home LAN | any | deny except explicit integrations |
 
@@ -706,7 +706,7 @@ Notes:
 
 | Failure | Impact | Mitigation |
 | --- | --- | --- |
-| `vserver1` down | Public services and VPN down; home WLAN direct access still works | Monitor; keep public services that must survive at home or accept the outage |
+| `gateway2` down | Public services and VPN down; home WLAN direct access still works | Monitor; keep public services that must survive at home or accept the outage |
 | `gw1` down | Remote access to the LAN down; home WLAN direct access still works | Monitor; keep the VM small and backed up; HA is a later option |
 | One Unbound resolver down | FritzBox fails over to the other | Active/passive rollout; monitor both |
 | Both Unbound resolvers down | Internal names fail; internet may still work via FritzBox fallback | Monitoring, canary queries, documented recovery |
@@ -715,8 +715,8 @@ Notes:
 | Certificate expiry | TLS errors on internal services | Expiry monitoring and a rotation runbook |
 | wg-easy database loss | Clients need re-enrollment | Back up the SQLite database outside the repository |
 | CA key loss | Cannot issue new internal certificates | Offline backup of the CA key and certificate |
-| Public authoritative DNS down | Public names fail to resolve | Host it on `vserver1` or a reliable provider |
-| Home internet down | VPN and home-hosted public services down; `vserver1` services stay up | Place availability-critical services on `vserver1` |
+| Public authoritative DNS down | Public names fail to resolve | Host it on `gateway2` or a reliable provider |
+| Home internet down | VPN and home-hosted public services down; `gateway2` services stay up | Place availability-critical services on `gateway2` |
 
 ## Operations
 
@@ -766,7 +766,7 @@ Notes:
 - Certificate expiry for internal and public names.
 - VPN peer count and handshake age.
 - Public endpoint probes for the website, status page, and VPN UI.
-- Disk and service health on `gw1` and `vserver1`.
+- Disk and service health on `gw1` and `gateway2`.
 
 ## Open decisions
 
@@ -775,7 +775,7 @@ Notes:
 | O1 | Accept Model A (site-to-site) or keep Model B? | Accept A; keep B temporarily for management |
 | O2 | Where does `gw1` run? Dedicated VM, netcontroller, or FritzBox WireGuard? | Dedicated small VM |
 | O3 | Public-edge data plane: host networking, bridge + NAT, or sidecar? | Host-level site link + Caddy on host network |
-| O4 | Where is authoritative DNS for `co3d.eu` actually hosted? | Not at home only; `vserver1` or a reliable provider |
+| O4 | Where is authoritative DNS for `co3d.eu` actually hosted? | Not at home only; `gateway2` or a reliable provider |
 | O5 | Keep `.lan`, or migrate to `.internal`/`home.arpa`? | Keep `.lan` now; revisit before certificates proliferate |
 | O6 | Per-host HAProxy or one central internal proxy? | Keep per-host HAProxy for now |
 | O7 | Is the wg-easy UI public, VPN-only, or behind SSO? | VPN-only or SSO; public only with strong auth |
@@ -819,7 +819,7 @@ Run these after each phase, from the indicated vantage point:
 | Certificate SANs | `openssl x509 -in context/homelab-ca/client/dockerhost2.crt -noout -text` | Expected names only |
 | Unbound config | `unbound-checkconf` | no errors |
 | Unbound listeners | `ss -lntup` on the resolver | 53 on expected interfaces only |
-| VPN routes | `wg show`, `ip route` on `vserver1` and `gw1` | Site link and LAN route present |
+| VPN routes | `wg show`, `ip route` on `gateway2` and `gw1` | Site link and LAN route present |
 | Public site | `curl -I https://co3d.eu` | 200/301, valid public certificate |
 | Public status | `curl -I https://status.co3d.eu` | 200, valid public certificate |
 | Public-to-home route | `curl -I https://<public-name>` for a home-hosted service | Reaches the service through `gw1` |

@@ -30,7 +30,7 @@ names always resolve to their LAN address.
 
 ```text
 phone on mobile
-  -> wg-easy (vserver1)
+  -> wg-easy (gateway2)
   -> site link
   -> gw1
   -> 192.168.178.201 (dockerhost2)
@@ -38,7 +38,7 @@ phone on mobile
 
 - DNS: `immich.lan` → `192.168.178.201` everywhere.
 - TLS: certificate SAN `immich.lan` only.
-- Routing: `vserver1` has `192.168.178.0/24 via gw1`; `gw1` forwards to the LAN.
+- Routing: `gateway2` has `192.168.178.0/24 via gw1`; `gw1` forwards to the LAN.
 - Home WLAN: same name, same address, direct path.
 - Firewall: `gw1` allowlists which VPN clients may reach which LAN IPs/ports.
 
@@ -54,7 +54,7 @@ overlay address.
 
 ```text
 phone on mobile
-  -> wg-easy (vserver1)
+  -> wg-easy (gateway2)
   -> 10.13.0.11 (dockerhost2)
 ```
 
@@ -170,9 +170,9 @@ Adopt **Model A** as the target, with these guardrails:
 
 1. Choose the `gw1` platform: a dedicated small VM, an existing netcontroller,
    or the FritzBox WireGuard client. A dedicated VM is the cleanest.
-2. Establish the site link between `vserver1` and `gw1` on a dedicated subnet
+2. Establish the site link between `gateway2` and `gw1` on a dedicated subnet
    (proposed `10.14.0.0/24`), separate from the wg-easy road-warrior pool.
-3. Add the home LAN route on `vserver1` and the VPN route on `gw1`.
+3. Add the home LAN route on `gateway2` and the VPN route on `gw1`.
 4. Add a FritzBox static route for `10.13.0.0/24` via `gw1`, or SNAT on `gw1`
    if a static route is not workable. A static route preserves client identity
    and is preferred.

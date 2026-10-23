@@ -1,5 +1,9 @@
 [DEFAULT]
 bantime = {{ add_firewall_fail2ban_bantime }}
+bantime.increment = {{ add_firewall_fail2ban_bantime_increment | ternary('true', 'false') }}
+{% if add_firewall_fail2ban_bantime_increment | bool %}
+bantime.multipliers = {{ add_firewall_fail2ban_bantime_multipliers | join(' ') }}
+{% endif %}
 findtime = {{ add_firewall_fail2ban_findtime }}
 maxretry = {{ add_firewall_fail2ban_maxretry }}
 banaction = ufw

@@ -1,0 +1,61 @@
+# Website publish key
+
+This key pair authenticates to `{{ add_website_publish_user }}`, the account used by
+an external site repository or CI job to publish static content for
+`{{ add_website_domain }}`.
+
+Files in this directory:
+
+- `{{ add_website_publish_key_path }}` - private key. Copy it into the CI secret.
+- `{{ add_website_publish_key_path }}.pub` - public key, authorized for the
+  publish account.
+- `{{ add_website_publish_readme_path }}` - this file.
+
+The publish account has no sudo and owns only `{{ add_website_content_dir }}`.
+The nginx container mounts that directory read-only.
+
+## Key rotation
+
+every run of the homelab `add-website` playbook replaces this key pair and revokes the
+previous key. 
+
+## Fetch the private key
+
+As root on the gateway:
+
+```bash
+ssh root@{{ inventory_hostname }} 'cat {{ add_website_publish_key_path }}'
+```
+
+Store the output as a secret such as `WEBSITE_PUBLISH_KEY`, then write it in CI:
+
+```bash
+mkdir -p ~/.ssh
+printf '%s\n' "$WEBSITE_PUBLISH_KEY" > ~/.ssh/website-publish
+chmod 600 ~/.ssh/website-publish
+```
+
+## Publish content
+
+```bash
+rsync -az --delete --chmod=D755,F644 \
+  -e 'ssh -i ~/.ssh/website-publish -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' \
+  dist/ {{ add_website_publish_user }}@{{ inventory_hostname }}:{{ add_website_content_dir }}/
+```
+
+`-a` skips owner and group preservation for a non-root receiver. `--chmod` keeps directories `0755` and files `0644`, which is
+all nginx needs to read them.
+
+`--delete` removes files that no longer exist in the build output, so never
+place manually managed files directly in `{{ add_website_content_dir }}`.
+
+## Verify
+
+```bash
+ssh -i ~/.ssh/website-publish {{ add_website_publish_user }}@{{ inventory_hostname }} \
+  'ls -la {{ add_website_content_dir }}'
+curl -I https://{{ add_website_domain }}
+```
+
+Publishing over SSH uses the existing SSH port, so no extra firewall port is
+needed.

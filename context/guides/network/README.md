@@ -54,8 +54,8 @@ replace the host-specific runbooks.
 | --- | --- |
 | Home LAN | `192.168.178.0/24`, FritzBox at `.1`, DHCP `.20`-`.191`, homelab static block `192.168.178.192/26` |
 | Guest WLAN | `192.168.179.0/24`, separate from the home LAN |
-| Public edge | `vserver1`, Caddy + wg-easy, UFW + fail2ban, Let's Encrypt via Caddy |
-| VPN | wg-easy on `vserver1`, UDP 51820, per-host clients in `10.13.0.0/24` |
+| Public edge | `gateway2`, Caddy + wg-easy, UFW + fail2ban, Let's Encrypt via Caddy |
+| VPN | wg-easy on `gateway2`, UDP 51820, per-host clients in `10.13.0.0/24` |
 | DNS | Unbound on `netcontroller1`/`netcontroller2`, active/passive rollout, blocklists, local `.lan` records |
 | DHCP | FritzBox; Kea role exists but is not deployed |
 | Internal TLS | Homelab CA in `context/homelab-ca/`, per-host certificates, HAProxy on Docker hosts |
@@ -80,9 +80,9 @@ Relevant existing docs and code:
 | Zone | Address space | Trust | Contains | Notes |
 | --- | --- | --- | --- | --- |
 | Internet | any | untrusted | clients, scanners, abuse | Only the public edge is reachable |
-| Public edge | `vserver1` public IP | semi-trusted | Caddy, wg-easy, website/status containers | Inbound 22/tcp, 80/tcp, 443/tcp, 51820/udp only |
+| Public edge | `gateway2` public IP | semi-trusted | Caddy, wg-easy, website/status containers | Inbound 22/tcp, 80/tcp, 443/tcp, 51820/udp only |
 | VPN overlay | `10.13.0.0/24` (road warriors) | authenticated | phones, laptops | wg-easy hub |
-| Site link | `10.14.0.0/24` (proposed) | trusted | `vserver1` ↔ `gw1` | Routes the home LAN into the public edge |
+| Site link | `10.14.0.0/24` (proposed) | trusted | `gateway2` ↔ `gw1` | Routes the home LAN into the public edge |
 | Home LAN | `192.168.178.0/24` | trusted | phones, laptops, TVs, smarthome | FritzBox DHCP/DNS forwarder |
 | Homelab static | `192.168.178.192/26` | trusted, service-specific | netcontrollers, dockerhost2, restic1, admin1 | Firewall allowlist from VPN |
 | Guest WLAN | `192.168.179.0/24` | untrusted | guest devices | Internet + filtered DNS only, no LAN |
@@ -92,10 +92,10 @@ Relevant existing docs and code:
 
 | Flow | Path | TLS | DNS |
 | --- | --- | --- | --- |
-| Public website | Internet → `vserver1:443` → Caddy → local container or `gw1` → service | Let's Encrypt at Caddy | Public authoritative DNS |
-| Public status page | Internet → `vserver1:443` → Caddy → status container or `gw1` → service | Let's Encrypt at Caddy | Public authoritative DNS |
-| VPN connect | Internet → `vserver1:51820/udp` → wg-easy → `10.13.0.x` | WireGuard | n/a |
-| Phone on mobile → internal service | phone → VPN → `vserver1` → `gw1` → LAN service | Homelab CA at service | Unbound, LAN IP answer |
+| Public website | Internet → `gateway2:443` → Caddy → local container or `gw1` → service | Let's Encrypt at Caddy | Public authoritative DNS |
+| Public status page | Internet → `gateway2:443` → Caddy → status container or `gw1` → service | Let's Encrypt at Caddy | Public authoritative DNS |
+| VPN connect | Internet → `gateway2:51820/udp` → wg-easy → `10.13.0.x` | WireGuard | n/a |
+| Phone on mobile → internal service | phone → VPN → `gateway2` → `gw1` → LAN service | Homelab CA at service | Unbound, LAN IP answer |
 | Phone on home WLAN → internal service | phone → FritzBox DNS → Unbound → LAN service | Homelab CA at service | Unbound, LAN IP answer |
 | Home device without VPN | same as above | Homelab CA at service | Unbound, LAN IP answer |
 | Public service hosted at home | Internet → Caddy → site link → `gw1` → service | Let's Encrypt at Caddy; optional homelab CA on the internal leg | Public name at Caddy |
@@ -104,7 +104,7 @@ Relevant existing docs and code:
 The public edge has a **static** public IP. The home FritzBox has an
 **ephemeral** public IP and there is no dedicated link between them. All VPN
 tunnels are initiated from the home side (`gw1` and road-warrior clients) to the
-static `vserver1` endpoint, so a changing home IP never requires a public-side
+static `gateway2` endpoint, so a changing home IP never requires a public-side
 configuration change and no inbound home port forwarding is needed.
 
 ## Decisions recorded so far

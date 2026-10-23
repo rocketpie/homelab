@@ -34,9 +34,9 @@ Option A means:
 - [ ] Document that routing the LAN into the VPN is not the same as exposing it:
       `gw1` must keep an allowlist, and every new service needs a firewall rule.
 - [ ] Document the added latency and public-gateway load when a home client
-      hairpins through `vserver1`.
+      hairpins through `gateway2`.
 - [ ] Document that public services hosted at home depend on the home internet
-      connection, even when `vserver1` is healthy.
+      connection, even when `gateway2` is healthy.
 - [ ] Document the homelab CA limitation: browsers can trust a user-installed
       CA, but some native Android apps may not. Include the browser/PWA fallback
       and the option to revisit a public wildcard later.
@@ -52,7 +52,7 @@ Option A means:
       `home.arpa` alternatives and the migration cost.
 - [ ] Document that IPv6 is not fully designed. State whether the tunnel is
       IPv6-disabled or dual-stack, and why.
-- [ ] Document that `vserver1` and `gw1` have no high-availability story. State
+- [ ] Document that `gateway2` and `gw1` have no high-availability story. State
       the accepted outage behavior.
 - [ ] Document that the public authoritative DNS must not live only at home.
 - [ ] Document the certificate rotation impact: server certificates can rotate
@@ -115,7 +115,7 @@ Option A means:
 
 - Caddy currently runs on a Docker bridge network.
 - wg-easy creates its WireGuard interface inside its own container, so the
-  `vserver1` host has no route to `10.13.0.0/24` or `192.168.178.0/24`.
+  `gateway2` host has no route to `10.13.0.0/24` or `192.168.178.0/24`.
 - Caddy therefore cannot reach VPN peers or LAN services today.
 - Choose and document the data plane before adding a public route to a
   home-hosted service:
@@ -127,11 +127,11 @@ Option A means:
 
 ### Site link, dynamic home IP, and wg-easy
 
-- The datacenter `vserver1` has a static public IP; the home FritzBox has an
+- The datacenter `gateway2` has a static public IP; the home FritzBox has an
   ephemeral public IP that may change daily.
 - There is no dedicated connection between them. Every tunnel runs over the
   public internet through the FritzBox's WAN interface.
-- `gw1` must be the **tunnel initiator**; `vserver1` is the stable rendezvous.
+- `gw1` must be the **tunnel initiator**; `gateway2` is the stable rendezvous.
   This keeps a changing home IP from requiring any public-side configuration.
 - No inbound port forwarding at home is needed. Outbound UDP from `gw1` is
   sufficient, which also covers CGNAT and DS-Lite.
@@ -174,9 +174,9 @@ Option A means:
 ### Public DNS
 
 - Confirm where the authoritative zone for `co3d.eu` actually lives.
-- If it lives only at home, move it to `vserver1` or a reliable provider before
+- If it lives only at home, move it to `gateway2` or a reliable provider before
   relying on public services.
-- Public names must point at `vserver1` before Caddy can issue certificates.
+- Public names must point at `gateway2` before Caddy can issue certificates.
 
 ## Implementation TODO
 
@@ -224,12 +224,12 @@ Option A means:
 - [ ] Add `gw1` to inventory and host vars.
 - [ ] Enable IP forwarding on `gw1`.
 - [ ] Establish the site-link WireGuard interface on `gw1` as the initiator.
-- [ ] Establish the matching interface on `vserver1` as the stable endpoint.
+- [ ] Establish the matching interface on `gateway2` as the stable endpoint.
 - [ ] Configure a persistent keepalive on `gw1`.
 - [ ] Set `AllowedIPs` deliberately on both sides.
 - [ ] Confirm no inbound port forwarding is required at home.
-- [ ] Add `192.168.178.0/24` via the site link on `vserver1`.
-- [ ] Add `10.13.0.0/24` via `vserver1` on `gw1`.
+- [ ] Add `192.168.178.0/24` via the site link on `gateway2`.
+- [ ] Add `10.13.0.0/24` via `gateway2` on `gw1`.
 - [ ] Add the FritzBox static route for `10.13.0.0/24` via `gw1`, or configure
       SNAT.
 - [ ] Add the `gw1` allowlist firewall rules.
@@ -256,7 +256,7 @@ Option A means:
 
 ### Phase 6 — operations
 
-- [ ] Add `gw1` and `vserver1` to monitoring.
+- [ ] Add `gw1` and `gateway2` to monitoring.
 - [ ] Monitor VPN handshakes and peer count.
 - [ ] Monitor certificate expiry.
 - [ ] Monitor public endpoints.
@@ -298,9 +298,9 @@ Option A means:
 - [ ] Unbound listens only where intended.
 - [ ] `wg show` shows the site link and the expected handshakes.
 - [ ] The site link reconnects after a FritzBox reconnect or a home IP change
-      without any change on `vserver1`.
+      without any change on `gateway2`.
 - [ ] No inbound port forwarding exists on the home router for the site link.
-- [ ] `ip route` on `vserver1` shows the LAN route via `gw1`.
+- [ ] `ip route` on `gateway2` shows the LAN route via `gw1`.
 - [ ] `ip route` on `gw1` shows the VPN route via the site link.
 - [ ] A LAN host can reply to a VPN client.
 - [ ] A guest WLAN client cannot reach a LAN service.
@@ -308,7 +308,7 @@ Option A means:
 - [ ] A public home-hosted service is reachable through Caddy.
 - [ ] Caddy rewrites Host/SNI to the internal name and trusts the homelab CA.
 - [ ] A public service survives a `gw1` outage only if it is hosted on
-      `vserver1`; confirm the expected behavior.
+      `gateway2`; confirm the expected behavior.
 - [ ] SSH to `vpn.co3d.eu:22` works from home with the VPN off, using key-only
       authentication.
 - [ ] Native mobile apps work with the homelab CA, or the limitation is
@@ -333,7 +333,7 @@ Option A means:
 | O1 | Accept Option A? | yes, with a firewall allowlist |
 | O2 | Where does `gw1` run? | dedicated small VM |
 | O3 | Caddy data plane? | host-level site link plus Caddy on host networking |
-| O4 | Where is authoritative DNS for `co3d.eu`? | `vserver1` or a reliable provider, not home-only |
+| O4 | Where is authoritative DNS for `co3d.eu`? | `gateway2` or a reliable provider, not home-only |
 | O5 | Keep `.lan` or migrate? | keep `.lan` for now |
 | O6 | Per-host HAProxy or central proxy? | keep per-host HAProxy |
 | O7 | wg-easy UI exposure? | VPN-only or SSO |

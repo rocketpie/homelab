@@ -72,13 +72,18 @@ Inbound ports on the gateway:
 | Port | Protocol | Purpose |
 | --- | --- | --- |
 | 22 (or `add_firewall_ssh_port`) | TCP | SSH |
-| 80 | TCP | ACME HTTP challenge and HTTP-to-HTTPS redirect |
+| 80 | TCP | ACME HTTP challenge and HTTP-to-HTTPS redirect for all hosts |
 | 443 | TCP | HTTPS |
 | 443 | UDP | HTTP/3 (optional, enabled by default) |
 | 51820 (or `add_vpn_gateway_wg_easy_wg_port`) | UDP | WireGuard |
 
 WireGuard is the one deliberate exception to "SSH and web traffic only".
 The wg-easy web UI is **not** published directly; Caddy proxies it over HTTPS.
+
+Caddy redirects **every** plaintext HTTP request to HTTPS, including requests
+for hostnames that are not in `add_vpn_gateway_routes`. Caddy's automatic
+host-matched redirects run first, and a catch-all `http://` block handles the
+rest with a `308` that preserves the path, query string, and request method.
 
 ## Bootstrap SSH Access
 
@@ -115,16 +120,16 @@ The host is in both groups in [`inventory/hosts.yml`](../../inventory/hosts.yml)
 ```yaml
 vpn_gateway:
   hosts:
-    vserver1:
+    gateway2:
       ansible_host: 62.83.36.224
       dns_name: vpn.co3d.eu
 
 website:
   hosts:
-    vserver1:
+    gateway2:
 ```
 
-Update [`inventory/host_vars/vserver1/host.yml`](../../inventory/host_vars/vserver1/host.yml)
+Update [`inventory/host_vars/gateway2/host.yml`](../../inventory/host_vars/gateway2/host.yml)
 with the gateway routes:
 
 ```yaml
@@ -242,11 +247,11 @@ The projects live in:
 └── docker-compose.yml
 ```
 
-## Migrating wg-easy v15.1
+## Migrating wg-easy data
 
 wg-easy v15 stores its state in a SQLite database at
 `/etc/wireguard/wg-easy.db` inside the container. Because the old instance is
-already v15.1, copy that database instead of using the legacy `wg0.json`
+already on v15, copy that database instead of using the legacy `wg0.json`
 import path.
 
 On the old server, stop the container before copying so SQLite has no pending
@@ -343,14 +348,57 @@ directory creation, ownership, and the first-start ordering for you.
 By default the role creates a placeholder `index.html` and does not overwrite
 it on later runs.
 
-Two ways to deploy real content:
+Three ways to deploy real content:
 
-- Copy files into `/opt/website/content/` on the server.
 - Point `add_website_content_src` at a local directory. The role copies its
-  contents into `/opt/website/content/` on each run.
+  contents into `/opt/website/content/` on each run. The copy is additive, so
+  deleted files stay on the server.
+- Let an external site repository or CI job push a build over SSH. See
+  [External publishing](#external-publishing).
+- Copy files into `/opt/website/content/` on the server manually.
 
 Caddy routes the website hostname to `website:80` through the shared
 `vpn-gateway-proxy` Docker network.
+
+### External publishing
+
+The role creates a password-locked `website-deploy` account that has no sudo and
+owns only `/opt/website/content` (`0755`, files `0644`). It also installs
+`rsync` and generates an ed25519 key pair for that account:
+
+- `/root/website-publish` - private key
+- `/root/website-publish.pub` - public key
+- `/root/website-publish.README.md` - operator notes for this host
+
+The private key is what CI uses. Fetch it after a run:
+
+```bash
+ssh root@<gateway-host> 'cat /root/website-publish'
+```
+
+The publish job then runs:
+
+```bash
+rsync -az --delete --chmod=D755,F644 \
+  -e 'ssh -i ~/.ssh/website-publish -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' \
+  dist/ website-deploy@<gateway-host>:/opt/website/content/
+```
+
+Do not pass `--chown=root:root`. The publish account is not root, so it cannot
+change ownership; `-a` already skips owner and group preservation for a non-root
+receiver, and `--chmod` keeps the files readable by nginx. Publishing uses the
+existing SSH port, so no firewall change is needed.
+
+`add_website_publish_key_rotate` defaults to `true`, so every playbook run
+replaces the key pair and revokes the previous CI key. Copy the new private key
+into the CI secret after each run. To keep the current key across runs, set
+`add_website_publish_key_rotate: false` in the host vars and rotate
+deliberately. Set `add_website_publish_user: ""` to skip the account, keys, and
+README entirely.
+
+If `add_website_content_src` is also set, both paths write to the same directory
+and the last writer wins.
+
 
 ## Firewall and fail2ban
 
@@ -358,7 +406,9 @@ UFW defaults to deny incoming and allow outgoing. The role allows SSH first,
 then the web and WireGuard ports, and only then enables UFW. It runs only on
 hosts in the `vpn_gateway` group.
 
-fail2ban uses the `ufw` ban action. The `sshd` jail uses the systemd backend:
+fail2ban uses the `ufw` ban action. The `sshd` jail uses the systemd backend and
+bans for `2m` after `7` failures within `2h`. Ban times escalate on repeat
+offenses through `bantime.increment` with multipliers `1 4 1800 54000`:
 
 ```bash
 sudo fail2ban-client status sshd
@@ -383,7 +433,9 @@ does not reboot automatically by default. Docker Engine comes from Docker's apt
 repository, so it is not covered by the Ubuntu security origin; update it
 manually or extend the allowed origins if you want it updated automatically.
 
-Container images are pinned to explicit tags. Update each project separately:
+Container images are pinned to explicit tags. The role defaults currently pin
+`ghcr.io/wg-easy/wg-easy:15.4` and `caddy:2.11.7-alpine`. Update each project
+separately:
 
 ```bash
 cd /opt/vpn-gateway

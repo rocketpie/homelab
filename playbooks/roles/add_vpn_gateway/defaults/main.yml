@@ -19,13 +19,13 @@ add_vpn_gateway_routes: []
 
 add_vpn_gateway_proxy_network_name: vpn-gateway-proxy
 
-add_vpn_gateway_caddy_image: caddy:2.10-alpine
+add_vpn_gateway_caddy_image: caddy:2.11.7-alpine
 add_vpn_gateway_caddy_container_name: vpn-gateway-caddy
 add_vpn_gateway_caddy_http_port: 80
 add_vpn_gateway_caddy_https_port: 443
 add_vpn_gateway_caddy_http3: true
 
-add_vpn_gateway_wg_easy_image: ghcr.io/wg-easy/wg-easy:15.1
+add_vpn_gateway_wg_easy_image: ghcr.io/wg-easy/wg-easy:15.4
 add_vpn_gateway_wg_easy_container_name: wg-easy
 add_vpn_gateway_wg_easy_proxy_port: 80
 add_vpn_gateway_wg_easy_wg_port: 51820
