@@ -47,18 +47,18 @@
     comment: SSH
   when: add_firewall_enable_ufw | bool
 
-- name: Allow HTTP and HTTPS TCP ports through the firewall
+- name: Allow configured TCP ports through the firewall
   community.general.ufw:
     rule: allow
     port: "{{ item | int }}"
     proto: tcp
-    comment: "HTTP(S) {{ item }}"
+    comment: "TCP {{ item }}"
   loop: "{{ add_firewall_allowed_tcp_ports }}"
   loop_control:
     label: "{{ item }}"
   when: add_firewall_enable_ufw | bool
 
-- name: Allow HTTP/3 and other configured UDP ports through the firewall
+- name: Allow configured UDP ports through the firewall
   community.general.ufw:
     rule: allow
     port: "{{ item | int }}"

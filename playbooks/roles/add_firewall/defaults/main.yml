@@ -2,13 +2,12 @@
 add_firewall_packages:
   - ufw
 add_firewall_ssh_port: 22
-add_firewall_allowed_tcp_ports:
-  - 80
-  - 443
-add_firewall_allowed_udp_ports:
-  - 443
-add_firewall_wireguard_ports:
-  - 51820
+# Which inbound ports are allowed is host policy, not a role assumption. Define
+# the lists in inventory group_vars or host_vars. Empty means the role only
+# opens SSH.
+add_firewall_allowed_tcp_ports: []
+add_firewall_allowed_udp_ports: []
+add_firewall_wireguard_ports: []
 add_firewall_enable_ufw: true
 
 add_firewall_fail2ban_enabled: true

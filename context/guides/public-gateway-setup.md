@@ -72,13 +72,20 @@ Inbound ports on the gateway:
 | Port | Protocol | Purpose |
 | --- | --- | --- |
 | 22 (or `add_firewall_ssh_port`) | TCP | SSH |
-| 80 | TCP | ACME HTTP challenge and HTTP-to-HTTPS redirect for all hosts |
-| 443 | TCP | HTTPS |
-| 443 | UDP | HTTP/3 (optional, enabled by default) |
+| 80 (or `add_vpn_gateway_caddy_http_port`) | TCP | ACME HTTP challenge and HTTP-to-HTTPS redirect for all hosts |
+| 443 (or `add_vpn_gateway_caddy_https_port`) | TCP | HTTPS |
+| 443 (or `add_vpn_gateway_caddy_https_port`) | UDP | HTTP/3, only when `add_vpn_gateway_caddy_http3` is true |
 | 51820 (or `add_vpn_gateway_wg_easy_wg_port`) | UDP | WireGuard |
 
 WireGuard is the one deliberate exception to "SSH and web traffic only".
 The wg-easy web UI is **not** published directly; Caddy proxies it over HTTPS.
+
+`add_firewall` is protocol-agnostic and assumes no ports: its defaults are
+empty lists, so a host gets SSH only. The exposed ports are inventory policy in
+[`inventory/group_vars/vpn_gateway/firewall.yml`](../../inventory/group_vars/vpn_gateway/firewall.yml),
+derived from the gateway vars, so the firewall follows whatever the gateway
+publishes and disabling HTTP/3 also closes UDP 443 instead of leaving a dead
+port open. Host vars can override the lists for a host with different exposure.
 
 Caddy redirects **every** plaintext HTTP request to HTTPS, including requests
 for hostnames that are not in `add_vpn_gateway_routes`. Caddy's automatic
@@ -101,10 +108,11 @@ Then verify the key works:
 ssh -i ~/.ssh/ansible root@62.83.36.224 'id'
 ```
 
-If this is the first SSH connection, accept the host key when prompted, or add
-it first:
+If this is the first SSH connection, accept the host key when prompted. 
+After a reinstall, remove the old host key first, then add the new one:
 
 ```bash
+ssh-keygen -R 62.83.36.224 # after reinstall only
 ssh-keyscan -H 62.83.36.224 >> ~/.ssh/known_hosts
 ```
 
@@ -112,6 +120,39 @@ If the provider uses a different key, set `ansible_ssh_private_key_file` in
 the host vars. If password authentication is enabled, the alternative is to put
 `ansible_password` in the host vault and let `sshpass` handle the first run, but
 installing the key is the cleaner bootstrap.
+
+### Bootstrapping from a provider install script
+
+If the provider can run a script on first boot after reinstalling the image,
+put the key there instead of using `ssh-copy-id`. The script runs as root and
+the gateway uses `ansible_user: root`, so it only needs to write
+`/root/.ssh/authorized_keys`.
+
+First, read the active environment's ansible `sshPublicKey`:
+```bash
+jq -r .sshPublicKey .homelab-environment.json
+```
+or any other public key with `ssh-keygen -lf ~/.ssh/key-file.pub`
+
+
+```sh
+#!/bin/sh
+set -eu
+
+KEY='ssh-ed25519 AAAA... ansible'
+
+install -d -m 0700 -o root -g root /root/.ssh
+touch /root/.ssh/authorized_keys
+chown root:root /root/.ssh/authorized_keys
+chmod 0600 /root/.ssh/authorized_keys
+grep -qxF "$KEY" /root/.ssh/authorized_keys || printf '%s\n' "$KEY" >> /root/.ssh/authorized_keys
+```
+
+Note:
+- The script must run as root and SSH must accept key-based root login
+  (`PermitRootLogin prohibit-password` is the Ubuntu default). If the first
+  login fails, add `id > /root/bootstrap-ssh.log` to the script and read that
+  file through the provider console.
 
 ## Inventory and Vault
 
@@ -348,14 +389,13 @@ directory creation, ownership, and the first-start ordering for you.
 By default the role creates a placeholder `index.html` and does not overwrite
 it on later runs.
 
-Three ways to deploy real content:
+Two ways to deploy real content:
 
-- Point `add_website_content_src` at a local directory. The role copies its
-  contents into `/opt/website/content/` on each run. The copy is additive, so
-  deleted files stay on the server.
 - Let an external site repository or CI job push a build over SSH. See
   [External publishing](#external-publishing).
 - Copy files into `/opt/website/content/` on the server manually.
+
+The role does not push content from the Ansible controller.
 
 Caddy routes the website hostname to `website:80` through the shared
 `vpn-gateway-proxy` Docker network.
@@ -396,15 +436,12 @@ into the CI secret after each run. To keep the current key across runs, set
 deliberately. Set `add_website_publish_user: ""` to skip the account, keys, and
 README entirely.
 
-If `add_website_content_src` is also set, both paths write to the same directory
-and the last writer wins.
-
-
 ## Firewall and fail2ban
 
 UFW defaults to deny incoming and allow outgoing. The role allows SSH first,
-then the web and WireGuard ports, and only then enables UFW. It runs only on
-hosts in the `vpn_gateway` group.
+then the TCP and UDP ports from the inventory policy, and only then enables
+UFW. It runs only on hosts in the `vpn_gateway` group. The role itself has no
+port defaults, so an unconfigured host gets SSH only.
 
 fail2ban uses the `ufw` ban action. The `sshd` jail uses the systemd backend and
 bans for `2m` after `7` failures within `2h`. Ban times escalate on repeat
@@ -420,8 +457,12 @@ published container ports. The gateway publishes only the ports listed above;
 the wg-easy UI stays on the private Compose network and the website publishes
 no host port while it runs on the gateway.
 
-If you change `add_vpn_gateway_wg_easy_wg_port`, also update
-`add_firewall_wireguard_ports` so the matching UDP port stays open.
+If you change `add_vpn_gateway_caddy_http_port`,
+`add_vpn_gateway_caddy_https_port`, `add_vpn_gateway_caddy_http3`, or
+`add_vpn_gateway_wg_easy_wg_port`, the firewall rules follow automatically
+because `inventory/group_vars/vpn_gateway/firewall.yml` derives them from the
+gateway vars. Override the `add_firewall_allowed_*_ports` lists in host vars
+only for a host whose exposure differs from the rest of the group.
 
 If the host has no usable IPv6, set
 `add_vpn_gateway_wg_easy_disable_ipv6: true`.

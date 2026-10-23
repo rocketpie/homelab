@@ -6,7 +6,6 @@ add_website_owner: root
 add_website_group: root
 
 add_website_domain: ""
-add_website_content_src: ""
 add_website_placeholder_enabled: true
 
 # CI publishing. An external site repository pushes content into
@@ -40,10 +39,12 @@ add_website_container_name: website
 add_website_proxy_network_name: vpn-gateway-proxy
 add_website_join_proxy_network: "{{ inventory_hostname in groups['vpn_gateway'] | default([]) }}"
 
-# Empty means do not publish a host port. For a split website host, set a bind
-# address (ideally the VPN overlay IP) and a port, then point the gateway route
-# at that address.
-add_website_publish_bind: "127.0.0.1"
+# Publishing a host port is opt-in and needs both values. Empty means do not
+# publish a host port; the container is reached over the shared proxy network
+# instead. For a split website host, set a bind address (ideally the VPN
+# overlay IP) and a port, then point the gateway route at that address.
+# Docker binds the address on the website host, so it must exist there.
+add_website_publish_bind: ""
 add_website_publish_port: ""
 
 add_website_pull_images: false

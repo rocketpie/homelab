@@ -24,9 +24,6 @@ add_vpn_gateway_routes:
 
 add_website_domain: "co3d.eu"
 
-# Optional: copy a local directory into /opt/website/content on every run.
-# add_website_content_src: "{{ playbook_dir }}/../srv/website"
-
 # External CI publishing. The role creates a password-locked "website-deploy"
 # account that owns /opt/website/content and writes the key pair and README to
 # /root/website-publish*. The key rotates on every run; fetch the private key

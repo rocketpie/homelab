@@ -1,0 +1,19 @@
+---
+# Inbound exposure for public gateway hosts. add_firewall has no opinion about
+# which ports these are; this group decides.
+#
+# These expressions read add_vpn_gateway defaults, so the play must include that
+# role (add-public-gateway.yml does). The lists derive from the services the
+# gateway actually publishes, so the firewall follows the gateway vars instead
+# of duplicating them. Host vars override these lists wholesale for a host with
+# a different exposure.
+add_firewall_allowed_tcp_ports:
+  - "{{ add_vpn_gateway_caddy_http_port }}"
+  - "{{ add_vpn_gateway_caddy_https_port }}"
+
+# UDP 443 is HTTP/3. It is only published when Caddy has HTTP/3 enabled.
+add_firewall_allowed_udp_ports: >-
+  {{ [add_vpn_gateway_caddy_https_port] if add_vpn_gateway_caddy_http3 | bool else [] }}
+
+add_firewall_wireguard_ports:
+  - "{{ add_vpn_gateway_wg_easy_wg_port }}"

@@ -1,12 +1,7 @@
-# VPN Gateway Setup
-- add_firewall task says 
-    'Allow HTTP and HTTPS TCP ports through the firewall' and 
-    'Allow HTTP/3 and other configured UDP ports through the firewall'
-    etc. 
-    BUT: the actual ports come from defaults, may not translate to HTTP, HTTPS, HTTP/3
-- add_vpn_gateway 'Assert vpn_gateway route hostnames are unique' - smells config validation - which should be build-time, not runtime. check.
-- add_website defaults add_website_publish_bind see comment
-- check / remove add-website publishing content from the ansible host
+# Build / CI
+- wire the `tests/verify-*.ps1` checks into the build/CI path; `build.ps1` currently only runs `ansible-lint`.
+- `tests/verify-public-gateway-config.ps1` is manual and intentionally fails while example placeholders are present, so give it an explicit opt-in/skip flag before it runs unattended.
+- make the cross-host route hostname uniqueness check fail before SSH; keep the per-host runtime assert in `add_vpn_gateway`.
 
 # long-term image update strategy?
 
