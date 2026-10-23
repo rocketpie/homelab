@@ -55,10 +55,14 @@ pwsh run.ps1 -Help
 `run.ps1` only locates the playbook, handles the vault password, and starts the
 SSH agent. It no longer creates a virtual environment.
 
-For the current `pwsh` session it also adds tab-completion for playbook names,
-keeps the vault password in `$env:ANSIBLE_VAULT_PASSWORD`, loads `~/.ssh/ansible`
-into `ssh-agent`, and forwards `-v` when you pass `-Debug`. Both secrets live in
-memory only.
+If an environment is active, `run.ps1` uses the host `ssh-agent` socket and the
+tmpfs vault password published by `Set-Environment.ps1`. Otherwise it prompts for
+the vault password, loads `~/.ssh/ansible` into `ssh-agent`, and caches the
+password in `$env:ANSIBLE_VAULT_PASSWORD` for the current `pwsh` session. It also
+adds tab-completion for playbook names and forwards `-v` when you pass `-Debug`.
+
+See [`context/guides/environment-switching.md`](context/guides/environment-switching.md)
+for the host/container secret boundary and the `Set-Environment.ps1` workflow.
 
 ## Verification
 

@@ -5,10 +5,16 @@
     },
     "remoteUser": "vscode",
     "runArgs": ["-p", "4928:4928"],
+    "initializeCommand": "pwsh -NoProfile -File .devcontainer/Initialize-HomelabRuntime.ps1",
     "mounts": [
         {
             "source": "${localWorkspaceFolder}",
             "target": "/workspace",
+            "type": "bind"
+        },
+        {
+            "source": "/dev/shm/homelab-active",
+            "target": "/home/vscode/.homelab-active",
             "type": "bind"
         }
     ],

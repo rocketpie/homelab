@@ -21,6 +21,6 @@ add_ansible_execution_ssh_private_key_source: >-
   {{ ansible_admin_ssh_private_key_file }}
 add_ansible_execution_ssh_public_key_source: >-
   {{ ansible_admin_ssh_private_key_file }}.pub
-add_ansible_execution_prefill_vault_templates: true
+add_ansible_execution_prefill_vault_templates: false
 add_ansible_execution_autoinstall_server_script: >-
   srv/Start-AutoInstallServer-{{ inventory_hostname }}.sh

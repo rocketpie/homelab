@@ -180,6 +180,16 @@ function Ensure-AnsibleTools {
 }
 
 function Ensure-VaultPassword {
+    $activeVaultPasswordPaths = @(
+        (Join-Path $HOME ".homelab-active/vault_pass"),
+        "/dev/shm/homelab-active/vault_pass"
+    )
+    foreach ($activeVaultPasswordPath in $activeVaultPasswordPaths) {
+        if (Test-Path -LiteralPath $activeVaultPasswordPath) {
+            return
+        }
+    }
+
     $vaultPassword = $env:ANSIBLE_VAULT_PASSWORD
     if (-not [string]::IsNullOrWhiteSpace($vaultPassword)) {
         return

@@ -21,7 +21,7 @@ The `add_ansible_execution` role:
 - installs `pwsh`, `uv`, and the repo's Ansible prerequisites
 - clones the Git remote into the `ansible` user's home directory
 - optionally copies the shared Ansible SSH key into `~/.ssh/ansible`
-- creates missing local `vault.yml` files from the checked-in `# vault.yml:` template comments
+- optionally creates missing local `vault.yml` files from the checked-in `# vault.yml:` template comments; files are created encrypted, so this requires an active vault password on the target and is disabled by default
 - installs helper commands in the `ansible` user's home directory
 
 ## Autoinstall Seed Hosting

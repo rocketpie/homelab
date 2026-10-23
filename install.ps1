@@ -27,7 +27,7 @@ function Write-Targets {
     Write-Host "  -Help                  Show this help (default)"
     Write-Host "  -InstallApt            Legacy WSL only: install python3-venv, python3-pip, sshpass, xorriso, uv"
     Write-Host "  -InstallVenv           Legacy WSL only: create .venv, install requirements, create .collections"
-    Write-Host "  -InstallVault          Create missing local vault.yml files from checked-in # vault.yml: template comments"
+    Write-Host "  -InstallVault          Create missing local vault.yml files from checked-in # vault.yml: template comments and encrypt them"
     Write-Host ""
     Write-Host "The dev container already contains the Ansible toolchain; no install step is needed there."
 }

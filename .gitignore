@@ -8,6 +8,10 @@ __pycache__/
 .vault_pass
 vault.yml
 
+# Active environment state written by Set-Environment.ps1.
+.homelab-environment.json
+.homelab-environment.lock
+
 # wg-easy runtime state contains VPN private keys and client material.
 # Migration backups belong outside the repository; these patterns are only a
 # safety net against accidental commits.

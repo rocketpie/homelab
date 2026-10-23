@@ -21,6 +21,15 @@ Verify the toolchain with:
 pwsh tests/verify-devcontainer.ps1
 ```
 
+## Environment switching
+
+Vaults and the Ansible SSH key can be switched between environments such as
+`Test`, `Prod`, and `Agent` from the WSL/container host. The host owns the
+environment store and the active tmpfs secrets; the dev container sees only the
+active environment.
+
+See [`environment-switching.md`](environment-switching.md).
+
 ## Legacy WSL workflow
 
 Only use this when you are not running inside the dev container:
@@ -46,12 +55,17 @@ Notes:
 `run.ps1` is a convenience wrapper around `ansible-playbook`. Per `pwsh` session it adds:
 
 - tab-completion on playbook names from `playbooks/`
+- the active environment from `.homelab-environment.json`, when present
 - a single Ansible Vault prompt, cached in `$env:ANSIBLE_VAULT_PASSWORD` and fed to
-  Ansible through `vault_pass.ps1`
-- an `ssh-agent` bootstrap that loads `~/.ssh/ansible`, so the key passphrase is
-  asked at most once
+  Ansible through `vault_pass.ps1`, when no environment is active
+- an `ssh-agent` bootstrap that loads `~/.ssh/ansible`, when no environment is
+  active
 - `-Debug`, which forwards `-v` to `ansible-playbook`
 
-The vault password and the SSH key passphrase stay in memory only: nothing is
-written to disk, and nothing survives closing the shell. Run `pwsh run.ps1 -Help`
-for the usage summary.
+With an active environment, `run.ps1` uses the host `ssh-agent` socket and the
+tmpfs vault password published by `Set-Environment.ps1` instead of loading a key
+or prompting. The environment store is host-only; see
+[`environment-switching.md`](environment-switching.md).
+
+Without an active environment, the vault password and SSH key passphrase are
+kept in memory for the session. Run `pwsh run.ps1 -Help` for the usage summary.

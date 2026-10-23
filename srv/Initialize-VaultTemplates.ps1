@@ -3,11 +3,19 @@
 
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = "."
+    [string]$RepoRoot = ".",
+
+    [string]$VaultPasswordFile = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Require-Command([string]$Name) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: '$Name' not found on PATH."
+    }
+}
 
 function Get-RelativeRepoPath([string]$BasePath, [string]$Path) {
     return [System.IO.Path]::GetRelativePath($BasePath, $Path)
@@ -45,6 +53,15 @@ function Get-VaultTemplateContent([string]$TargetFilePath) {
 }
 
 $repoRootPath = (Resolve-Path -LiteralPath $RepoRoot).Path
+$vaultPasswordFile = if ([string]::IsNullOrWhiteSpace($VaultPasswordFile)) {
+    Join-Path (Split-Path -Parent $PSScriptRoot) "vault_pass.ps1"
+}
+else {
+    $VaultPasswordFile
+}
+
+Require-Command "ansible-vault"
+
 $targetFiles = Get-ChildItem -LiteralPath $repoRootPath -Recurse -File -Include *.yml,*.yaml |
 Where-Object { $_.Name -ne "vault.yml" } |
 Sort-Object FullName
@@ -60,13 +77,17 @@ foreach ($targetFile in $targetFiles) {
         continue
     }
 
-    $vaultFileLines = if ([string]::IsNullOrWhiteSpace($vaultTemplateContent)) {
-        @()
+    # Encrypt before the file is created so a plaintext vault never hits disk.
+    $encryptedLines = @(
+        $vaultTemplateContent | & ansible-vault encrypt --vault-password-file $vaultPasswordFile --output=-
+    )
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to encrypt the new vault file for '$($targetFile.FullName)'."
     }
-    else {
-        $vaultTemplateContent -split "\r?\n"
+    if ($encryptedLines.Count -eq 0) {
+        throw "ansible-vault returned no encrypted content for '$($targetFile.FullName)'."
     }
 
-    Set-Content -LiteralPath $vaultFilePath -Encoding utf8NoBOM -Value $vaultFileLines
-    Write-Host "Created $(Get-RelativeRepoPath -BasePath $repoRootPath -Path $vaultFilePath)"
+    Set-Content -LiteralPath $vaultFilePath -Encoding utf8NoBOM -Value $encryptedLines
+    Write-Host "Created encrypted $(Get-RelativeRepoPath -BasePath $repoRootPath -Path $vaultFilePath)"
 }
