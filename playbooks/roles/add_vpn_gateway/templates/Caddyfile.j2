@@ -12,6 +12,10 @@ http:// {
 {% for route in add_vpn_gateway_routes %}
 {% for hostname in route.hostnames %}
 {{ hostname }} {
+{% if add_vpn_gateway_caddy_use_internal_tls | bool %}
+    # Testing and internal deployment: use only the local CA instead of Let's Encrypt via ACME.
+    tls internal
+{% endif %}
     reverse_proxy {{ route.upstream }}
 }
 

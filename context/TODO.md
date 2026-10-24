@@ -29,7 +29,15 @@
 
 - move venv-requirements.txt collection-requirements.txt to .devcontainer?
 
+# guides/FAQ
+new help page with common issues to search for 
+- eg. error message 'Failed to connect to the host via ssh: ssh_askpass: exec(/usr/bin/ssh-askpass): No such file or directory Host key verification failed.' -> remove / add ssh key to known hosts
 
+
+# Set-Environment
+- migrate from legacy hard-coded ansible key / public string
+- removing old host vault files does not persist into environment store
+- '-Deactivate' does not save and remove active vault files
 
 
 # renaming:

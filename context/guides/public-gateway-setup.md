@@ -288,6 +288,18 @@ The projects live in:
 └── docker-compose.yml
 ```
 
+## Testing Before DNS Cutover
+
+When setting up a new host, for testing before updating DNS, use a hosts entry for eg. vpn.co3d.eu.
+Without DNS however, Caddy's public certificates won't work. 
+For testing, switch Caddy to its local CA by setting the temporary host var:
+
+   ```yaml
+   add_vpn_gateway_caddy_use_internal_tls: true
+   ```
+
+Afterwards, re-set `add_vpn_gateway_caddy_use_internal_tls` to `false` and rerun the playbook.
+
 ## Migrating wg-easy data
 
 wg-easy v15 stores its state in a SQLite database at
