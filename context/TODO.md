@@ -34,6 +34,10 @@ new help page with common issues to search for
     review vault edit, swap behaviour
 
 
+# docs
+    rename context -> docs
+    move public-gateway-setup.md #Bootstrapping from a provider install script -> netcup-vm-provisioning.md (and refer to it)
+
 # renaming:
     'kea' inventory role -> 'dhcp'
     'unbound' inventory rule -> 'dns-resolver'

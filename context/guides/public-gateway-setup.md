@@ -132,6 +132,7 @@ First, read the active environment's ansible `sshPublicKey`:
 ```bash
 jq -r .sshPublicKey ~/.homelab-active/homelab-environment.json
 ```
+or `ssh-add -L # public key(s) actually loaded in the environment agent`
 or any other public key with `ssh-keygen -lf ~/.ssh/key-file.pub`
 
 
