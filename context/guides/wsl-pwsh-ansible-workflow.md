@@ -55,7 +55,7 @@ Notes:
 `run.ps1` is a convenience wrapper around `ansible-playbook`. Per `pwsh` session it adds:
 
 - tab-completion on playbook names from `playbooks/`
-- the active environment from `.homelab-environment.json`, when present
+- the active environment from `~/.homelab-active/homelab-environment.json`
 - a single Ansible Vault prompt, cached in `$env:ANSIBLE_VAULT_PASSWORD` and fed to
   Ansible through `vault_pass.ps1`, when no environment is active
 - an `ssh-agent` bootstrap that loads `~/.ssh/ansible`, when no environment is

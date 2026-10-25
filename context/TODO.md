@@ -1,32 +1,15 @@
 # migrate to new gateway2
-- Set-Environment PROD
-- use prod ansible key
-- migrate wg-easy db
-- update DNS
+- sudo systemctl restart wg-quick@co3d on all hosts
 
 # Build / CI
 - wire the `tests/verify-*.ps1` checks into the build/CI path; `build.ps1` currently only runs `ansible-lint`.
 - `tests/verify-public-gateway-config.ps1` is manual and intentionally fails while example placeholders are present, so give it an explicit opt-in/skip flag before it runs unattended.
 - make the cross-host route hostname uniqueness check fail before SSH; keep the per-host runtime assert in `add_vpn_gateway`.
 
-# long-term image update strategy?
+# long-term docker image update strategy?
 
 # Dev Container
-- [x] how to handle ansible ssh key? vault files? (see context/guides/environment-switching.md)
-- [x] some changes for Set-Environment:
-    - please add tab completion / autocomplete for the available environments during switch. 
-    - remove EnvRoot, RuntimeDir parameters. Here, i prefer static variables that can be overriden with an environment variable if needed. 
-    - remove Create parameter. auto-create environments that don't exist and report.
-    - remove Status and List parameters. both can be done automatic after showing help without any parameters.
-        > Set-Environment.ps1
-        (helptext)
-        (available environments)
-        (current status)
-- [] environment-switching.md: **"Refusing plaintext vault file"** — encrypt the file with `ansible-vault` before switching.
-    why not auto-encrypt?
-
 - devcontainer verified. Remove the legacy WSL setup route, wsl, python, ansible etc. setup and interactive key handling from all init / run etc. scripts.
-
 - move venv-requirements.txt collection-requirements.txt to .devcontainer?
 
 # guides/FAQ
@@ -36,8 +19,19 @@ new help page with common issues to search for
 
 # Set-Environment
 - migrate from legacy hard-coded ansible key / public string
-- removing old host vault files does not persist into environment store
-- '-Deactivate' does not save and remove active vault files
+- enable key storage for test environments to prevent prompting the user for test keys
+- environment-switching.md: "`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:"
+    why not auto-encrypt?
+- remove non-tmpfs option. HOMELAB_RUNTIME_ROOT -> RUNTIME_DIRNAME (in tmpfs)
+- how can we simplify the script? is all status tracking, locking, rollback etc necessary? (eg. Switch is just -Deactivate + Load)
+
+- environment-switching.md: 'The `add_ansible_execution_prefill_vault_templates` role option is disabled by default because it needs an active vault password on the target; enable it only when that environment has already published an active Password.'
+    review ansible execution vm behaviour
+
+- environment-switching.md: 
+    - 'Be aware that `ansible-vault edit` uses a local temporary file for the editor. If plaintext must never touch disk, point `TMPDIR` at a tmpfs directory or use a workflow that keeps the editor buffer in memory.'
+    - '`/dev/shm` is tmpfs, but swap can still page it unless swap is disabled or encrypted.'
+    review vault edit, swap behaviour
 
 
 # renaming:

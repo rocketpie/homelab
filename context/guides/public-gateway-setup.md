@@ -130,7 +130,7 @@ the gateway uses `ansible_user: root`, so it only needs to write
 
 First, read the active environment's ansible `sshPublicKey`:
 ```bash
-jq -r .sshPublicKey .homelab-environment.json
+jq -r .sshPublicKey ~/.homelab-active/homelab-environment.json
 ```
 or any other public key with `ssh-keygen -lf ~/.ssh/key-file.pub`
 

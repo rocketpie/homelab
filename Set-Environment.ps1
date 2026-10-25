@@ -7,11 +7,11 @@ param(
     [ArgumentCompleter({
         param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
 
-        $root = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_ENV_ROOT)) {
+        $root = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_ENVIRONMENT_STORE)) {
             Join-Path $HOME ".homelab/environments"
         }
         else {
-            $env:HOMELAB_ENV_ROOT
+            $env:HOMELAB_ENVIRONMENT_STORE
         }
 
         if (-not (Test-Path -LiteralPath $root)) { return }
@@ -41,26 +41,35 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$script:EnvRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_ENV_ROOT)) {
+$script:EnvRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_ENVIRONMENT_STORE)) {
     Join-Path $HOME ".homelab/environments"
 }
 else {
-    $env:HOMELAB_ENV_ROOT
+    $env:HOMELAB_ENVIRONMENT_STORE
 }
 
-$script:RuntimeDir = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_DIR)) {
-    "/dev/shm/homelab-active"
+$script:RuntimeRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_ROOT)) {
+    "/dev/shm/homelab"
 }
 else {
-    $env:HOMELAB_RUNTIME_DIR
+    $env:HOMELAB_RUNTIME_ROOT
 }
 
+# Host-only control data. This directory is deliberately not mounted into the
+# container, so the container cannot rewrite the lock, PID, state, or rollback.
+$script:ControlDir = Join-Path $RuntimeRoot "control"
+
+# Container-visible runtime data. It must stay writable so the container can
+# connect to the Unix socket and read the vault password.
+$script:RuntimeDir = Join-Path $RuntimeRoot "homelab-active"
+
 $repoRoot = $PSScriptRoot
-$statePath = Join-Path $repoRoot ".homelab-environment.json"
-$lockPath = Join-Path $repoRoot ".homelab-environment.lock"
+$statePath = Join-Path $ControlDir "active-environment.json"
+$publishedStatePath = Join-Path $RuntimeDir "homelab-environment.json"
+$lockPath = Join-Path $ControlDir "operation.lock"
 $vaultPasswordPath = Join-Path $RuntimeDir "vault_pass"
 $agentSocketPath = Join-Path $RuntimeDir "active.sock"
-$agentPidPath = Join-Path $RuntimeDir "active.pid"
+$agentPidPath = Join-Path $ControlDir "active.pid"
 $containerVaultPasswordPath = "~/.homelab-active/vault_pass"
 $containerAgentSocketPath = "~/.homelab-active/active.sock"
 $forceEnabled = $PSBoundParameters.ContainsKey("Force") -and $Force
@@ -99,29 +108,19 @@ function Write-Help {
     Write-Host "Run this on the container host, not inside the dev container."
     Write-Host "Usage:"
     Write-Host "  pwsh Set-Environment.ps1"
-    Write-Host "  pwsh Set-Environment.ps1 -Environment <name> [-NoSave] [-Force]"
-    Write-Host "  pwsh Set-Environment.ps1 -Deactivate"
+    Write-Host "  pwsh Set-Environment.ps1 [-Environment] <name> [-NoSave] [-Force]"
+    Write-Host "  pwsh Set-Environment.ps1 -Deactivate [-Force]"
     Write-Host "  pwsh Set-Environment.ps1 -Help"
     Write-Host ""
     Write-Host "Environment variables:"
-    Write-Host "  HOMELAB_ENV_ROOT      Override the environment store"
+    Write-Host "  HOMELAB_ENVIRONMENT_STORE  Override the environment store"
     Write-Host "current environment store: $EnvRoot"
-    Write-Host "  HOMELAB_RUNTIME_DIR   Override the active runtime directory"
-    Write-Host "current runtime directory: $RuntimeDir"
-    Write-Host ""
-    Write-Host "Environment layout (host):"
-    Write-Host "  <environment store>/<name>/repo/...   encrypted vault.yml files"
-    Write-Host "  <environment store>/<name>/ssh/ansible[.pub]"
-    Write-Host ""
-    Write-Host "Active runtime (host tmpfs, mounted into the container):"
-    Write-Host "  <runtime directory>/vault_pass        active vault password"
-    Write-Host "  <runtime directory>/active.sock       active host ssh-agent"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Environment <name>  Switch to an environment; auto-create it if missing"
-    Write-Host "  -NoSave              Do not save the current repo vaults to the current environment"
-    Write-Host "  -Force               Allow non-tmpfs runtime dir or replacing unmanaged repo vaults"
-    Write-Host "  -Deactivate          Stop the active agent and clear the active environment"
+    Write-Host "  -NoSave              Do not save current repo vaults; discard them when no environment is active"
+    Write-Host "  -Force               Allow non-tmpfs runtime root, unmanaged repo vaults, or clearing repo vaults without an active runtime"
+    Write-Host "  -Deactivate          Save active vaults, remove them from the repo, stop the agent, and clear the active environment"
 }
 
 function Assert-Host {
@@ -139,7 +138,7 @@ function Assert-Host {
     $dockerCommand = Get-Command "docker" -ErrorAction SilentlyContinue
     $homelabRoot = Join-Path $HOME ".homelab"
     if ($inContainer -or ($null -eq $dockerCommand -and -not (Test-Path -LiteralPath $homelabRoot))) {
-        throw "Set-Environment.ps1 must run on the WSL/container host, not inside the dev container. The host owns ~/.homelab and /dev/shm/homelab-active."
+        throw "Set-Environment.ps1 must run on the WSL/container host, not inside the dev container. The host owns ~/.homelab and the tmpfs runtime at '$RuntimeRoot'."
     }
 }
 
@@ -148,22 +147,24 @@ function Initialize-RuntimeDir {
         throw "The active environment runtime directory requires a Linux/WSL host."
     }
 
-    New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
-    & chmod 700 $RuntimeDir
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not set permissions on '$RuntimeDir'."
+    foreach ($directory in @($RuntimeRoot, $ControlDir, $RuntimeDir)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+        & chmod 700 $directory
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not set permissions on '$directory'."
+        }
     }
 
     $fileSystemType = ""
     try {
-        $fileSystemType = (& stat -f -c %T $RuntimeDir).Trim()
+        $fileSystemType = (& stat -f -c %T $RuntimeRoot).Trim()
     }
     catch {
         $fileSystemType = ""
     }
 
     if ($fileSystemType -ne "tmpfs") {
-        $message = "Runtime directory '$RuntimeDir' is not tmpfs (detected '$fileSystemType')."
+        $message = "Runtime directory '$RuntimeRoot' is not tmpfs (detected '$fileSystemType')."
         if (-not $forceEnabled) {
             throw "$message Use -Force only if you accept that the vault password may be written to persistent storage."
         }
@@ -217,6 +218,29 @@ function Get-EnvironmentVaultFiles([string]$EnvDir) {
     )
 }
 
+function Assert-NoOrphanedRuntime([object]$ActiveState, [object[]]$RepoVaults, [bool]$AllowDiscard = $false) {
+    if ($null -ne $ActiveState) {
+        return
+    }
+
+    $vaultCount = @($RepoVaults).Count
+    if ($vaultCount -eq 0) {
+        return
+    }
+
+    if ($forceEnabled) {
+        Write-Warning "Repository contains $vaultCount encrypted vault.yml file(s) but no active runtime environment was found. Continuing because -Force was supplied."
+        return
+    }
+
+    if ($AllowDiscard) {
+        Write-Warning "Repository contains $vaultCount encrypted vault.yml file(s) but no active runtime environment was found. Continuing because -NoSave was supplied; the repository vault files will be discarded."
+        return
+    }
+
+    throw "Repository contains $vaultCount encrypted vault.yml file(s) but no active runtime environment was found at '$RuntimeRoot'. This usually means the host rebooted or the tmpfs runtime was cleared. Re-run with -Force to override, or move the vault files into their environment store first."
+}
+
 function Assert-Encrypted([string]$FilePath) {
     $firstLine = Get-Content -LiteralPath $FilePath -TotalCount 1 -ErrorAction Stop
     if ($firstLine -notlike '$ANSIBLE_VAULT;*') {
@@ -232,12 +256,36 @@ function Copy-RepoVaultsToEnvironment([string]$EnvDir) {
     $repoVaultsDir = Join-Path $EnvDir "repo"
     New-Item -ItemType Directory -Force -Path $repoVaultsDir | Out-Null
 
+    $pathComparer = if ($IsLinux) {
+        [System.StringComparer]::Ordinal
+    }
+    else {
+        [System.StringComparer]::OrdinalIgnoreCase
+    }
+    $relativePaths = [System.Collections.Generic.HashSet[string]]::new($pathComparer)
+
     foreach ($vault in (Get-RepoVaultFiles)) {
         Assert-Encrypted $vault.FullName
         $relative = Get-RelativePath $repoRoot $vault.FullName
+        [void]$relativePaths.Add($relative)
         $destination = Join-Path $repoVaultsDir $relative
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
         Copy-Item -LiteralPath $vault.FullName -Destination $destination -Force
+    }
+
+    # Mirror the repository: vaults removed from the repository are also removed
+    # from the environment store so a removal persists across switches.
+    foreach ($vault in (Get-EnvironmentVaultFiles $EnvDir)) {
+        $relative = Get-RelativePath $repoVaultsDir $vault.FullName
+        if (-not $relativePaths.Contains($relative)) {
+            Remove-Item -LiteralPath $vault.FullName -Force
+        }
+    }
+}
+
+function Remove-RepoVaults {
+    foreach ($repoVault in (Get-RepoVaultFiles)) {
+        Remove-Item -LiteralPath $repoVault.FullName -Force
     }
 }
 
@@ -247,9 +295,7 @@ function Copy-EnvironmentVaultsToRepo([string]$EnvDir) {
         Assert-Encrypted $vault.FullName
     }
 
-    foreach ($repoVault in (Get-RepoVaultFiles)) {
-        Remove-Item -LiteralPath $repoVault.FullName -Force
-    }
+    Remove-RepoVaults
 
     $repoVaultsDir = Join-Path $EnvDir "repo"
     $relativePaths = @()
@@ -265,7 +311,7 @@ function Copy-EnvironmentVaultsToRepo([string]$EnvDir) {
 }
 
 function Backup-RepoVaults {
-    $backupDir = Join-Path $RuntimeDir "rollback"
+    $backupDir = Join-Path $ControlDir "rollback"
     Remove-Item -LiteralPath $backupDir -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 
@@ -281,9 +327,7 @@ function Backup-RepoVaults {
 }
 
 function Restore-RepoVaults([string]$BackupDir) {
-    foreach ($repoVault in (Get-RepoVaultFiles)) {
-        Remove-Item -LiteralPath $repoVault.FullName -Force
-    }
+    Remove-RepoVaults
 
     if (-not (Test-Path -LiteralPath $BackupDir)) {
         return
@@ -402,6 +446,25 @@ function Write-ActiveVaultPassword([string]$PlainPassword) {
     Set-PrivateFileMode $vaultPasswordPath
 }
 
+function Write-JsonFile([string]$Path, $Value) {
+    $tempPath = "$Path.new"
+    $json = $Value | ConvertTo-Json -Depth 5
+    [System.IO.File]::WriteAllText($tempPath, $json, [System.Text.UTF8Encoding]::new($false))
+    Set-PrivateFileMode $tempPath
+    Move-Item -LiteralPath $tempPath -Destination $Path -Force
+    Set-PrivateFileMode $Path
+}
+
+function Restore-FileContent([string]$Path, [byte[]]$Content) {
+    if ($null -eq $Content) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    [System.IO.File]::WriteAllBytes($Path, $Content)
+    Set-PrivateFileMode $Path
+}
+
 function Enter-Lock {
     $stream = $null
     try {
@@ -472,8 +535,12 @@ function Invoke-List {
 
 function Invoke-Status {
     $activeState = Get-ActiveState
+    $repoVaults = @(Get-RepoVaultFiles)
     if ($null -eq $activeState) {
         Write-Host "No active environment."
+        if ($repoVaults.Count -gt 0) {
+            Write-Warning "Repository contains $($repoVaults.Count) encrypted vault.yml file(s) but no active runtime environment was found at '$RuntimeRoot'. This usually means the host rebooted or the tmpfs runtime was cleared. Re-run a switch with -Force to override, or -Deactivate -Force to clear them."
+        }
         return
     }
 
@@ -481,8 +548,10 @@ function Invoke-Status {
     Write-Host "Generation: $($activeState.generation)"
     Write-Host "Updated: $($activeState.updatedAt)"
     Write-Host "Managed vaults: $(@($activeState.managedVaults).Count)"
+    Write-Host "Runtime root: $RuntimeRoot"
     Write-Host "Vault password file: $vaultPasswordPath (exists: $(Test-Path -LiteralPath $vaultPasswordPath))"
     Write-Host "SSH agent socket: $agentSocketPath (exists: $(Test-Path -LiteralPath $agentSocketPath))"
+    Write-Host "Published state file: $publishedStatePath (exists: $(Test-Path -LiteralPath $publishedStatePath))"
     Write-Host "SSH public key: $(if ($activeState.sshPublicKey) { 'present' } else { 'missing' })"
 
     if (Test-Path -LiteralPath $agentPidPath) {
@@ -495,24 +564,57 @@ function Invoke-Deactivate {
     Initialize-RuntimeDir
 
     $lock = $null
+    $backupDir = $null
     try {
         $lock = Enter-Lock
         $activeState = Get-ActiveState
+        $repoVaults = @(Get-RepoVaultFiles)
+        Assert-NoOrphanedRuntime $activeState $repoVaults
         if ($null -ne $activeState) {
             $currentEnvDir = Get-EnvironmentDir $activeState.environment
-            if (Test-Path -LiteralPath $currentEnvDir) {
-                Copy-RepoVaultsToEnvironment $currentEnvDir
+            if (-not (Test-Path -LiteralPath $currentEnvDir)) {
+                throw "Active environment '$($activeState.environment)' directory is missing: $currentEnvDir"
             }
+
+            $backupDir = Backup-RepoVaults
+            Copy-RepoVaultsToEnvironment $currentEnvDir
+            $savedVaultCount = @(Get-EnvironmentVaultFiles $currentEnvDir).Count
+            Remove-RepoVaults
+
             Stop-Agent
             Remove-Item -LiteralPath $vaultPasswordPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $publishedStatePath -Force -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupDir -Recurse -Force -ErrorAction SilentlyContinue
+
             Write-Host "Deactivated environment '$($activeState.environment)'."
+            Write-Host "Saved $savedVaultCount vault file(s) to $currentEnvDir and removed them from the repository."
         }
         else {
+            if ($repoVaults.Count -gt 0) {
+                Remove-RepoVaults
+            }
+
             Stop-Agent
             Remove-Item -LiteralPath $vaultPasswordPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $publishedStatePath -Force -ErrorAction SilentlyContinue
             Write-Host "No active environment."
+            if ($repoVaults.Count -gt 0) {
+                Write-Host "Removed $($repoVaults.Count) unmanaged repository vault file(s)."
+            }
         }
+    }
+    catch {
+        if ($null -ne $backupDir -and (Test-Path -LiteralPath $backupDir)) {
+            try {
+                Restore-RepoVaults $backupDir
+            }
+            catch {
+                Write-Warning "Rollback of repository vaults failed: $_"
+            }
+        }
+
+        throw
     }
     finally {
         Exit-Lock $lock
@@ -546,14 +648,11 @@ function Invoke-Switch {
     }
 
     $repoVaults = @(Get-RepoVaultFiles)
+    Assert-NoOrphanedRuntime $currentState $repoVaults -AllowDiscard:([bool]$NoSave)
+
     $adoptUnmanaged = $false
-    if ($null -eq $currentState) {
-        if ($targetVaults.Count -eq 0 -and $repoVaults.Count -gt 0 -and -not $NoSave) {
-            $adoptUnmanaged = $true
-        }
-        elseif ($targetVaults.Count -gt 0 -and $repoVaults.Count -gt 0 -and -not $NoSave -and -not $forceEnabled) {
-            throw "The repository contains unmanaged vault.yml files and environment '$Environment' already has vaults. Re-run with -Force to replace them with the environment copy, or -NoSave to discard them."
-        }
+    if ($null -eq $currentState -and $targetVaults.Count -eq 0 -and $repoVaults.Count -gt 0 -and -not $NoSave) {
+        $adoptUnmanaged = $true
     }
 
     $targetVaultPassword = $null
@@ -567,8 +666,18 @@ function Invoke-Switch {
     $lock = $null
     $backupDir = $null
     $previousVaultPassword = $null
+    $previousState = $null
+    $previousPublishedState = $null
+    $agentStarted = $false
     try {
         $lock = Enter-Lock
+        if (Test-Path -LiteralPath $statePath) {
+            $previousState = [System.IO.File]::ReadAllBytes($statePath)
+        }
+        if (Test-Path -LiteralPath $publishedStatePath) {
+            $previousPublishedState = [System.IO.File]::ReadAllBytes($publishedStatePath)
+        }
+
         $backupDir = Backup-RepoVaults
 
         if ($null -ne $currentState) {
@@ -582,10 +691,10 @@ function Invoke-Switch {
 
         $managedVaults = @(Copy-EnvironmentVaultsToRepo $envDir)
 
+        if (Test-Path -LiteralPath $vaultPasswordPath) {
+            $previousVaultPassword = Get-Content -LiteralPath $vaultPasswordPath -Raw
+        }
         if ($managedVaults.Count -gt 0) {
-            if (Test-Path -LiteralPath $vaultPasswordPath) {
-                $previousVaultPassword = Get-Content -LiteralPath $vaultPasswordPath -Raw
-            }
             Write-ActiveVaultPassword $targetVaultPassword
         }
         else {
@@ -593,6 +702,7 @@ function Invoke-Switch {
         }
 
         $fingerprint = Start-Agent $key.PrivateKey $key.PublicKey
+        $agentStarted = $true
         $publicKey = (Get-Content -LiteralPath $key.PublicKey -Raw).Trim()
 
         $state = [ordered]@{
@@ -606,14 +716,15 @@ function Invoke-Switch {
             sshPublicKey       = $publicKey
             managedVaults      = @($managedVaults)
         }
-        $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath -Encoding utf8NoBOM
+        Write-JsonFile $statePath $state
+        Write-JsonFile $publishedStatePath $state
 
         Remove-Item -LiteralPath $backupDir -Recurse -Force -ErrorAction SilentlyContinue
 
         Write-Host "Active environment: $Environment"
         Write-Host "Vaults: $(@($managedVaults).Count)"
         Write-Host "SSH key fingerprint: $fingerprint"
-        Write-Host "Runtime directory: $RuntimeDir"
+        Write-Host "Runtime directory: $RuntimeRoot"
     }
     catch {
         if ($null -ne $backupDir -and (Test-Path -LiteralPath $backupDir)) {
@@ -632,6 +743,23 @@ function Invoke-Switch {
             catch {
                 Write-Warning "Rollback of the active vault password failed: $_"
             }
+        }
+
+        if ($agentStarted) {
+            try {
+                Stop-Agent
+            }
+            catch {
+                Write-Warning "Rollback of the active SSH agent failed: $_"
+            }
+        }
+
+        try {
+            Restore-FileContent $statePath $previousState
+            Restore-FileContent $publishedStatePath $previousPublishedState
+        }
+        catch {
+            Write-Warning "Rollback of the active environment state failed: $_"
         }
 
         throw

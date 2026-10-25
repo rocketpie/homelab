@@ -8,5 +8,3 @@ __pycache__
 **/.vault_pass
 **/vault.yml
 **/autoinstall-local.yml
-**/.homelab-environment.json
-**/.homelab-environment.lock

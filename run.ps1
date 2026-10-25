@@ -27,7 +27,7 @@ $ErrorActionPreference = "Stop"
 
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 Set-Variable -Scope Script -Name 'defaultAnsibleSshKeyPath' -Value (Join-Path $HOME ".ssh/ansible")
-Set-Variable -Scope Script -Name 'activeEnvironmentStatePath' -Value (Join-Path $PSScriptRoot ".homelab-environment.json")
+Set-Variable -Scope Script -Name 'activeEnvironmentStatePath' -Value (Join-Path $HOME ".homelab-active/homelab-environment.json")
 
 $localCollections = Join-Path $PSScriptRoot ".collections"
 $devContainerToolchain = Test-Path "/opt/ansible/venv/bin/ansible-playbook"
@@ -51,7 +51,7 @@ function Write-Help {
     Write-Host ""
     Write-Host "This is a convenience wrapper around ansible-playbook. For the current pwsh session it:"
     Write-Host "  - accepts tab-completion for playbook names"
-    Write-Host "  - uses the active environment from .homelab-environment.json when present"
+    Write-Host "  - uses the published state from ~/.homelab-active/homelab-environment.json when present"
     Write-Host "  - otherwise prompts for the Ansible Vault password and loads ~/.ssh/ansible"
     Write-Host ""
     Write-Host "With an active environment, run.ps1 uses the host ssh-agent socket and the tmpfs"
