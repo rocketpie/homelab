@@ -10,7 +10,7 @@ add_firewall_ssh_port: 22
 
 # Testing: use Caddy's local CA before public DNS cutover. 
 # disable or set this to false (Default) and rerun when DNS points at this host.
-#add_vpn_gateway_caddy_use_internal_tls: true
+# add_vpn_gateway_caddy_use_internal_tls: true
 add_vpn_gateway_acme_email: "lars@co3d.eu"
 add_vpn_gateway_wg_easy_init_host: "vpn.co3d.eu"
 add_vpn_gateway_routes:
@@ -44,7 +44,7 @@ add_website_domain: "co3d.eu"
 # Optional: seed an existing wg-easy v15 SQLite database.
 # Keep the file outside the repository; the DB patterns in .gitignore are only
 # a safety net against accidental commits.
-# add_vpn_gateway_wg_easy_migration_source: "{{ lookup('env', 'HOME') }}/wg-easy-backup/wg-easy.db"
+add_vpn_gateway_wg_easy_migration_source: "/workspaces/homelab/wg-easy-backup/wg-easy.db"
 
 # Optional: set this to true to pull newer images on the next playbook run.
 # add_vpn_gateway_pull_images: false
