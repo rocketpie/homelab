@@ -8,9 +8,8 @@
 
 # long-term docker image update strategy?
 
-# Dev Container
-- devcontainer verified. Remove the legacy WSL setup route, wsl, python, ansible etc. setup and interactive key handling from all init / run etc. scripts.
-- move venv-requirements.txt collection-requirements.txt to .devcontainer?
+# Legacy host setup
+- See [TODO-remove-legacy-host-setup.md](TODO-remove-legacy-host-setup.md) for the full plan: remove the legacy WSL/venv/interactive key handling, migrate inventory to the active environment key, and rework the ansible execution VM.
 
 # guides/FAQ
 new help page with common issues to search for 
@@ -18,15 +17,11 @@ new help page with common issues to search for
 
 
 # Set-Environment
-- migrate from legacy hard-coded ansible key / public string
 - enable key storage for test environments to prevent prompting the user for test keys
 - environment-switching.md: "`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:"
     why not auto-encrypt?
 - remove non-tmpfs option. HOMELAB_RUNTIME_ROOT -> RUNTIME_DIRNAME (in tmpfs)
 - how can we simplify the script? is all status tracking, locking, rollback etc necessary? (eg. Switch is just -Deactivate + Load)
-
-- environment-switching.md: 'The `add_ansible_execution_prefill_vault_templates` role option is disabled by default because it needs an active vault password on the target; enable it only when that environment has already published an active Password.'
-    review ansible execution vm behaviour
 
 - environment-switching.md: 
     - 'Be aware that `ansible-vault edit` uses a local temporary file for the editor. If plaintext must never touch disk, point `TMPDIR` at a tmpfs directory or use a workflow that keeps the editor buffer in memory.'
@@ -123,14 +118,6 @@ restic init
 # add-docker 
     - daily scan active container versions
     - log changes
-
-# add ansible execution vm
-    - play should focus:
-        - add install pwsh role
-        - git clone repository in host user home    
-    - do *not* create missing local `vault.yml` files.
-    - remove other clutter
-
 
 # Lint
 Running ansible-lint...
