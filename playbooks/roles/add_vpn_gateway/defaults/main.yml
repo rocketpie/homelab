@@ -28,7 +28,7 @@ add_vpn_gateway_caddy_http3: true
 # Testing and internal deployment: use only the local CA instead of Let's Encrypt via ACME.
 add_vpn_gateway_caddy_use_internal_tls: false
 
-add_vpn_gateway_wg_easy_image: ghcr.io/wg-easy/wg-easy:15.4
+add_vpn_gateway_wg_easy_image: ghcr.io/wg-easy/wg-easy:15.5
 add_vpn_gateway_wg_easy_container_name: wg-easy
 add_vpn_gateway_wg_easy_proxy_port: 80
 add_vpn_gateway_wg_easy_wg_port: 51820
