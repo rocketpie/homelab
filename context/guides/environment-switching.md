@@ -174,6 +174,10 @@ workflow that keeps the editor buffer in memory.
   private key and cannot reach an inactive environment's agent.
 - The active vault password is readable by the container because Ansible needs
   it. Inactive passwords are never present.
+- Remembered secrets live in the host session's environment. They are not
+  mounted into the container, but every child process started from that session
+  inherits them. Run `./Set-Environment.ps1 -ClearSecretCache` when the
+  convenience is no longer needed.
 - `<runtime>/homelab-active/` is mounted read-write so the container can
   connect to `active.sock`. The container can also rewrite `vault_pass` and the
   published `homelab-environment.json`; the host MUST NOT trust this copy,

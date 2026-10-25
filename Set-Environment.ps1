@@ -29,10 +29,16 @@ param(
     [Parameter(ParameterSetName = "Switch")]
     [switch]$NoSave,
 
+    [Parameter(ParameterSetName = "Switch")]
+    [switch]$RememberMe,
+
     [switch]$Force,
 
     [Parameter(ParameterSetName = "Deactivate")]
     [switch]$Deactivate,
+
+    [Parameter(ParameterSetName = "ForgetMe")]
+    [switch]$ForgetMe,
 
     [Parameter(ParameterSetName = "Help")]
     [switch]$Help
@@ -70,6 +76,9 @@ $lockPath = Join-Path $ControlDir "operation.lock"
 $vaultPasswordPath = Join-Path $RuntimeDir "vault_pass"
 $agentSocketPath = Join-Path $RuntimeDir "active.sock"
 $agentPidPath = Join-Path $ControlDir "active.pid"
+# ssh-add executes SSH_ASKPASS, so this helper must not live on a noexec tmpfs.
+# It contains no secret; it reads the serialized value from a HOMELAB_KEY_* var.
+$sshAskPassPath = Join-Path (Join-Path $HOME ".homelab/bin") "ssh-askpass.sh"
 $containerVaultPasswordPath = "~/.homelab-active/vault_pass"
 $containerAgentSocketPath = "~/.homelab-active/active.sock"
 $forceEnabled = $PSBoundParameters.ContainsKey("Force") -and $Force
@@ -81,6 +90,9 @@ function Main {
         }
         "Deactivate" {
             Invoke-Deactivate
+        }
+        "ForgetMe" {
+            Invoke-ForgetMe
         }
         "Help" {
             Write-Help
@@ -118,9 +130,13 @@ function Write-Help {
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Environment <name>  Switch to an environment; auto-create it if missing"
-    Write-Host "  -NoSave              Do not save current repo vaults; discard them when no environment is active"
+    Write-Host "  -NoSave              discard current repo vaults when switching. Do NOT save them to the store."
     Write-Host "  -Force               Allow non-tmpfs runtime root, unmanaged repo vaults, or clearing repo vaults without an active runtime"
     Write-Host "  -Deactivate          Save active vaults, remove them from the repo, stop the agent, and clear the active environment"
+    Write-Host ""
+    Write-Host "Advanced Options:"
+    Write-Host "  -RememberMe          Remember entered vault and SSH passphrases for this host session"
+    Write-Host "  -ForgetMe            Forget all entered vault and SSH passphrases from this host session"
 }
 
 function Assert-Host {
@@ -376,11 +392,22 @@ function Stop-Agent {
     Remove-Item Env:SSH_AGENT_PID -ErrorAction SilentlyContinue
 }
 
-function Start-Agent([string]$PrivateKeyPath, [string]$PublicKeyPath) {
+function Start-Agent(
+    [string]$PrivateKeyPath,
+    [string]$PublicKeyPath,
+    [string]$Passphrase = "",
+    [string]$PassphraseCacheVariable = "",
+    [switch]$PassphraseFromCache,
+    [switch]$RememberPassphrase
+) {
     foreach ($command in @("ssh-agent", "ssh-add", "ssh-keygen")) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
             throw "Missing dependency: '$command' not found on PATH."
         }
+    }
+
+    if ([string]::IsNullOrEmpty($Passphrase) -and (Test-PrivateKeyEncrypted $PrivateKeyPath)) {
+        throw "The environment SSH key is encrypted, but no passphrase was supplied."
     }
 
     Stop-Agent
@@ -403,10 +430,11 @@ function Start-Agent([string]$PrivateKeyPath, [string]$PublicKeyPath) {
     $env:SSH_AUTH_SOCK = $agentSocketPath
     $env:SSH_AGENT_PID = "$agentPid"
 
-    & ssh-add $PrivateKeyPath
-    if ($LASTEXITCODE -ne 0) {
+    $keepPassphrase = $RememberPassphrase -or $PassphraseFromCache
+    $sshAddExitCode = Invoke-SshAdd $PrivateKeyPath $Passphrase $PassphraseCacheVariable $keepPassphrase
+    if ($sshAddExitCode -ne 0) {
         Stop-Agent
-        throw "ssh-add could not load the environment SSH key."
+        throw "ssh-add could not load the environment SSH key. The passphrase may be wrong."
     }
 
     $fingerprintOutput = & ssh-keygen -lf $PublicKeyPath
@@ -429,11 +457,25 @@ function Start-Agent([string]$PrivateKeyPath, [string]$PublicKeyPath) {
     return $fingerprint
 }
 
-function Read-VaultPassword([string]$Name) {
+function Read-VaultPassword([string]$Name, [string]$CacheEnvironment = "", [switch]$RememberMe) {
+    if ([string]::IsNullOrWhiteSpace($CacheEnvironment)) {
+        $CacheEnvironment = $Name
+    }
+
+    $rememberedPassword = Get-RememberedSecret $CacheEnvironment "vault"
+    if ($null -ne $rememberedPassword) {
+        Write-Host "Using the remembered Ansible Vault password for '$CacheEnvironment'."
+        return $rememberedPassword
+    }
+
     $securePassword = Read-Host -Prompt "Ansible Vault password for '$Name'?" -AsSecureString
-    $plainPassword = [pscredential]::new("dummy", $securePassword).GetNetworkCredential().Password
+    $plainPassword = ConvertFrom-SecureStringPlain $securePassword
     if ([string]::IsNullOrWhiteSpace($plainPassword)) {
         throw "No vault password supplied."
+    }
+
+    if ($RememberMe -and (Set-RememberedSecret $CacheEnvironment "vault" $plainPassword)) {
+        Write-Host "Remembered the Ansible Vault password for '$CacheEnvironment' in this host session."
     }
     return $plainPassword
 }
@@ -536,6 +578,8 @@ function Invoke-List {
 function Invoke-Status {
     $activeState = Get-ActiveState
     $repoVaults = @(Get-RepoVaultFiles)
+    $rememberedSecretCount = @(Get-ChildItem Env: | Where-Object { $_.Name -like "HOMELAB_KEY_*" }).Count
+    Write-Host "Remembered secrets: $rememberedSecretCount"
     if ($null -eq $activeState) {
         Write-Host "No active environment."
         if ($repoVaults.Count -gt 0) {
@@ -657,11 +701,13 @@ function Invoke-Switch {
 
     $targetVaultPassword = $null
     if ($targetVaults.Count -gt 0) {
-        $targetVaultPassword = Read-VaultPassword $Environment
+        $targetVaultPassword = Read-VaultPassword $Environment -RememberMe:$RememberMe
     }
     elseif ($adoptUnmanaged) {
-        $targetVaultPassword = Read-VaultPassword "$Environment (import current repo vaults)"
+        $targetVaultPassword = Read-VaultPassword "$Environment (import current repo vaults)" -CacheEnvironment $Environment -RememberMe:$RememberMe
     }
+
+    $sshPassphraseInfo = Get-EnvironmentSshPassphrase $Environment $key.PrivateKey
 
     $lock = $null
     $backupDir = $null
@@ -701,7 +747,30 @@ function Invoke-Switch {
             Remove-Item -LiteralPath $vaultPasswordPath -Force -ErrorAction SilentlyContinue
         }
 
-        $fingerprint = Start-Agent $key.PrivateKey $key.PublicKey
+        try {
+            $fingerprint = Start-Agent `
+                -PrivateKeyPath $key.PrivateKey `
+                -PublicKeyPath $key.PublicKey `
+                -Passphrase $sshPassphraseInfo.Value `
+                -PassphraseCacheVariable $sshPassphraseInfo.VariableName `
+                -PassphraseFromCache:$sshPassphraseInfo.FromCache `
+                -RememberPassphrase:$RememberMe
+        }
+        catch {
+            if (-not $sshPassphraseInfo.FromCache) {
+                throw
+            }
+
+            Clear-RememberedSecret $Environment "ssh"
+            Write-Warning "The remembered SSH key passphrase for '$Environment' was rejected. Enter it again."
+            $sshPassphraseInfo = Get-EnvironmentSshPassphrase $Environment $key.PrivateKey -ForcePrompt
+            $fingerprint = Start-Agent `
+                -PrivateKeyPath $key.PrivateKey `
+                -PublicKeyPath $key.PublicKey `
+                -Passphrase $sshPassphraseInfo.Value `
+                -PassphraseCacheVariable $sshPassphraseInfo.VariableName `
+                -RememberPassphrase:$RememberMe
+        }
         $agentStarted = $true
         $publicKey = (Get-Content -LiteralPath $key.PublicKey -Raw).Trim()
 
@@ -766,6 +835,199 @@ function Invoke-Switch {
     }
     finally {
         Exit-Lock $lock
+    }
+}
+
+
+function ConvertFrom-SecureStringPlain([System.Security.SecureString]$SecureString) {
+    return [pscredential]::new("dummy", $SecureString).GetNetworkCredential().Password
+}
+
+function Get-SecretCacheVariableName([string]$Environment, [string]$Kind) {
+    $key = "$Environment`:$Kind"
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($key))
+    }
+    finally {
+        $sha256.Dispose()
+    }
+
+    $hash = [Convert]::ToHexString($bytes).ToUpperInvariant()
+    return "HOMELAB_KEY_$($hash.Substring(0, 16))"
+}
+
+function Get-RememberedSecret([string]$Environment, [string]$Kind) {
+    $variableName = Get-SecretCacheVariableName $Environment $Kind
+    $serialized = [Environment]::GetEnvironmentVariable($variableName)
+    if ([string]::IsNullOrEmpty($serialized)) {
+        return $null
+    }
+
+    try {
+        $secure = ConvertTo-SecureString $serialized
+        return ConvertFrom-SecureStringPlain $secure
+    }
+    catch {
+        Write-Warning "Could not read cached $Kind secret for '$Environment': $_"
+        Clear-RememberedSecret $Environment $Kind
+        return $null
+    }
+}
+
+function Set-RememberedSecret([string]$Environment, [string]$Kind, [string]$Value) {
+    if ([string]::IsNullOrEmpty($Value)) {
+        return $false
+    }
+
+    try {
+        $variableName = Get-SecretCacheVariableName $Environment $Kind
+        $serialized = ConvertFrom-SecureString (
+            ConvertTo-SecureString -String $Value -AsPlainText -Force
+        )
+        [Environment]::SetEnvironmentVariable($variableName, $serialized, "Process")
+        return $true
+    }
+    catch {
+        Write-Warning "Could not cache $Kind secret for '$Environment': $_"
+        return $false
+    }
+}
+
+function Clear-RememberedSecret([string]$Environment, [string]$Kind) {
+    $variableName = Get-SecretCacheVariableName $Environment $Kind
+    Remove-Item -Path "Env:$variableName" -ErrorAction SilentlyContinue
+}
+
+function Invoke-ForgetMe {
+    Assert-Host
+
+    $variables = @(Get-ChildItem Env: | Where-Object { $_.Name -like "HOMELAB_KEY_*" })
+    foreach ($variable in $variables) {
+        Remove-Item -Path "Env:$($variable.Name)" -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Secret cache cleared ($($variables.Count) entries)."
+}
+
+function Test-PrivateKeyEncrypted([string]$PrivateKeyPath) {
+    if (-not (Get-Command "ssh-keygen" -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: 'ssh-keygen' not found on PATH."
+    }
+
+    $null = & ssh-keygen -y -P "" -f $PrivateKeyPath 2>&1
+    return $LASTEXITCODE -ne 0
+}
+
+function Ensure-SshAskPass([string]$CacheVariableName) {
+    if ($CacheVariableName -notmatch "^HOMELAB_KEY_[0-9A-F]{16}$") {
+        throw "Invalid SSH askpass cache variable name '$CacheVariableName'."
+    }
+
+    $askPassDirectory = Split-Path -Parent $sshAskPassPath
+    New-Item -ItemType Directory -Force -Path $askPassDirectory | Out-Null
+    if ($IsLinux -or $IsMacOS) {
+        & chmod 700 $askPassDirectory
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not set permissions on '$askPassDirectory'."
+        }
+    }
+
+    $scriptContent = "#!/bin/sh`nexec pwsh -NoLogo -NoProfile -NonInteractive -Command '[pscredential]::new(`"dummy`", (`$env:$CacheVariableName | ConvertTo-SecureString)).GetNetworkCredential().Password'`n"
+    $existingContent = if (Test-Path -LiteralPath $sshAskPassPath) {
+        Get-Content -LiteralPath $sshAskPassPath -Raw
+    }
+    else {
+        ""
+    }
+
+    if ($existingContent -ne $scriptContent) {
+        [System.IO.File]::WriteAllText($sshAskPassPath, $scriptContent, [System.Text.UTF8Encoding]::new($false))
+        if ($IsLinux -or $IsMacOS) {
+            & chmod 700 $sshAskPassPath
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not set permissions on '$sshAskPassPath'."
+            }
+        }
+    }
+
+    return $sshAskPassPath
+}
+
+function Restore-EnvironmentVariable([string]$Name, $Value) {
+    if ($null -eq $Value) {
+        Remove-Item -Path "Env:$Name" -ErrorAction SilentlyContinue
+    }
+    else {
+        Set-Item -Path "Env:$Name" -Value $Value
+    }
+}
+
+function Invoke-SshAdd([string]$PrivateKeyPath, [string]$Passphrase, [string]$CacheVariableName, [bool]$KeepOnSuccess) {
+    if ([string]::IsNullOrEmpty($Passphrase)) {
+        & ssh-add $PrivateKeyPath
+        return $LASTEXITCODE
+    }
+
+    $askPass = Ensure-SshAskPass $CacheVariableName
+    $previousAskPass = $env:SSH_ASKPASS
+    $previousAskPassRequire = $env:SSH_ASKPASS_REQUIRE
+    $serialized = ConvertFrom-SecureString (
+        ConvertTo-SecureString -String $Passphrase -AsPlainText -Force
+    )
+    [Environment]::SetEnvironmentVariable($CacheVariableName, $serialized, "Process")
+
+    $exitCode = 1
+    try {
+        $env:SSH_ASKPASS = $askPass
+        $env:SSH_ASKPASS_REQUIRE = "force"
+        & ssh-add $PrivateKeyPath
+        $exitCode = $LASTEXITCODE
+        return $exitCode
+    }
+    finally {
+        Restore-EnvironmentVariable "SSH_ASKPASS" $previousAskPass
+        Restore-EnvironmentVariable "SSH_ASKPASS_REQUIRE" $previousAskPassRequire
+        if ($exitCode -ne 0 -or -not $KeepOnSuccess) {
+            Remove-Item -Path "Env:$CacheVariableName" -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Get-EnvironmentSshPassphrase([string]$Environment, [string]$PrivateKeyPath, [switch]$ForcePrompt) {
+    if (-not (Test-PrivateKeyEncrypted $PrivateKeyPath)) {
+        return [pscustomobject]@{
+            Value        = $null
+            VariableName = $null
+            FromCache    = $false
+            Prompted     = $false
+        }
+    }
+
+    $variableName = Get-SecretCacheVariableName $Environment "ssh"
+    if (-not $ForcePrompt) {
+        $rememberedPassphrase = Get-RememberedSecret $Environment "ssh"
+        if ($null -ne $rememberedPassphrase) {
+            return [pscustomobject]@{
+                Value        = $rememberedPassphrase
+                VariableName = $variableName
+                FromCache    = $true
+                Prompted     = $false
+            }
+        }
+    }
+
+    $securePassphrase = Read-Host -Prompt "SSH key passphrase for '$Environment'?" -AsSecureString
+    $plainPassphrase = ConvertFrom-SecureStringPlain $securePassphrase
+    if ([string]::IsNullOrWhiteSpace($plainPassphrase)) {
+        throw "No SSH key passphrase supplied."
+    }
+
+    return [pscustomobject]@{
+        Value        = $plainPassphrase
+        VariableName = $variableName
+        FromCache    = $false
+        Prompted     = $true
     }
 }
 

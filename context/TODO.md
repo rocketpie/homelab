@@ -17,7 +17,6 @@ new help page with common issues to search for
 
 
 # Set-Environment
-- enable key storage for test environments to prevent prompting the user for test keys
 - environment-switching.md: "`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:"
     why not auto-encrypt?
 - remove non-tmpfs option. HOMELAB_RUNTIME_ROOT -> RUNTIME_DIRNAME (in tmpfs)
