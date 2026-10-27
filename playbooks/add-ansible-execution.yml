@@ -1,5 +1,5 @@
 ---
-- name: Install Ansible execution environment on ansible execution hosts
+- name: Configure the Ansible execution environment on ansible execution hosts
   hosts: ansible_execution
   become: true
   gather_facts: true
@@ -19,7 +19,7 @@
             - ansible-execution
 
   tasks:
-    - name: Install ansible execution environment
+    - name: Configure ansible execution environment
       ansible.builtin.include_role:
         name: add_ansible_execution
 

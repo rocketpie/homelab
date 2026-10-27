@@ -1,4 +1,0 @@
-python-all-venv
-python3-pip
-sshpass
-xorriso

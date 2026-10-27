@@ -51,9 +51,8 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*; \
     pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 
-# Install the Ansible toolchain into the image. The repo-local .venv and
-# .collections directories are only needed by the legacy WSL workflow.
-COPY venv-requirements.txt collection-requirements.txt /tmp/ansible-bootstrap/
+# Install the Ansible toolchain into the image.
+COPY .devcontainer/venv-requirements.txt .devcontainer/collection-requirements.txt /tmp/ansible-bootstrap/
 RUN python3 -m venv /opt/ansible/venv \
     && /opt/ansible/venv/bin/pip install --no-cache-dir --upgrade pip \
     && /opt/ansible/venv/bin/pip install --no-cache-dir -r /tmp/ansible-bootstrap/venv-requirements.txt \

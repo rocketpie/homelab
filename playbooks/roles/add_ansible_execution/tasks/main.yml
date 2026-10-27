@@ -11,15 +11,6 @@
       add_ansible_execution requires a Debian-family Linux host, a repo owner,
       and a repo source.
 
-- name: Validate optional ansible SSH key inputs
-  ansible.builtin.assert:
-    that:
-      - add_ansible_execution_ssh_private_key_source | string | trim | length > 0
-      - add_ansible_execution_ssh_public_key_source | string | trim | length > 0
-    fail_msg: >-
-      add_ansible_execution_copy_ssh_key requires both SSH key source paths.
-  when: add_ansible_execution_copy_ssh_key | bool
-
 - name: Check whether ansible execution repo owner exists
   ansible.builtin.command:
     argv:
@@ -57,30 +48,6 @@
         ~ '/'
         ~ add_ansible_execution_repo_dir_name
       }}
-    add_ansible_execution_ssh_dir: >-
-      {{
-        (
-          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
-          | trim
-        )
-        ~ '/.ssh'
-      }}
-    add_ansible_execution_ssh_private_key_dest: >-
-      {{
-        (
-          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
-          | trim
-        )
-        ~ '/.ssh/ansible'
-      }}
-    add_ansible_execution_ssh_public_key_dest: >-
-      {{
-        (
-          add_ansible_execution_repo_owner_getent_result.stdout.split(':')[5]
-          | trim
-        )
-        ~ '/.ssh/ansible.pub'
-      }}
 
 - name: Ensure ansible execution repo owner home was resolved
   ansible.builtin.assert:
@@ -91,6 +58,25 @@
       Could not determine a usable home directory for
       add_ansible_execution_repo_owner {{ add_ansible_execution_repo_owner }}.
 
+- name: Materialize ansible execution Docker users
+  ansible.builtin.set_fact:
+    add_ansible_execution_docker_users: >-
+      {{
+        [add_ansible_execution_repo_owner]
+        + (
+            [add_admin_scripts_user]
+            if (add_admin_scripts_user | default('', true) | string | trim | length > 0)
+            else []
+          )
+      }}
+
+- name: Install Docker for the dev container runtime
+  ansible.builtin.include_role:
+    name: add_docker
+  vars:
+    add_docker_users: "{{ add_ansible_execution_docker_users }}"
+  when: add_ansible_execution_install_docker | bool
+
 - name: Ensure apt keyrings directory exists
   ansible.builtin.file:
     path: /etc/apt/keyrings
@@ -98,7 +84,21 @@
     owner: root
     group: root
     mode: "0755"
-  when: add_ansible_execution_install_powershell | bool
+
+- name: Add NodeSource repo GPG key
+  ansible.builtin.get_url:
+    url: "{{ add_ansible_execution_node_repo_url }}/gpgkey/nodesource-repo.gpg.key"
+    dest: "{{ add_ansible_execution_node_keyring_path }}"
+    mode: "0644"
+
+- name: Add NodeSource apt repo
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ add_ansible_execution_node_keyring_path }}]
+      {{ add_ansible_execution_node_repo_url }}/node_{{ add_ansible_execution_node_major_version }}.x
+      nodistro main
+    filename: nodesource
+    state: present
 
 - name: Add Microsoft repo GPG key
   ansible.builtin.get_url:
@@ -131,12 +131,11 @@
     state: present
     update_cache: true
 
-- name: Install uv for repo bootstrapping
-  ansible.builtin.pip:
-    name: uv
-    executable: pip3
-    extra_args: --break-system-packages
-  when: add_ansible_execution_install_uv | bool
+- name: Install devcontainer CLI
+  community.general.npm:
+    name: "{{ add_ansible_execution_devcontainer_cli_package }}"
+    global: true
+    state: present
 
 - name: Ensure ansible execution repo exists
   ansible.builtin.git:
@@ -145,6 +144,7 @@
     version: "{{ add_ansible_execution_repo_version }}"
     single_branch: true
     update: true
+  become: true
   become_user: "{{ add_ansible_execution_repo_owner }}"
   environment:
     HOME: "{{ add_ansible_execution_repo_owner_home }}"
@@ -156,73 +156,6 @@
     owner: "{{ add_ansible_execution_repo_owner }}"
     group: "{{ add_ansible_execution_repo_group }}"
     recurse: true
-
-- name: Ensure ansible execution SSH directory exists
-  ansible.builtin.file:
-    path: "{{ add_ansible_execution_ssh_dir }}"
-    state: directory
-    owner: "{{ add_ansible_execution_repo_owner }}"
-    group: "{{ add_ansible_execution_repo_group }}"
-    mode: "0700"
-  when: add_ansible_execution_copy_ssh_key | bool
-
-- name: Copy ansible SSH private key for execution host
-  ansible.builtin.copy:
-    src: "{{ add_ansible_execution_ssh_private_key_source }}"
-    dest: "{{ add_ansible_execution_ssh_private_key_dest }}"
-    owner: "{{ add_ansible_execution_repo_owner }}"
-    group: "{{ add_ansible_execution_repo_group }}"
-    mode: "0600"
-  no_log: true
-  when: add_ansible_execution_copy_ssh_key | bool
-
-- name: Copy ansible SSH public key for execution host
-  ansible.builtin.copy:
-    src: "{{ add_ansible_execution_ssh_public_key_source }}"
-    dest: "{{ add_ansible_execution_ssh_public_key_dest }}"
-    owner: "{{ add_ansible_execution_repo_owner }}"
-    group: "{{ add_ansible_execution_repo_group }}"
-    mode: "0644"
-  when: add_ansible_execution_copy_ssh_key | bool
-
-- name: Pre-fill missing vault template files from host comments
-  ansible.builtin.command:
-    argv:
-      - pwsh
-      - -File
-      - ./srv/Initialize-VaultTemplates.ps1
-      - -RepoRoot
-      - .
-    chdir: "{{ add_ansible_execution_repo_dir }}"
-  become_user: "{{ add_ansible_execution_repo_owner }}"
-  environment:
-    HOME: "{{ add_ansible_execution_repo_owner_home }}"
-  register: add_ansible_execution_initialize_vault_templates_result
-  when: add_ansible_execution_prefill_vault_templates | bool
-  changed_when: >-
-    add_ansible_execution_initialize_vault_templates_result.stdout
-    | string
-    | trim
-    | length > 0
-
-- name: Check whether ansible-playbook is already installed in repo venv
-  ansible.builtin.stat:
-    path: "{{ add_ansible_execution_repo_dir }}/.venv/bin/ansible-playbook"
-  register: add_ansible_execution_repo_ansible_playbook_stat
-
-- name: Install repo venv and collections on ansible execution host
-  ansible.builtin.command:
-    argv:
-      - pwsh
-      - -File
-      - ./install.ps1
-      - -InstallVenv
-    chdir: "{{ add_ansible_execution_repo_dir }}"
-  become_user: "{{ add_ansible_execution_repo_owner }}"
-  environment:
-    HOME: "{{ add_ansible_execution_repo_owner_home }}"
-  when: not add_ansible_execution_repo_ansible_playbook_stat.stat.exists
-  changed_when: true
 
 - name: Check whether host autoinstall server launcher exists
   ansible.builtin.stat:
@@ -243,25 +176,25 @@
             'name': 'homelab-run',
             'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
               ~ (add_ansible_execution_repo_dir | quote)
-              ~ '\nexec pwsh ./run.ps1 "$@"\n'
-          },
-          {
-            'name': 'homelab-install',
-            'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
-              ~ (add_ansible_execution_repo_dir | quote)
-              ~ '\nexec pwsh ./install.ps1 "$@"\n'
+              ~ '\ndevcontainer up --workspace-folder . >/dev/null && '
+              ~ 'devcontainer exec --workspace-folder . -- '
+              ~ 'pwsh ./run.ps1 "$@"\n'
           },
           {
             'name': 'homelab-lint',
             'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
               ~ (add_ansible_execution_repo_dir | quote)
-              ~ '\nexec pwsh ./build.ps1 "$@"\n'
+              ~ '\ndevcontainer up --workspace-folder . >/dev/null && '
+              ~ 'devcontainer exec --workspace-folder . -- '
+              ~ 'pwsh ./build.ps1 "$@"\n'
           },
           {
             'name': 'homelab-init-vaults',
             'content': '#!/usr/bin/env bash\nset -euo pipefail\ncd '
               ~ (add_ansible_execution_repo_dir | quote)
-              ~ '\nexec pwsh ./srv/Initialize-VaultTemplates.ps1 -RepoRoot . "$@"\n'
+              ~ '\ndevcontainer up --workspace-folder . >/dev/null && '
+              ~ 'devcontainer exec --workspace-folder . -- '
+              ~ 'pwsh ./srv/Initialize-VaultTemplates.ps1 -RepoRoot . "$@"\n'
           }
         ]
         + (
@@ -279,3 +212,15 @@
             else []
           )
       }}
+
+- name: Show environment store bootstrap instructions
+  ansible.builtin.debug:
+    msg:
+      - "Next steps on {{ inventory_hostname }}:"
+      - "1. Copy ~/.homelab/environments/<name> from the container host to {{ add_ansible_execution_repo_owner_home }}/.homelab/environments/<name>."
+      - "2. Run: pwsh {{ add_ansible_execution_repo_dir }}/Set-Environment.ps1 -Environment <name>"
+      - "3. Log out and back in so the docker group applies to {{ add_ansible_execution_repo_owner }}."
+      - "4. Run: homelab-run -Help (the first run builds the dev container image)"
+      - >-
+        This VM is a trusted execution host: the copied environment store
+        contains that environment's SSH private key.

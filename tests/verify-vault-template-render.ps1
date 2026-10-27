@@ -8,16 +8,13 @@ $repoRoot = Join-Path $PSScriptRoot ".."
 $python = if ($env:ANSIBLE_PYTHON) {
     $env:ANSIBLE_PYTHON
 }
-elseif (Test-Path (Join-Path $repoRoot ".venv/bin/python")) {
-    Join-Path $repoRoot ".venv/bin/python"
-}
 else {
     "python3"
 }
 $renderer = Join-Path $repoRoot "srv/render-vault-template.py"
 
 if (-not (Test-Path -LiteralPath $python) -and -not (Get-Command $python -ErrorAction SilentlyContinue)) {
-    throw "Python not found. Use the dev container, or activate .venv for the legacy WSL workflow."
+    throw "Python not found. Run this test inside the dev container."
 }
 
 function Assert-Equal {

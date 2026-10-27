@@ -8,13 +8,12 @@
 
 # long-term docker image update strategy?
 
-# Legacy host setup
-- See [TODO-remove-legacy-host-setup.md](TODO-remove-legacy-host-setup.md) for the full plan: remove the legacy WSL/venv/interactive key handling, migrate inventory to the active environment key, and rework the ansible execution VM.
 
 # guides/FAQ
 new help page with common issues to search for 
 - eg. error message 'Failed to connect to the host via ssh: ssh_askpass: exec(/usr/bin/ssh-askpass): No such file or directory Host key verification failed.' -> remove / add ssh key to known hosts
-
+- make all playbooks work on VMs available via ssh, regardless of provisioning by the homelab proxmox, or a cloud provider.
+    see eg. public-gateway-setup.md 
 
 # Set-Environment
 - environment-switching.md: "`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:"

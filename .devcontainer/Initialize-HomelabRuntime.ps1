@@ -8,7 +8,7 @@ vault password, SSH agent socket, and published state into the dev container.
 
 .DESCRIPTION
 This script is wired as the dev container's initializeCommand, so it runs on
-the WSL/Linux host before the container starts.
+the container host before the container starts.
 
 It guarantees that the runtime directory:
 
@@ -44,7 +44,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if (-not $IsLinux) {
-    throw "The active environment runtime directory requires a Linux/WSL host (tmpfs under /dev/shm)."
+    throw "The active environment runtime directory requires a Linux container host (eg. WSL) with tmpfs under /dev/shm."
 }
 
 $runtimeRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_ROOT)) {

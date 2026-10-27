@@ -1,6 +1,17 @@
 # TODO: Remove the legacy host setup route
 
-Status: **not started**
+Status: **implemented**
+
+Implementation notes:
+
+- Service-account public keys stay as literal `host_vars/*/host.yml` values.
+  Only the Ansible identity is sourced from the active environment.
+- `run.ps1` passes the public key as JSON extra-vars. A bare
+  `key=ssh-ed25519 AAAA...` value is split by Ansible's extra-vars parser.
+- `admin1` installs Node 22 from NodeSource because Ubuntu 24.04's Node 18 is
+  too old for the current `@devcontainers/cli`.
+- `build.ps1` now requires an active environment only when it has to decrypt a
+  checked-in `vault.yml` for template-comment sync.
 
 Source TODOs:
 
@@ -19,8 +30,9 @@ Source TODOs:
 Goal: the dev container is the only supported way to run the Ansible
 toolchain. No WSL/host install route, no repo-local `.venv` or `.collections`,
 no interactive SSH key handling in the run/build scripts. The active environment
-is the only source of vault passwords, SSH identities, and the Ansible public
-key; no environment-specific key material lives in the repository.
+is the only source of vault passwords, the Ansible SSH identity, and the Ansible
+public key. Service-account public keys may remain literal `host_vars` values;
+no Ansible private key material lives in the repository.
 
 ## Findings
 
@@ -36,7 +48,7 @@ route is still live in five places:
 | `admin1` | `add_ansible_execution` runs `./install.ps1 -InstallVenv`, installs `uv`, copies `~/.ssh/ansible`, and can prefill vault templates |
 
 Docs and wording: [`README.md`](../README.md),
-[`context/guides/wsl-pwsh-ansible-workflow.md`](guides/wsl-pwsh-ansible-workflow.md),
+[`context/guides/pwsh-ansible-workflow.md`](guides/pwsh-ansible-workflow.md),
 [`context/guides/environment-switching.md`](guides/environment-switching.md),
 [`context/guides/public-gateway-setup.md`](guides/public-gateway-setup.md),
 [`AGENTS.md`](../AGENTS.md),
@@ -72,58 +84,59 @@ commands. It stays.
 
 ## Phase 0 - Remove hard-coded inventory key material
 
-- [ ] `inventory/group_vars/all/users.yml`: remove
+- [x] `inventory/group_vars/all/users.yml`: remove
       `ansible_admin_ssh_private_key_file` and the hard-coded
       `ansible_admin_ssh_public_key` literal. Keep `shared_admin_users`
       referencing `ansible_admin_ssh_public_key`.
-- [ ] `inventory/hosts.yml`: remove
+- [x] `inventory/hosts.yml`: remove
       `ansible_ssh_private_key_file: "{{ ansible_admin_ssh_private_key_file }}"`.
-- [ ] `inventory/host_vars/gateway2/host.yml`: remove the commented legacy
+- [x] `inventory/host_vars/gateway2/host.yml`: remove the commented legacy
       `~/.ssh/id_ed25519` path or replace it with an environment-neutral
       comment.
-- [ ] Validate `ansible_admin_ssh_public_key` before it can be written to a
+- [x] Validate `ansible_admin_ssh_public_key` before it can be written to a
       host: non-empty, `ssh-`/`ecdsa-` prefix, and a base64 body. Add the check
       where users are materialized (`export_autoinstall_seed` today, plus any
       future user role).
-- [ ] Add a regression check that rejects `~/.ssh/ansible` and
-      `ssh-ed25519 AAAA...` literals under `inventory/`.
-- [ ] Keep the active-environment `--extra-vars` injection described in Phase 2
+- [x] Add a regression check that rejects the legacy Ansible identity
+      (`~/.ssh/ansible`, `~/.ssh/id_ed25519`, and an `ssh-... ansible` key)
+      under `inventory/`. Service-account public keys are allowed.
+- [x] Keep the active-environment `--extra-vars` injection described in Phase 2
       so a leftover local value can never take precedence.
 
 ## Phase 1 - Move requirements into `.devcontainer/`
 
-- [ ] `git mv venv-requirements.txt .devcontainer/venv-requirements.txt`
-- [ ] `git mv collection-requirements.txt .devcontainer/collection-requirements.txt`
-- [ ] `.devcontainer/Dockerfile` (build context is the repo root, so paths stay
+- [x] `git mv venv-requirements.txt .devcontainer/venv-requirements.txt`
+- [x] `git mv collection-requirements.txt .devcontainer/collection-requirements.txt`
+- [x] `.devcontainer/Dockerfile` (build context is the repo root, so paths stay
       repo-relative):
   - `COPY .devcontainer/venv-requirements.txt .devcontainer/collection-requirements.txt /tmp/ansible-bootstrap/`
   - Update the comment that says the repo-local `.venv`/`.collections` are "only
     needed by the legacy WSL workflow".
-- [ ] Update references in `README.md`.
-- [ ] Delete `apt-requirements.txt`: its only consumer was `install.ps1` (via a
+- [x] Update references in `README.md`.
+- [x] Delete `apt-requirements.txt`: its only consumer was `install.ps1` (via a
       TODO comment), and the Dockerfile already owns the apt list. Keep it only
       if you prefer to make the Dockerfile read it.
-- [ ] Optional: rename to `pip-requirements.txt` while moving. Prefer keeping
+- [x] Optional: rename to `pip-requirements.txt` while moving. Prefer keeping
       the current names to avoid churn.
 
 ## Phase 2 - Strip `run.ps1`
 
-- [ ] Delete `$defaultAnsibleSshKeyPath`, `Ensure-AnsibleSshKeyLoaded`,
+- [x] Delete `$defaultAnsibleSshKeyPath`, `Ensure-AnsibleSshKeyLoaded`,
       `Test-SshAgentHasKey`, `Start-SshAgent`.
-- [ ] Delete the `$localCollections` / `$devContainerToolchain` block; rely on
+- [x] Delete the `$localCollections` / `$devContainerToolchain` block; rely on
       the image's `ANSIBLE_COLLECTIONS_PATH`.
-- [ ] In `Invoke-Playbook`: require the active state; throw
+- [x] In `Invoke-Playbook`: require the active state; throw
       `"No active environment. Run 'pwsh Set-Environment.ps1 -Environment <name>' on the container host first."`
       instead of falling back.
-- [ ] Delete the `else` branch that prompts for a vault password and passes
+- [x] Delete the `else` branch that prompts for a vault password and passes
       `vault_pass.ps1`.
-- [ ] Delete `Remove-Item Env:ANSIBLE_VAULT_PASSWORD` (nothing sets it any more).
-- [ ] Update `Write-Help` and the "Run Set-Environment.ps1 on the WSL host"
+- [x] Delete `Remove-Item Env:ANSIBLE_VAULT_PASSWORD` (nothing sets it any more).
+- [x] Update `Write-Help` and the "Run Set-Environment.ps1 on the WSL host"
       messages to "on the container host".
-- [ ] `Require-Command` message becomes a plain missing-dependency error.
-- [ ] Keep `Use-ActiveEnvironment` including the `ssh-add -l` check: that is
+- [x] `Require-Command` message becomes a plain missing-dependency error.
+- [x] Keep `Use-ActiveEnvironment` including the `ssh-add -l` check: that is
       verification, not interactive key handling.
-- [ ] Keep the active-environment `--extra-vars` injection:
+- [x] Keep the active-environment `--extra-vars` injection:
       `ansible_admin_ssh_public_key` from the published state, plus empty
       `ansible_admin_ssh_private_key_file=` and
       `ansible_ssh_private_key_file=`. This guarantees the agent is used even if
@@ -131,7 +144,7 @@ commands. It stays.
 
 ## Phase 3 - Strip `build.ps1` and `tests/verify-vault-template-render.ps1`
 
-- [ ] `build.ps1`:
+- [x] `build.ps1`:
   - Drop the `.venv/bin/python` and `.collections` fallbacks.
   - Require `ANSIBLE_PYTHON` (already set by `devcontainer.json`) and fail with
     a clear "run inside the dev container" message. Keep `python3` as a fallback
@@ -140,16 +153,16 @@ commands. It stays.
   - Keep `Ensure-VaultPassword`'s active-runtime detection. Recommended:
     replace its prompt fallback with the same "run Set-Environment.ps1" error,
     so `build.ps1` and `run.ps1` behave identically.
-- [ ] `tests/verify-vault-template-render.ps1`: remove the `.venv` fallback and
+- [x] `tests/verify-vault-template-render.ps1`: remove the `.venv` fallback and
       the legacy error text; use `ANSIBLE_PYTHON` or `python3`.
-- [ ] Optional: add negative checks to `tests/verify-devcontainer.ps1` (for
+- [x] Optional: add negative checks to `tests/verify-devcontainer.ps1` (for
       example, `ansible-playbook` resolves inside the image's venv and no
       `.venv` exists) so the legacy route cannot creep back.
 
 ## Phase 4 - Delete `install.ps1` and retarget `admin1`
 
-- [ ] `git rm install.ps1`.
-- [ ] `playbooks/roles/add_ansible_execution/`:
+- [x] `git rm install.ps1`.
+- [x] `playbooks/roles/add_ansible_execution/`:
   - Remove the `uv` install task and `add_ansible_execution_install_uv`.
   - Remove the `.venv/bin/ansible-playbook` stat and the
     `install.ps1 -InstallVenv` task.
@@ -181,41 +194,41 @@ commands. It stays.
     - `homelab-install` -> delete
   - Update `playbooks/add-ansible-execution.yml` metadata if the role no longer
     installs the toolchain.
-- [ ] `inventory/host_vars/admin1/host.yml`: no change needed unless new role
+- [x] `inventory/host_vars/admin1/host.yml`: no change needed unless new role
       flags are added.
-- [ ] `context/guides/ansible-execution-vm.md`: replace "installs the repo
+- [x] `context/guides/ansible-execution-vm.md`: replace "installs the repo
       runtime dependencies" / "installs `uv`" with Docker + devcontainer CLI,
       document that the first `homelab-run` builds the image, and add the
       environment-store copy + trust-model steps.
-- [ ] Note: after `add_docker_users` runs, the `talos` session needs one
+- [x] Note: after `add_docker_users` runs, the `talos` session needs one
       reconnect before `docker` works without sudo.
 
 ## Phase 5 - Wording and docs
 
-- [ ] `AGENTS.md`: drop the "`install.ps1` is only for the legacy WSL workflow"
+- [x] `AGENTS.md`: drop the "`install.ps1` is only for the legacy WSL workflow"
       line; point the workflow note at the renamed guide.
-- [ ] `README.md`: delete "Option B: legacy WSL setup" and the `.venv`
+- [x] `README.md`: delete "Option B: legacy WSL setup" and the `.venv`
       activation; document the hard requirement to run `Set-Environment.ps1`
       first; point at the `.devcontainer/` requirements.
-- [ ] Rename `context/guides/wsl-pwsh-ansible-workflow.md` to
+- [x] Rename `context/guides/wsl-pwsh-ansible-workflow.md` to
       `context/guides/pwsh-ansible-workflow.md`; delete the legacy section and
       the "why the legacy flow still exists" notes; keep dev container +
       environment switching.
-- [ ] `context/guides/environment-switching.md`: "WSL / container host" ->
+- [x] `context/guides/environment-switching.md`: "WSL / container host" ->
       "container host"; expand the `run.ps1` section to state that no active
       environment is now a hard error and that `ansible_admin_ssh_public_key`
       comes from the active environment.
-- [ ] `context/guides/public-gateway-setup.md`: remove the "For the legacy WSL
+- [x] `context/guides/public-gateway-setup.md`: remove the "For the legacy WSL
       workflow, activate `.venv`" note and replace `~/.ssh/ansible` references
       with the active environment's agent/key. Update the
       `ansible_ssh_private_key_file` override notes.
-- [ ] `Set-Environment.ps1` and `.devcontainer/Initialize-HomelabRuntime.ps1`:
+- [x] `Set-Environment.ps1` and `.devcontainer/Initialize-HomelabRuntime.ps1`:
       replace "WSL/container host" and "Linux/WSL host" with "container host".
-- [ ] `tests/troubleshoot-devcontainer-network.sh`: "WSL shell that VS Code
+- [x] `tests/troubleshoot-devcontainer-network.sh`: "WSL shell that VS Code
       uses" -> "Docker host shell".
 - [x] `context/TODO.md`: replace the Dev Container, Set-Environment key-migration,
       and add-ansible-execution items with a single pointer to this file.
-- [ ] Optional cleanup: drop `.venv/` and `.collections/` from `.gitignore` and
+- [x] Optional cleanup: drop `.venv/` and `.collections/` from `.gitignore` and
       `.dockerignore`, and the `.venv`/`.collections` exclusions in
       `Set-Environment.ps1`'s vault scan.
 
@@ -231,7 +244,7 @@ commands. It stays.
        add-vm.yml --syntax-check` (via `-Debug` or direct) picks up the tmpfs
        password and socket, and confirms the active public key is injected.
 5. [ ] Inventory guard:
-       `grep -rniE "ssh-ed25519 AAAA|\.ssh/(ansible|id_ed25519)" inventory/`
+       `grep -rniE "\.ssh/(ansible|id_ed25519)|ssh-(ed25519|rsa)\s+\S+\s+ansible\b" inventory/`
        returns no hits.
 6. [ ] `ansible-playbook -i inventory/hosts.yml playbooks/add-ansible-execution.yml --syntax-check`.
 7. [ ] Repo-wide search should only hit intentional text:

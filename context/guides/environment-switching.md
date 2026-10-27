@@ -3,8 +3,8 @@
 `Set-Environment.ps1` is the technical solution to the Problem: 
 "how do I enable agentic testing, while effectively preventing any key compromises?" 
 
-To achieve this, it removes all key material from the repository and replaces it with test data.
-This includes Ansible vaults, the vault key and SSH identities.
+To achieve this, it removes secret key material from the repository and replaces it with test data.
+This includes Ansible vaults, the vault key and SSH private identities. Public keys may stay in the repository.
 
 Any set of keys and vault files are an `environment` such as `Test`, `Prod`, or `Agent`.
 Set-Environment syncronizes them from a separate environment store.
@@ -25,7 +25,7 @@ The host needs PowerShell 7 plus the usual OpenSSH client tools (`ssh-agent`, `s
 ## Host / container boundary
 
 ```text
-WSL / container host                          Dev container
+container host                                Dev container
 ~/.homelab/environments/                      <not accessible>
 /dev/shm/homelab/control/                     <not accessible>
 
@@ -135,14 +135,22 @@ Use `-Force` to clear the runtime and remove the unmanaged vault files.
 
 ## `run.ps1` uses the active environment
 
-`run.ps1` reads the published `homelab-environment.json` from
-`~/.homelab-active/` when it exists and:
+`run.ps1` reads the published `homelab-environment.json` from `~/.homelab-active/`. 
+Without an active environment it fails with `"No active environment. Run 'pwsh Set-Environment.ps1' on the container host."` 
+and never prompts for a vault password or loads a key file.
+
+With an active environment it:
 
 - sets `SSH_AUTH_SOCK` to `~/.homelab-active/active.sock`;
 - verifies that the host agent has a loaded key;
 - uses `~/.homelab-active/vault_pass` as the Ansible Vault password file;
 - overrides the inventory's key path so Ansible uses the agent rather than a key file;
 - passes the active environment's public key as `ansible_admin_ssh_public_key`.
+
+The active environment is the only source for the Ansible identity: no Ansible
+private key path or Ansible public key literal lives in the repository.
+Service-account public keys in `host_vars` are not the Ansible identity and stay
+literal values.
 
 ## Creating and updating vaults
 
@@ -153,9 +161,9 @@ active vault password. It does not write a plaintext `vault.yml` first:
 pwsh srv/Initialize-VaultTemplates.ps1
 ```
 
-The `add_ansible_execution_prefill_vault_templates` role option is disabled by
-default because it needs an active vault password on the target; enable it only
-when that environment has already published an active password.
+The `add_ansible_execution` role does not create missing `vault.yml` files on
+the execution VM. Copy the environment store there instead; its `repo/` subtree
+already contains the encrypted vaults.
 
 `Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first
 with the active environment's password:
@@ -184,8 +192,8 @@ workflow that keeps the editor buffer in memory.
   so this only affects commands run inside the container.
 - `/dev/shm` is tmpfs, but swap can still page it unless swap is disabled or
   encrypted.
-- The runtime root and files are owned by the WSL host user. The dev
-  container runs as `vscode` (uid 1000) by default. If your WSL uid differs, the
+- The runtime root and files are owned by the container host user. The dev
+  container runs as `vscode` (uid 1000) by default. If the host uid differs, the
   container cannot read the tmpfs password or connect to the agent socket; align
   the uid or adjust the container user.
 - Running `Set-Environment.ps1` inside the dev container is rejected. The

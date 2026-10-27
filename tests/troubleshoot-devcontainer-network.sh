@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Diagnose dev container build failures that come from the network.
 #
-# Run this on the docker host (for example the WSL shell that VS Code uses),
-# not inside the dev container:
+# Run this on the Docker host shell, not inside the dev container:
 #
 #   bash tests/troubleshoot-devcontainer-network.sh
 #
 # It runs the same probe suite twice: once on the default bridge network (what
 # `docker build` and the dev container use) and once with --network host (the
-# WSL host stack). Comparing the two isolates a docker-bridge problem -- MTU
+# Docker host stack). Comparing the two isolates a docker-bridge problem -- MTU
 # or NAT -- from a host egress problem. Every line starts with `troubleshoot:`
 # so the output is easy to paste back.
 

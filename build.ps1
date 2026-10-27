@@ -8,27 +8,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$ansiblePython = if ($env:ANSIBLE_PYTHON) {
-    $env:ANSIBLE_PYTHON
-}
-elseif (Test-Path (Join-Path $PSScriptRoot ".venv/bin/python")) {
-    Join-Path $PSScriptRoot ".venv/bin/python"
-}
-else {
-    "python3"
-}
+$ansiblePython = $env:ANSIBLE_PYTHON
 
 Set-Variable -Scope Script -Name 'vaultPasswordScript' -Value (Join-Path $PSScriptRoot "vault_pass.ps1")
 Set-Variable -Scope Script -Name 'vaultTemplateRendererScript' -Value (Join-Path $PSScriptRoot "srv/render-vault-template.py")
 
-$localCollections = Join-Path $PSScriptRoot ".collections"
-$devContainerToolchain = Test-Path "/opt/ansible/venv/bin/ansible-playbook"
-if ((Test-Path $localCollections) -and (-not $devContainerToolchain) -and (!"$($env:ANSIBLE_COLLECTIONS_PATH)".Contains($localCollections))) {
-    $env:ANSIBLE_COLLECTIONS_PATH = "$($localCollections):$($env:ANSIBLE_COLLECTIONS_PATH)"
-}
-
 function Main {
-    Ensure-AnsibleTools
+    Assert-DevContainerRuntime
+    & $vaultPasswordScript | Out-Null # ensure vault password is available in the dev container
     Sync-VaultTemplateComments
 
     $vaultExcludes = Get-ChildItem -Path $PSScriptRoot -Recurse -Filter "vault.yml" -File |
@@ -37,6 +24,7 @@ function Main {
     } |
     Sort-Object
 
+    # TODO: now that we have the vault password available in the runtime, can't we run ansible lint on the vault files as well?
     $ansibleLintArgs = @()
     foreach ($vaultExclude in $vaultExcludes) {
         $ansibleLintArgs += "--exclude"
@@ -55,6 +43,7 @@ function Get-RelativeRepoPath([string]$Path) {
     return [System.IO.Path]::GetRelativePath($PSScriptRoot, $Path)
 }
 
+# TODO: is there a better way for templating or validating vault.yml files? schema validation?
 function Sync-VaultTemplateComments {
     $vaultFiles = Get-ChildItem -Path $PSScriptRoot -Recurse -Filter "vault.yml" -File | Sort-Object FullName
     foreach ($vaultFile in $vaultFiles) {
@@ -162,48 +151,20 @@ function Update-VaultTemplateCommentBlock(
     Set-Content -LiteralPath $TargetFilePath -Encoding utf8NoBOM -Value $updatedLines
 }
 
-function Require-Command([string]$Name) {
-    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "Missing dependency: '$Name' not found on PATH. Use the dev container, or activate .venv for the legacy WSL workflow."
+function Assert-DevContainerRuntime {
+    if ([string]::IsNullOrWhiteSpace($ansiblePython)) {
+        throw "ANSIBLE_PYTHON is not set. Run this script inside the dev container."
+    }
+    if (-not (Test-Path -LiteralPath $ansiblePython)) {
+        throw "ANSIBLE_PYTHON does not exist: $ansiblePython. Run this script inside the dev container."
+    }
+    if (-not (Get-Command ansible-lint -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: 'ansible-lint' not found on PATH. Run this script inside the dev container."
+    }
+    if (-not (Get-Command ansible-vault -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: 'ansible-vault' not found on PATH. Run this script inside the dev container."
     }
 }
 
-function Ensure-AnsibleTools {
-    Require-Command "ansible-lint"
-    Require-Command "ansible-vault"
-
-    if (Test-Path $ansiblePython) {
-        return
-    }
-
-    Require-Command $ansiblePython
-}
-
-function Ensure-VaultPassword {
-    $runtimeRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_ROOT)) {
-        "/dev/shm/homelab"
-    }
-    else {
-        $env:HOMELAB_RUNTIME_ROOT
-    }
-
-    $activeVaultPasswordPaths = @(
-        (Join-Path $HOME ".homelab-active/vault_pass"),
-        (Join-Path $runtimeRoot "homelab-active/vault_pass")
-    )
-    foreach ($activeVaultPasswordPath in $activeVaultPasswordPaths) {
-        if (Test-Path -LiteralPath $activeVaultPasswordPath) {
-            return
-        }
-    }
-
-    $vaultPassword = $env:ANSIBLE_VAULT_PASSWORD
-    if (-not [string]::IsNullOrWhiteSpace($vaultPassword)) {
-        return
-    }
-
-    $vaultPassword = Read-Host -Prompt "Ansible Vault password?" -AsSecureString
-    $env:ANSIBLE_VAULT_PASSWORD = [pscredential]::new('dummy', $vaultPassword).GetNetworkCredential().Password
-}
 
 Main

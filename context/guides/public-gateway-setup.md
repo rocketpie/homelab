@@ -11,32 +11,19 @@ The playbook is [`playbooks/add-public-gateway.yml`](../../playbooks/add-public-
 
 ## Scope
 
-This playbook targets an **already-installed public host** that is reachable
-over SSH. It deliberately does **not** use:
+This playbook targets an **already provisioned cloud vm** that is reachable over SSH. 
+It deliberately does **not** use:
 
 - `playbooks/add-vm.yml`
 - Proxmox or the `proxmox` inventory group
 - the local PXE/autoinstall seed workflow
 - the homelab CA or `.lan` DNS records
 
-TLS certificates come from Let's Encrypt through Caddy. The public DNS names
-must point at the public gateway before the first run.
+TLS certificates come from Let's Encrypt through Caddy. 
+Either set add_vpn_gateway_caddy_use_internal_tls or point the public DNS names at this host before the first run.
+Use host OS: **Ubuntu 26.04 LTS** 
+`unattended-upgrades`, UFW, fail2ban, and the existing Ansible roles all work.
 
-## Host OS Choice
-
-Recommended: **Ubuntu 26.04 LTS** (current LTS).
-
-| OS | Verdict | Why |
-| --- | --- | --- |
-| Ubuntu 26.04 LTS | **Recommended** | Current LTS. Docker CE publishes a `resolute` apt repository, and `unattended-upgrades`, UFW, fail2ban, and the existing Ansible roles all work. |
-| Ubuntu 24.04 LTS | Also fine | Still supported and slightly more conservative, but there is no reason to prefer it for a new public server. |
-| Debian 13 | Good second choice | Very stable and lean. The current roles assert `distribution == Ubuntu`, so they would need to be generalized before use. |
-| AlmaLinux 9 | Not preferred here | RHEL-family packaging means Docker CE and update/firewall conventions differ from the rest of the repo. SELinux adds friction for bind-mounted container data. |
-| Arch Linux | Not recommended | Rolling release is a poor fit for an unattended public gateway. |
-
-Use a 64-bit x86_64 or arm64 image with at least 1 vCPU, 1 GB RAM, and
-10 GB disk. The stack is small; 2 GB RAM is comfortable. The hosting provider
-controls image seeding, so this playbook only configures the running guest.
 
 ## Architecture
 
@@ -65,7 +52,7 @@ Point the routed names at the public gateway. Current host vars use:
 - `vpn.co3d.eu` for wg-easy
 
 Caddy obtains Let's Encrypt certificates over HTTP-01/TLS-ALPN, so the names
-must resolve publicly before the first run.
+must resolve publicly before Caddy can issue certificates.
 
 Inbound ports on the gateway:
 
@@ -94,18 +81,20 @@ rest with a `308` that preserves the path, query string, and request method.
 
 ## Bootstrap SSH Access
 
-The playbook connects as `ansible_user: root` using `~/.ssh/ansible` unless the
-host vars override it. If that key is not authorized on the new host yet, add it
-once before the first playbook run:
+The playbook connects as `ansible_user: root` using the active environment's SSH
+identity.
+
+If the environment key is not authorized on the new host, add it once from
+the container host before the first playbook run:
 
 ```bash
-ssh-copy-id -i ~/.ssh/ansible.pub root@62.83.36.224
+ssh-copy-id -i ~/.homelab/environments/<name>/ssh/ansible.pub root@62.83.36.224
 ```
 
-Then verify the key works:
+Then verify the agent identity works from inside the dev container:
 
 ```bash
-ssh -i ~/.ssh/ansible root@62.83.36.224 'id'
+ssh root@62.83.36.224 'id'
 ```
 
 If this is the first SSH connection, accept the host key when prompted. 
@@ -116,8 +105,7 @@ ssh-keygen -R 62.83.36.224 # after reinstall only
 ssh-keyscan -H 62.83.36.224 >> ~/.ssh/known_hosts
 ```
 
-If the provider uses a different key, set `ansible_ssh_private_key_file` in
-the host vars. If password authentication is enabled, the alternative is to put
+If password authentication is enabled, the alternative is to put
 `ansible_password` in the host vault and let `sshpass` handle the first run, but
 installing the key is the cleaner bootstrap.
 
@@ -197,8 +185,7 @@ add_vpn_gateway_wg_easy_init_password: "a-long-initial-password"
 The password is only used on the first start when no `wg-easy.db` exists.
 After setup, the playbook stops rendering the `INIT_*` variables.
 
-If the server only accepts SSH as root, keep `ansible_user: root`. Override
-`ansible_ssh_private_key_file` if the SSH key is not `~/.ssh/ansible`.
+If the server only accepts SSH as root, keep `ansible_user: root`.
 
 If the provider gives you a root password instead of a key, add
 `ansible_password` to the host vault. The devcontainer includes `sshpass`.
@@ -249,20 +236,19 @@ To move the website later:
 The website role itself is already independent. `add_website_join_proxy_network`
 defaults to `true` only for hosts that are also in `vpn_gateway`.
 
-## Run
+## Run and Result 
 
-Open the repository dev container. The Ansible toolchain is already installed
-in the image, so there is no `install.ps1` or `.venv` step:
-
-```bash
-pwsh tests/verify-devcontainer.ps1
-pwsh tests/verify-public-gateway-config.ps1
-pwsh run.ps1 add-public-gateway.yml
-```
-
-For the legacy WSL workflow, activate `.venv` first:
+Activate an environment on the container host:
 
 ```powershell
+# on the container host
+pwsh Set-Environment.ps1 -Environment <name>
+```
+
+```bash
+# inside the dev container
+pwsh tests/verify-devcontainer.ps1
+pwsh tests/verify-public-gateway-config.ps1
 pwsh run.ps1 add-public-gateway.yml
 ```
 
@@ -303,13 +289,8 @@ Afterwards, re-set `add_vpn_gateway_caddy_use_internal_tls` to `false` and rerun
 
 ## Migrating wg-easy data
 
-wg-easy v15 stores its state in a SQLite database at
-`/etc/wireguard/wg-easy.db` inside the container. Because the old instance is
-already on v15, copy that database instead of using the legacy `wg0.json`
-import path.
-
-On the old server, stop the container before copying so SQLite has no pending
-writes:
+wg-easy v15 stores its state in a SQLite database at `/etc/wireguard/wg-easy.db` inside the container. 
+On the old server, stop the container before copying so SQLite has no pending writes:
 
 ```bash
 cd /path/to/old/wg-easy
@@ -319,20 +300,16 @@ sudo docker compose stop wg-easy
 sudo docker inspect wg-easy --format '{{range .Mounts}}{{if eq .Destination "/etc/wireguard"}}{{.Source}}{{end}}{{end}}'
 ```
 
-The mount path is often a named Docker volume. Copy `wg-easy.db` from it (for
-example with `sudo docker run --rm -v <volume>:/data -v "$PWD":/backup alpine
-cp /data/wg-easy.db /backup/`), then store it outside the repository:
+The mount path is often a named Docker volume. 
+Copy `wg-easy.db` from it (for example with `sudo docker run --rm -v <volume>:/data -v "$PWD":/backup alpine cp /data/wg-easy.db /backup/`), 
+ then store it on the ansible host, accessible to the dev container.
 
 ```bash
 mkdir -p ~/wg-easy-backup
 cp wg-easy.db ~/wg-easy-backup/wg-easy.db
 ```
 
-The playbook reads the migration source from the controller path in
-`add_vpn_gateway_wg_easy_migration_source`. It never reads a database from the
-repository. The `wg-easy.db*` patterns in `.gitignore` are only a safety net
-against accidentally committing VPN private keys or client data.
-
+The playbook reads the migration source from the controller path in `add_vpn_gateway_wg_easy_migration_source`.
 Set the host var:
 
 ```yaml
@@ -352,9 +329,6 @@ After the migration:
 3. Remove the `add_vpn_gateway_wg_easy_migration_source` host var so future
    runs do not depend on the backup file.
 
-If you only have a legacy `wg0.json` backup from v14 or older, leave the
-migration variable empty, run the playbook, and use the v15 setup wizard's
-restore option instead.
 
 ### Copying Directly to the New Host
 
@@ -402,16 +376,14 @@ directory creation, ownership, and the first-start ordering for you.
 By default the role creates a placeholder `index.html` and does not overwrite
 it on later runs.
 
-Two ways to deploy real content:
-
-- Let an external site repository or CI job push a build over SSH. See
-  [External publishing](#external-publishing).
-- Copy files into `/opt/website/content/` on the server manually.
-
-The role does not push content from the Ansible controller.
-
 Caddy routes the website hostname to `website:80` through the shared
 `vpn-gateway-proxy` Docker network.
+
+Two ways to deploy content:
+
+- Copy files into `/opt/website/content/` on the server manually.
+- Let an external site repository or CI job push a build over SSH. See
+  [External publishing](#external-publishing).
 
 ### External publishing
 

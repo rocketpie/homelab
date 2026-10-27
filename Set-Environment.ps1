@@ -154,13 +154,13 @@ function Assert-Host {
     $dockerCommand = Get-Command "docker" -ErrorAction SilentlyContinue
     $homelabRoot = Join-Path $HOME ".homelab"
     if ($inContainer -or ($null -eq $dockerCommand -and -not (Test-Path -LiteralPath $homelabRoot))) {
-        throw "Set-Environment.ps1 must run on the WSL/container host, not inside the dev container. The host owns ~/.homelab and the tmpfs runtime at '$RuntimeRoot'."
+        throw "Set-Environment.ps1 must run on the container host, not inside the dev container. The host owns ~/.homelab and the tmpfs runtime at '$RuntimeRoot'."
     }
 }
 
 function Initialize-RuntimeDir {
     if (-not $IsLinux) {
-        throw "The active environment runtime directory requires a Linux/WSL host."
+        throw "The active environment runtime directory requires a Linux container host (eg. WSL)."
     }
 
     foreach ($directory in @($RuntimeRoot, $ControlDir, $RuntimeDir)) {
@@ -219,7 +219,7 @@ function Get-ActiveState {
 function Get-RepoVaultFiles {
     return @(
         Get-ChildItem -LiteralPath $repoRoot -Recurse -File -Filter "vault.yml" -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch "[\\/](\.git|\.venv|\.collections|node_modules)[\\/]" }
+        Where-Object { $_.FullName -notmatch "[\\/](\.git|node_modules)[\\/]" }
     )
 }
 

@@ -67,6 +67,22 @@
   loop_control:
     label: "{{ item.name | default('unnamed-user') }}"
 
+- name: Validate the active environment SSH public key
+  ansible.builtin.assert:
+    that:
+      - export_autoinstall_seed_ansible_public_key | length > 0
+      - export_autoinstall_seed_ansible_public_key is match('^(ssh|ecdsa)-')
+      - export_autoinstall_seed_ansible_public_key.split(' ') | length >= 2
+      - export_autoinstall_seed_ansible_public_key.split(' ')[1]
+        is match('^[A-Za-z0-9+/]+={0,2}$')
+    fail_msg: >-
+      ansible_admin_ssh_public_key is missing or invalid. Activate an
+      environment with `pwsh Set-Environment.ps1 -Environment <name>` so
+      run.ps1 can publish its public key.
+  vars:
+    export_autoinstall_seed_ansible_public_key: >-
+      {{ ansible_admin_ssh_public_key | default('') | string | trim }}
+
 - name: Ensure autoinstall export directory exists
   ansible.builtin.file:
     path: "{{ autoinstall_export_directory }}"

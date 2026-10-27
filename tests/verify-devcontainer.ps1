@@ -24,11 +24,30 @@ function Assert-Path([string]$Path) {
     Write-Host "[ok] $Path"
 }
 
+function Assert-NoLegacyAnsibleKeyMaterial {
+    $inventoryRoot = Join-Path $repoRoot "inventory"
+    $pattern = '\.ssh/(ansible|id_ed25519)|ssh-(ed25519|rsa)\s+\S+\s+ansible(\s|"|$)'
+    $hits = @(
+        Get-ChildItem -LiteralPath $inventoryRoot -Recurse -File |
+        Select-String -Pattern $pattern
+    )
+    if ($hits.Count -gt 0) {
+        $details = ($hits | ForEach-Object {
+                "$($_.Path):$($_.LineNumber): $($_.Line.Trim())"
+            }) -join "`n"
+        throw "Inventory contains legacy Ansible key material:`n$details"
+    }
+
+    Write-Host "[ok] inventory has no legacy Ansible key material"
+}
+
 Assert-Command "ansible-playbook"
 Assert-Command "ansible-lint"
 Assert-Command "ansible-vault"
 Assert-Command "sshpass"
 Assert-Command "xorriso"
+
+Assert-NoLegacyAnsibleKeyMaterial
 
 Write-Host "[ok] $(& ansible-playbook --version | Select-Object -First 1)"
 
