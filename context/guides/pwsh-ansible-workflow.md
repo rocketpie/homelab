@@ -1,10 +1,8 @@
 # PowerShell Ansible Workflow
 
-The repository dev container is the only supported Ansible runtime. It contains
-the full toolchain, so no install step and no repo-local `.venv` are needed.
-
 ## Dev container
 
+The repository dev container is the only supported Ansible runtime.
 Open the repo in the dev container, then run:
 
 ```bash
