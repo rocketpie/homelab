@@ -17,6 +17,7 @@ function Main {
     Assert-DevContainerRuntime
     & $vaultPasswordScript | Out-Null # ensure vault password is available in the dev container
     Sync-VaultTemplateComments
+    Invoke-PlaybookSyntaxChecks
 
     $vaultExcludes = Get-ChildItem -Path $PSScriptRoot -Recurse -Filter "vault.yml" -File |
     ForEach-Object {
@@ -41,6 +42,21 @@ function Main {
 
 function Get-RelativeRepoPath([string]$Path) {
     return [System.IO.Path]::GetRelativePath($PSScriptRoot, $Path)
+}
+
+function Invoke-PlaybookSyntaxChecks {
+    $inventory = Join-Path $PSScriptRoot "inventory/hosts.yml"
+    $playbookRoot = Join-Path $PSScriptRoot "playbooks"
+    $playbooks = Get-ChildItem -LiteralPath $playbookRoot -Filter "*.yml" -File | Sort-Object Name
+
+    foreach ($playbook in $playbooks) {
+        $relativePath = Get-RelativeRepoPath -Path $playbook.FullName
+        Write-Host "Checking syntax: $relativePath"
+        & ansible-playbook -i $inventory $playbook.FullName --syntax-check
+        if ($LASTEXITCODE -ne 0) {
+            throw "ansible-playbook --syntax-check failed for $relativePath"
+        }
+    }
 }
 
 # TODO: is there a better way for templating or validating vault.yml files? schema validation?
@@ -105,8 +121,6 @@ function Get-VaultTemplateSourceContent([string]$VaultFilePath) {
         return $vaultContent
     }
 
-    Ensure-VaultPassword
-
     $decryptedVaultContent = & ansible-vault view $VaultFilePath --vault-password-file $vaultPasswordScript
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to decrypt $(Get-RelativeRepoPath -Path $VaultFilePath) for vault template sync"
@@ -160,6 +174,9 @@ function Assert-DevContainerRuntime {
     }
     if (-not (Get-Command ansible-lint -ErrorAction SilentlyContinue)) {
         throw "Missing dependency: 'ansible-lint' not found on PATH. Run this script inside the dev container."
+    }
+    if (-not (Get-Command ansible-playbook -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: 'ansible-playbook' not found on PATH. Run this script inside the dev container."
     }
     if (-not (Get-Command ansible-vault -ErrorAction SilentlyContinue)) {
         throw "Missing dependency: 'ansible-vault' not found on PATH. Run this script inside the dev container."

@@ -2,7 +2,7 @@
 - sudo systemctl restart wg-quick@co3d on all hosts
 
 # Build / CI
-- wire the `tests/verify-*.ps1` checks into the build/CI path; `build.ps1` currently only runs `ansible-lint`.
+- wire the `tests/verify-*.ps1` checks into the build/CI path; `build.ps1` currently only runs ansible lint and syntax checks.
 - `tests/verify-public-gateway-config.ps1` is manual and intentionally fails while example placeholders are present, so give it an explicit opt-in/skip flag before it runs unattended.
 - make the cross-host route hostname uniqueness check fail before SSH; keep the per-host runtime assert in `add_vpn_gateway`.
 

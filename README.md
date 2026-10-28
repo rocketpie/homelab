@@ -70,7 +70,7 @@ pwsh tests/verify-public-gateway-config.ps1
 pwsh tests/verify-vault-template-render.ps1
 ```
 
-`build.ps1` remains the lint and vault-template sync entrypoint:
+`build.ps1` remains the lint and syntax-check entrypoint and also syncs vault template comments:
 
 ```bash
 pwsh build.ps1

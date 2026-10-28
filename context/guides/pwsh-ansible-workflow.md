@@ -41,8 +41,6 @@ setup, the active key source, and the host/container boundary.
 - tab-completion on playbook names from `playbooks/`
 - the active environment's `SSH_AUTH_SOCK` and vault password file
 - the active environment's public key as `ansible_admin_ssh_public_key`
-- empty `ansible_admin_ssh_private_key_file` and `ansible_ssh_private_key_file`
-  overrides, so the agent is used even if a stale inventory value remains
 - `-Debug`, which forwards `-v` to `ansible-playbook`
 
 Without an active environment, `run.ps1` fails with instructions instead of

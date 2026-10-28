@@ -117,7 +117,6 @@
         ansible_host: "{{ vm.ansible_host }}"
         ansible_user: "{{ vm.ansible_user }}"
         ansible_python_interpreter: "{{ vm.ansible_python_interpreter }}"
-        ansible_ssh_private_key_file: "{{ vm.ansible_ssh_private_key_file }}"
         ansible_ssh_common_args: >-
           -o StrictHostKeyChecking=no
           -o UserKnownHostsFile={{ lookup('env', 'HOME') + '/.ssh/known_hosts' }}

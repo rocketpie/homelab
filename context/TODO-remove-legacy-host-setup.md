@@ -238,15 +238,9 @@ commands. It stays.
        the moved requirements).
 2. [x] Inside the container: `pwsh tests/verify-devcontainer.ps1`,
        `pwsh tests/verify-vault-template-render.ps1`, `pwsh build.ps1`.
-       ERROR: 
-      ./build.ps1
-      build.ps1: The term 'Ensure-VaultPassword' is not recognized as a name of a cmdlet, function, script file, or executable program.
-      Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
 3. [x] Negative test: with no `~/.homelab-active`, `pwsh run.ps1 add-vm.yml`
        fails with the Set-Environment message, not a prompt.
-4. [ ] Positive test: after `Set-Environment.ps1 <name>`, `pwsh run.ps1
-       add-vm.yml --syntax-check` (via `-Debug` or direct) picks up the tmpfs
-       password and socket, and confirms the active public key is injected.
+4. [x] Positive test: after `Set-Environment.ps1 <name>`, `pwsh run.ps1 add-vm.yml -Debug` picks up the tmpfs password and socket, and confirms the active public key is injected.
 5. [x] Inventory guard:
        `grep -rniE "\.ssh/(ansible|id_ed25519)|ssh-(ed25519|rsa)\s+\S+\s+ansible\b" inventory/`
        returns no hits.

@@ -34,7 +34,9 @@ Autoinstall config installs/enables qemu-guest-agent + openssh-server, creates a
 * remove attached installer CD-ROM
 * boot the VM
 * remove any old SSH host key for that address with ssh-keygen -R
-* adds VM to in-memory inventory with relaxed first-connect SSH options
+* adds VM to in-memory inventory with relaxed first-connect SSH options; no
+  `ansible_ssh_private_key_file` is set, so the active environment's SSH agent
+  is used
 * second play: wait for a SSH connection
 * guest configuration then applies baseline roles such as disk setup (except no disks) and automatic Ubuntu security updates (except enable_autoupdate: false)
 * successful guest configuration appends a deployment record to /var/lib/homelab/deploy-history.yml on the VM
