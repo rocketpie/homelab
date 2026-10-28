@@ -154,27 +154,31 @@ literal values.
 
 ## Creating and updating vaults
 
-`Initialize-VaultTemplates.ps1` now encrypts new files directly using the
-active vault password. It does not write a plaintext `vault.yml` first:
+Use `Initialize-VaultTemplates.ps1` to create missing vaults from the template comments. New files are directly encrypted using the active vault password.
 
 ```bash
 pwsh srv/Initialize-VaultTemplates.ps1
 ```
 
-The `add_ansible_execution` role does not create missing `vault.yml` files on
-the execution VM. Copy the environment store there instead; its `repo/` subtree
-already contains the encrypted vaults.
+The `add_ansible_execution` role does not create `vault.yml` files on the execution VM. synchronize your environment store there instead;
 
-`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first
-with the active environment's password:
+`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:
 
 ```bash
 ansible-vault encrypt path/to/vault.yml --vault-password-file vault_pass.ps1
 ```
 
-Be aware that `ansible-vault edit` uses a local temporary file for the editor.
-If plaintext must never touch disk, point `TMPDIR` at a tmpfs directory or use a
-workflow that keeps the editor buffer in memory.
+
+Use `Edit-Vault.ps1` inside the dev container to edit an existing vault. Select
+a vault by the name of its parent directory; tab-completion lists every
+available name, such as `all`, `proxmox`, and `restic1`:
+
+```bash
+pwsh Edit-Vault.ps1 restic1
+```
+
+It uses the active environment's password through `vault_pass.ps1` and sets
+`TMPDIR=/dev/shm` so the editor's plaintext copy stays on tmpfs.
 
 ## Security notes
 
