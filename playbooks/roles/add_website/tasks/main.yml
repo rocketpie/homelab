@@ -4,23 +4,15 @@
     that:
       - ansible_facts['system'] == 'Linux'
       - ansible_facts['distribution'] == 'Ubuntu'
-      - add_website_domain | string | trim | length > 0
-      - >-
-        (add_website_publish_port | string | trim | length == 0)
-        or (add_website_publish_port | int > 0)
-      - >-
-        (add_website_publish_port | string | trim | length == 0)
-        or (add_website_publish_port | int < 65536)
-      - >-
-        (add_website_publish_port | string | trim | length == 0)
-        or (add_website_publish_bind | string | trim | length > 0)
-      - >-
-        (add_website_join_proxy_network | bool)
-        or (add_website_publish_port | string | trim | length > 0)
+      - add_website_services is sequence
+      - add_website_services is not string
+      - add_website_services | length > 0
+      - add_website_services | unique | length == add_website_services | length
+      - add_website_services | difference(add_website_supported_services) | length == 0
+      - add_website_image_prefix | string | trim | length > 0
     fail_msg: >-
-      add_website requires an Ubuntu host and a domain. A website host that is
-      not on the gateway must publish a host port for the gateway proxy, and a
-      published port needs a bind address that exists on the website host.
+      add_website requires an Ubuntu host, a non-empty add_website_services
+      list, no duplicates, and only supported services: website, lobby.
 
 - name: Check Docker Compose availability
   ansible.builtin.command:
@@ -30,14 +22,13 @@
       - version
   changed_when: false
 
-- name: Install website publishing packages
+- name: Install public workload packages
   ansible.builtin.apt:
-    name: "{{ add_website_publish_packages }}"
+    name: "{{ add_website_packages }}"
     state: present
     update_cache: true
-  when: add_website_publish_user | string | trim | length > 0
 
-- name: Create the website publish user
+- name: Create the public workload publish user
   ansible.builtin.user:
     name: "{{ add_website_publish_user }}"
     home: "/home/{{ add_website_publish_user }}"
@@ -45,15 +36,15 @@
     create_home: true
     password_lock: true
     state: present
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Inspect the website publish key
+- name: Inspect the public workload publish key
   ansible.builtin.stat:
     path: "{{ add_website_publish_key_path }}"
   register: add_website_publish_key
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Remove the previous website publish key pair
+- name: Remove the previous public workload publish key pair
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
@@ -61,12 +52,12 @@
     - "{{ add_website_publish_key_path }}"
     - "{{ add_website_publish_key_path }}.pub"
   when:
-    - add_website_publish_user | string | trim | length > 0
+    - add_website_publish_enabled | bool
     - >-
       (add_website_publish_key_rotate | bool)
       or not (add_website_publish_key.stat.exists | default(false))
 
-- name: Generate the website publish key pair
+- name: Generate the public workload publish key pair
   ansible.builtin.command:
     argv:
       - ssh-keygen
@@ -81,12 +72,12 @@
       - "{{ add_website_publish_key_path }}"
   changed_when: true
   when:
-    - add_website_publish_user | string | trim | length > 0
+    - add_website_publish_enabled | bool
     - >-
       (add_website_publish_key_rotate | bool)
       or not (add_website_publish_key.stat.exists | default(false))
 
-- name: Set website publish key permissions
+- name: Set public workload publish key permissions
   ansible.builtin.file:
     path: "{{ item.path }}"
     owner: root
@@ -99,32 +90,32 @@
       mode: "0644"
   loop_control:
     label: "{{ item.path }}"
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Read the website publish public key
+- name: Read the public workload publish public key
   ansible.builtin.slurp:
     src: "{{ add_website_publish_key_path }}.pub"
   register: add_website_publish_public_key
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Authorize the website publish public key
+- name: Authorize the public workload publish public key
   ansible.posix.authorized_key:
     user: "{{ add_website_publish_user }}"
     key: "{{ add_website_publish_public_key.content | b64decode }}"
     exclusive: true
     state: present
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Install website publish instructions
+- name: Install public workload publish instructions
   ansible.builtin.template:
     src: website-publish-README.md.j2
-    dest: "{{ add_website_publish_readme_path }}"
+    dest: "{{ add_website_readme_path }}"
     owner: root
     group: root
     mode: "0644"
-  when: add_website_publish_user | string | trim | length > 0
+  when: add_website_publish_enabled | bool
 
-- name: Ensure website project directory exists
+- name: Ensure public workload project directory exists
   ansible.builtin.file:
     path: "{{ add_website_project_dir }}"
     state: directory
@@ -132,13 +123,31 @@
     group: "{{ add_website_group }}"
     mode: "0755"
 
-- name: Ensure website content directory exists
+- name: Ensure public workload artifact and trigger directories exist
   ansible.builtin.file:
-    path: "{{ add_website_content_dir }}"
+    path: "{{ item }}"
     state: directory
-    owner: "{{ add_website_content_owner }}"
-    group: "{{ add_website_content_group }}"
+    owner: "{{ add_website_artifact_owner }}"
+    group: "{{ add_website_artifact_group }}"
     mode: "0755"
+  loop: >-
+    {{
+      add_website_services
+      | map('regex_replace', '^', add_website_project_dir ~ '/')
+      | list
+      + [add_website_trigger_dir]
+    }}
+  loop_control:
+    label: "{{ item }}"
+
+- name: Ensure the public deploy log exists
+  ansible.builtin.file:
+    path: "{{ add_website_log_file }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  changed_when: false
 
 - name: Inspect the shared reverse-proxy network
   ansible.builtin.command:
@@ -150,7 +159,6 @@
   register: add_website_proxy_network
   changed_when: false
   failed_when: false
-  when: add_website_join_proxy_network | bool
 
 - name: Create the shared reverse-proxy network
   ansible.builtin.command:
@@ -159,23 +167,10 @@
       - network
       - create
       - "{{ add_website_proxy_network_name }}"
-  when:
-    - add_website_join_proxy_network | bool
-    - add_website_proxy_network is defined
-    - add_website_proxy_network.rc != 0
+  when: add_website_proxy_network.rc != 0
   changed_when: true
 
-- name: Install placeholder website page
-  ansible.builtin.template:
-    src: index.html.j2
-    dest: "{{ add_website_content_dir }}/index.html"
-    owner: "{{ add_website_content_owner }}"
-    group: "{{ add_website_content_group }}"
-    mode: "0644"
-    force: false
-  when: add_website_placeholder_enabled | bool
-
-- name: Render website Docker Compose file
+- name: Render public workload Docker Compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ add_website_compose_file }}"
@@ -183,24 +178,52 @@
     group: "{{ add_website_group }}"
     mode: "0640"
 
-- name: Pull website container image
+- name: Install the public deploy script
+  ansible.builtin.template:
+    src: public-deploy.sh.j2
+    dest: "{{ add_website_deploy_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the public deploy cron entry
+  ansible.builtin.template:
+    src: public-deploy.cron.j2
+    dest: "{{ add_website_cron_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the public deploy logrotate configuration
+  ansible.builtin.template:
+    src: public-deploy.logrotate.j2
+    dest: "{{ add_website_logrotate_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Inspect available public workload images
   ansible.builtin.command:
     argv:
       - docker
-      - compose
-      - pull
-    chdir: "{{ add_website_project_dir }}"
+      - image
+      - inspect
+      - "{{ add_website_image_prefix }}/{{ item }}:latest"
+  loop: "{{ add_website_services }}"
+  register: add_website_image_inspect
   changed_when: false
-  when: add_website_pull_images | bool
+  failed_when: false
+  loop_control:
+    label: "{{ item }}"
 
-- name: Deploy website container
+- name: Apply compose changes when every selected image is already loaded
   ansible.builtin.command:
     argv:
       - docker
       - compose
       - up
       - --detach
-      - --remove-orphans
+      - --no-build
     chdir: "{{ add_website_project_dir }}"
   register: add_website_compose_up
   changed_when: >-
@@ -208,8 +231,15 @@
       (add_website_compose_up.stdout | default(''))
       ~ (add_website_compose_up.stderr | default(''))
     ) is search('(Created|Started|Recreated|Pulled)')
+  when: >-
+    (
+      add_website_image_inspect.results
+      | selectattr('rc', 'equalto', 0)
+      | list
+      | length
+    ) == (add_website_services | length)
 
-- name: Show website container status
+- name: Show public workload container status
   ansible.builtin.command:
     argv:
       - docker
@@ -219,6 +249,6 @@
   register: add_website_compose_ps
   changed_when: false
 
-- name: Display website container status
+- name: Display public workload container status
   ansible.builtin.debug:
     msg: "{{ add_website_compose_ps.stdout_lines }}"

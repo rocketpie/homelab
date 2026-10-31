@@ -4,58 +4,9 @@
     that:
       - ansible_facts['system'] == 'Linux'
       - ansible_facts['distribution'] == 'Ubuntu'
-      - add_vpn_gateway_acme_email | string | trim | length > 0
-      - add_vpn_gateway_caddy_http_port | int > 0
-      - add_vpn_gateway_caddy_https_port | int > 0
       - add_vpn_gateway_wg_easy_wg_port | int > 0
-      - add_vpn_gateway_routes is sequence
-      - add_vpn_gateway_routes is not string
-      - add_vpn_gateway_routes | length > 0
     fail_msg: >-
-      add_vpn_gateway requires an Ubuntu host, an ACME email, valid ports, and
-      a non-empty route list.
-
-- name: Validate vpn_gateway route entries
-  ansible.builtin.assert:
-    that:
-      - item.hostnames is defined
-      - item.hostnames is sequence
-      - item.hostnames is not string
-      - item.hostnames | length > 0
-      - item.upstream is defined
-      - item.upstream | string | trim | length > 0
-    fail_msg: "Invalid add_vpn_gateway_routes item: {{ item | to_nice_yaml }}"
-  loop: "{{ add_vpn_gateway_routes }}"
-  loop_control:
-    label: "{{ item.upstream | default('unnamed-route') }}"
-
-- name: Assert vpn_gateway route hostnames are unique
-  ansible.builtin.assert:
-    that:
-      - >-
-        (
-          add_vpn_gateway_routes
-          | map(attribute='hostnames')
-          | flatten
-          | map('string')
-          | map('trim')
-          | reject('equalto', '')
-          | list
-          | unique
-          | length
-        )
-        ==
-        (
-          add_vpn_gateway_routes
-          | map(attribute='hostnames')
-          | flatten
-          | map('string')
-          | map('trim')
-          | reject('equalto', '')
-          | list
-          | length
-        )
-    fail_msg: "add_vpn_gateway_routes hostnames must be unique"
+      add_vpn_gateway requires an Ubuntu host and a valid WireGuard port.
 
 - name: Check Docker Compose availability
   ansible.builtin.command:
@@ -151,15 +102,6 @@
       hostname. Keep the password in the host vault.yml.
   when: add_vpn_gateway_wg_easy_init_enabled | bool
 
-- name: Render Caddyfile
-  ansible.builtin.template:
-    src: Caddyfile.j2
-    dest: "{{ add_vpn_gateway_caddyfile_path }}"
-    owner: "{{ add_vpn_gateway_owner }}"
-    group: "{{ add_vpn_gateway_group }}"
-    mode: "0644"
-  notify: Restart Caddy
-
 - name: Render vpn_gateway Docker Compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2
@@ -194,9 +136,6 @@
       (add_vpn_gateway_compose_up.stdout | default(''))
       ~ (add_vpn_gateway_compose_up.stderr | default(''))
     ) is search('(Created|Started|Recreated|Pulled)')
-
-- name: Apply pending Caddy config changes
-  ansible.builtin.meta: flush_handlers
 
 - name: Show vpn_gateway container status
   ansible.builtin.command:

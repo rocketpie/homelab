@@ -1,21 +1,42 @@
 services:
+{% if 'website' in add_website_services %}
   website:
-    image: {{ add_website_image }}
-    container_name: {{ add_website_container_name }}
+    image: "{{ add_website_image_prefix }}/website:latest"
+    pull_policy: never
     restart: unless-stopped
-{% if add_website_publish_port | string | trim | length > 0 %}
-    ports:
-      - "{{ add_website_publish_bind }}:{{ add_website_publish_port | int }}:80/tcp"
-{% endif %}
-    volumes:
-      - {{ add_website_content_dir }}:/usr/share/nginx/html:ro
-{% if add_website_join_proxy_network | bool %}
+    expose:
+      - "80"
+    labels:
+      com.co3d.service: public
     networks:
       - proxy
 {% endif %}
-{% if add_website_join_proxy_network | bool %}
+{% if 'lobby' in add_website_services %}
+  lobby:
+    image: "{{ add_website_image_prefix }}/lobby:latest"
+    pull_policy: never
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    expose:
+      - "8080"
+    labels:
+      com.co3d.service: public
+    networks:
+      - proxy
+{% endif %}
+
 networks:
   proxy:
     external: true
     name: {{ add_website_proxy_network_name }}
-{% endif %}

@@ -1,6 +1,8 @@
+{% if add_caddy_acme_email | string | trim | length > 0 %}
 {
-    email {{ add_vpn_gateway_acme_email }}
+    email {{ add_caddy_acme_email }}
 }
+{% endif %}
 
 # Redirect every plaintext HTTP request to HTTPS. Caddy inserts its
 # automatic host-matched redirects before this catch-all, so configured
@@ -9,10 +11,10 @@ http:// {
     redir https://{host}{uri} 308
 }
 
-{% for route in add_vpn_gateway_routes %}
+{% for route in add_caddy_routes %}
 {% for hostname in route.hostnames %}
 {{ hostname }} {
-{% if add_vpn_gateway_caddy_use_internal_tls | bool %}
+{% if add_caddy_use_internal_tls | bool %}
     # Testing and internal deployment: use only the local CA instead of Let's Encrypt via ACME.
     tls internal
 {% endif %}

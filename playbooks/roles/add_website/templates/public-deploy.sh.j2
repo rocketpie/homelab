@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="{{ add_website_project_dir }}"
+trigger_dir="{{ add_website_trigger_dir }}"
+compose_file="{{ add_website_compose_file }}"
+image_prefix="{{ add_website_image_prefix }}"
+
+exec 9>/run/lock/public-deploy.lock
+flock -n 9 || exit 0
+
+log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+shopt -s nullglob
+for marker in "$trigger_dir"/*.restart; do
+    service="$(basename "$marker" .restart)"
+    archive="$project_dir/$service/$service.tar.zst"
+    reference="$image_prefix/$service:latest"
+
+    # Consume first so a bad publish cannot hot-loop.
+    rm -f "$marker"
+
+    if [ ! -f "$archive" ]; then
+        log "skipping $service: missing $archive"
+        continue
+    fi
+
+    if [ -f "$archive.sha256" ] \
+        && ! (cd "$project_dir/$service" && sha256sum -c --status "$service.tar.zst.sha256"); then
+        log "skipping $service: checksum mismatch"
+        continue
+    fi
+
+    if ! (cd "$project_dir" && docker compose config --services | grep -qx "$service"); then
+        log "skipping $service: not a service in $compose_file"
+        continue
+    fi
+
+    log "loading $service"
+    if ! load_output="$(zstd -dc "$archive" | docker load)"; then
+        log "skipping $service: docker load failed"
+        continue
+    fi
+
+    # The archive must contain the exact host tag; otherwise a stale image with
+    # the right name could pass the label check below.
+    if ! printf '%s\n' "$load_output" | grep -qx "Loaded image: $reference"; then
+        log "rejecting $service: archive did not contain $reference"
+        docker image prune -af --filter "label=com.co3d.service=public" >/dev/null 2>&1 || true
+        continue
+    fi
+
+    labels="$(docker image inspect --format \
+        {% raw %}'{{index .Config.Labels "com.co3d.service"}}|{{index .Config.Labels "com.co3d.service.name"}}'{% endraw %} \
+        "$reference" 2>/dev/null || true)"
+    if [ "$labels" != "public|$service" ]; then
+        log "rejecting $service: expected labels public|$service, got '$labels'"
+        docker image rm "$reference" >/dev/null 2>&1 || true
+        docker image prune -f >/dev/null 2>&1 || true
+        continue
+    fi
+
+    log "restarting $service"
+    if (cd "$project_dir" && docker compose up -d --no-deps "$service"); then
+        # Host-owned cleanup: prior tagged images, then unlabeled dangling layers.
+        docker image prune -af --filter "label=com.co3d.service=public" >/dev/null 2>&1 || true
+        docker image prune -f >/dev/null 2>&1 || true
+        rm -f "$archive" "$archive.sha256"
+        log "$service deploy complete"
+    else
+        log "$service deploy failed; archive kept for inspection"
+    fi
+done

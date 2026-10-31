@@ -33,6 +33,7 @@ than a single list.
 
 Playbooks using deployment history include:
 
+- `playbooks/add-public-gateway.yml`
 - `playbooks/add-vm.yml`
 - `playbooks/add-autoupdate.yml`
 - `playbooks/add-rest-server.yml`

@@ -1,6 +1,6 @@
 # Website Publishing Refactor
 
-Status: proposed
+Status: implemented
 Scope: split Caddy out of the VPN role, move publishing to CI-built image
 tarballs, unify website and lobby, and move public workloads to the web host.
 
@@ -287,7 +287,7 @@ add_website_owner: root
 add_website_publish_user: website-deploy
 add_website_publish_key_path: /root/website-publish
 add_website_publish_key_rotate: true
-add_website_readme_path: /root/public-publish.README.md
+add_website_readme_path: /root/website-publish.README.md
 add_website_packages:
   - cron
   - logrotate
@@ -298,9 +298,6 @@ add_website_packages:
 add_website_deploy_script_path: /usr/local/sbin/public-deploy
 add_website_cron_file: /etc/cron.d/public-deploy
 add_website_log_file: /var/log/public-deploy.log
-
-add_website_lobby_hashcash_bits: 20
-add_website_lobby_rate_kbps: 5
 ```
 
 Removed: `add_website_domain`, `add_website_image`,
@@ -332,10 +329,6 @@ services:
     image: "{{ add_website_image_prefix }}/lobby:latest"
     pull_policy: never
     restart: unless-stopped
-    environment:
-      PORT: "8080"
-      HASHCASH_BITS: "{{ add_website_lobby_hashcash_bits }}"
-      RATE_KBPS: "{{ add_website_lobby_rate_kbps }}"
     read_only: true
     cap_drop:
       - ALL
@@ -422,18 +415,9 @@ the Caddy route.
 - keep or remove `gateway2` from `website` depending on where the static site
   runs; the role now supports a subset of services per host, so both layouts
   work
-- add a parent group so both public hosts share firewall policy:
-
-```yaml
-public:
-  children:
-    vpn_gateway:
-    website:
-```
-
-`inventory/group_vars/public/firewall.yml` (new): TCP 80/443 and UDP 443 from
-`add_caddy_*`. `inventory/group_vars/vpn_gateway/firewall.yml` keeps only
-`add_firewall_wireguard_ports`.
+- keep firewall exposure in each gateway's `host.yml`:
+  `add_firewall_allowed_tcp_ports`, `add_firewall_allowed_udp_ports`, and, for
+  VPN hosts, `add_firewall_wireguard_ports`
 
 ### Lobby-only host
 

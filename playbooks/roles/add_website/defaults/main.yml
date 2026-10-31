@@ -1,50 +1,46 @@
 ---
-add_website_project_dir: /opt/website
+add_website_project_dir: /opt/public
 add_website_compose_file: "{{ add_website_project_dir }}/docker-compose.yml"
-add_website_content_dir: "{{ add_website_project_dir }}/content"
 add_website_owner: root
 add_website_group: root
 
-add_website_domain: ""
-add_website_placeholder_enabled: true
+# Which of the role's services this host runs. Required; the role asserts it is
+# non-empty. A lobby-only host sets [lobby].
+add_website_services: []
+add_website_supported_services:
+  - website
+  - lobby
 
-# CI publishing. An external site repository pushes content into
-# add_website_content_dir over SSH as this user. The user has no sudo and owns
-# only the content directory.
-# Set add_website_publish_user to "" to disable the account and the key setup.
-add_website_publish_user: "website-deploy"
-add_website_publish_packages:
+add_website_trigger_dir: "{{ add_website_project_dir }}/triggers"
+add_website_image_prefix: homelab
+add_website_proxy_network_name: vpn-gateway-proxy
+
+add_website_publish_user: website-deploy
+add_website_packages:
+  - cron
+  - logrotate
   - openssh-client
   - rsync
+  - zstd
 add_website_publish_key_path: /root/website-publish
-add_website_publish_readme_path: "{{ add_website_publish_key_path }}.README.md"
-
-# The key pair is regenerated on every playbook run by default. Copy the new
-# private key into the CI secret after each run, or set this to false to keep
-# the existing key.
 add_website_publish_key_rotate: true
+add_website_readme_path: /root/website-publish.README.md
 
-# Content ownership follows the publish user when it is enabled, so CI can
-# replace and delete files created by Ansible.
-add_website_content_owner: "{{ add_website_publish_user | default(add_website_owner, true) }}"
-add_website_content_group: "{{ add_website_publish_user | default(add_website_group, true) }}"
+add_website_publish_enabled: "{{ add_website_publish_user | string | trim | length > 0 }}"
+add_website_artifact_owner: >-
+  {{
+    add_website_publish_user
+    if add_website_publish_enabled | bool
+    else add_website_owner
+  }}
+add_website_artifact_group: >-
+  {{
+    add_website_publish_user
+    if add_website_publish_enabled | bool
+    else add_website_group
+  }}
 
-add_website_image: nginx:stable-alpine
-add_website_container_name: website
-
-# When the website runs on the gateway host, attach it to the gateway's shared
-# Docker network and let Caddy reach it as "website:80".
-# When it moves to a separate VPN-connected host, disable this and publish a
-# host port instead.
-add_website_proxy_network_name: vpn-gateway-proxy
-add_website_join_proxy_network: "{{ inventory_hostname in groups['vpn_gateway'] | default([]) }}"
-
-# Publishing a host port is opt-in and needs both values. Empty means do not
-# publish a host port; the container is reached over the shared proxy network
-# instead. For a split website host, set a bind address (ideally the VPN
-# overlay IP) and a port, then point the gateway route at that address.
-# Docker binds the address on the website host, so it must exist there.
-add_website_publish_bind: ""
-add_website_publish_port: ""
-
-add_website_pull_images: false
+add_website_deploy_script_path: /usr/local/sbin/public-deploy
+add_website_cron_file: /etc/cron.d/public-deploy
+add_website_log_file: /var/log/public-deploy.log
+add_website_logrotate_file: /etc/logrotate.d/public-deploy

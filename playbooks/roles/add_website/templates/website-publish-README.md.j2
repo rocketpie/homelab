@@ -1,33 +1,37 @@
 # Website publish key
 
-This key pair authenticates to `{{ add_website_publish_user }}`, the account used by
-an external site repository or CI job to publish static content for
-`{{ add_website_domain }}`.
+This key pair authenticates to `{{ add_website_publish_user }}`, 
+the account an external CI can use to publish public workload images to `{{ inventory_hostname }}`.
 
-Files in this directory:
+Files:
 
 - `{{ add_website_publish_key_path }}` - private key. Copy it into the CI secret.
 - `{{ add_website_publish_key_path }}.pub` - public key, authorized for the
   publish account.
-- `{{ add_website_publish_readme_path }}` - this file.
+- `{{ add_website_readme_path }}` - this file.
 
-The publish account has no sudo and owns only `{{ add_website_content_dir }}`.
-The nginx container mounts that directory read-only.
+The publish account has no sudo, is not in the `docker` group, and owns only
+`{{ add_website_project_dir }}/<service>/` and
+`{{ add_website_trigger_dir }}`. The compose file and deploy script are
+root-owned.
 
 ## Key rotation
 
-every run of the homelab `add-website` playbook replaces this key pair and revokes the
-previous key. 
+Every run of the playbook replaces this key pair and revokes the previous CI
+key. Copy the new private key into the CI secret after each run. Set
+`add_website_publish_key_rotate: false` in the host vars to keep the current
+key across runs.
 
 ## Fetch the private key
 
-As root on the gateway:
+As root on the host:
 
 ```bash
-ssh root@{{ inventory_hostname }} 'cat {{ add_website_publish_key_path }}'
+ssh root@{{ ansible_host | default(inventory_hostname) }} 'cat {{ add_website_publish_key_path }}'
 ```
 
-Store the output as a secret such as `WEBSITE_PUBLISH_KEY`, then write it in CI:
+Store the output as a CI secret such as `WEBSITE_PUBLISH_KEY`, then write it in
+CI:
 
 ```bash
 mkdir -p ~/.ssh
@@ -35,27 +39,83 @@ printf '%s\n' "$WEBSITE_PUBLISH_KEY" > ~/.ssh/website-publish
 chmod 600 ~/.ssh/website-publish
 ```
 
-## Publish content
+## Image contract
+
+CI builds the image. The host never builds. The host accepts an archive only
+when it contains the exact tag `{{ add_website_image_prefix }}/<service>:latest`
+and the image labels `com.co3d.service=public` and
+`com.co3d.service.name=<service>`.
+
+```bash
+# in CI, exact tag and labels matter
+docker buildx build --platform linux/amd64 --load \
+  --label com.co3d.service=public \
+  --label com.co3d.service.name=website \
+  -t {{ add_website_image_prefix }}/website:latest .
+docker save {{ add_website_image_prefix }}/website:latest | zstd -T0 -3 > website.tar.zst
+sha256sum website.tar.zst > website.tar.zst.sha256
+```
+
+Replace `website` appropriately. The image must listen on the
+port Caddy routes to (`website` 80, `lobby` 8080).
+
+`<service>.tar.zst.sha256` is optional. If present, the host verifies it before
+loading.
+
+## Publish
 
 ```bash
 rsync -az --delete --chmod=D755,F644 \
   -e 'ssh -i ~/.ssh/website-publish -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' \
-  dist/ {{ add_website_publish_user }}@{{ inventory_hostname }}:{{ add_website_content_dir }}/
+  website.tar.zst website.tar.zst.sha256 \
+  {{ add_website_publish_user }}@{{ ansible_host | default(inventory_hostname) }}:{{ add_website_project_dir }}/website/
+
+ssh -i ~/.ssh/website-publish -o IdentitiesOnly=yes \
+  {{ add_website_publish_user }}@{{ ansible_host | default(inventory_hostname) }} \
+  'touch {{ add_website_trigger_dir }}/website.restart'
 ```
 
-`-a` skips owner and group preservation for a non-root receiver. `--chmod` keeps directories `0755` and files `0644`, which is
-all nginx needs to read them.
-
-`--delete` removes files that no longer exist in the build output, so never
-place manually managed files directly in `{{ add_website_content_dir }}`.
+The marker filename is the compose service name. One marker deploys one
+service. The host consumes the marker before loading, so a bad archive cannot
+hot-loop.
 
 ## Verify
 
 ```bash
-ssh -i ~/.ssh/website-publish {{ add_website_publish_user }}@{{ inventory_hostname }} \
-  'ls -la {{ add_website_content_dir }}'
-curl -I https://{{ add_website_domain }}
+ssh -i ~/.ssh/website-publish {{ add_website_publish_user }}@{{ ansible_host | default(inventory_hostname) }} \
+  'ls -la {{ add_website_project_dir }}/website {{ add_website_trigger_dir }}'
 ```
 
-Publishing over SSH uses the existing SSH port, so no extra firewall port is
-needed.
+On the host:
+
+```bash
+sudo tail -f {{ add_website_log_file }}
+sudo docker compose -f {{ add_website_compose_file }} ps
+```
+
+A successful publish logs `loading`, `restarting`, and `deploy complete`.
+
+## Manual restart
+
+Restart the currently loaded image without uploading an archive:
+
+```bash
+cd {{ add_website_project_dir }} && sudo docker compose up -d --no-deps lobby
+```
+
+## Rollback
+
+Every successful publish prunes the previous public images. There is no image
+rollback on the host. Roll back by republishing the previous commit's archive.
+
+## Publishing security model
+
+The publish account (`{{ add_website_publish_user }}`) has no sudo, is not in
+the `docker` group, and owns only the artifact and trigger directories.
+
+Publishing does not execute build instructions on this host. CI sends a
+finished image archive; the host verifies its checksum when one is provided,
+loads it, checks the `com.co3d.service` labels, and restarts the container.
+
+The publish key still controls the code that runs. Treat it as permission to
+run arbitrary code in a container. Keep the key in CI secrets only, and rotate it after any suspicion.

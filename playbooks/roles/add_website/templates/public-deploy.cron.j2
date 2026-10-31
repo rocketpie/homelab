@@ -1,0 +1,4 @@
+# Managed by Ansible. Runs the public workload deploy script every minute.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* * * * * root {{ add_website_deploy_script_path }} >> {{ add_website_log_file }} 2>&1

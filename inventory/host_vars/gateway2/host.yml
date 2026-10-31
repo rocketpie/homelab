@@ -1,53 +1,53 @@
 # Public gateway vServer host vars.
 #
 # The host is a member of both the vpn_gateway and website inventory groups.
-# The gateway owns Caddy and wg-easy; the website role adds the static site.
+# It runs both wg-easy and website workloads (minigames)
 
 ansible_user: root
 
 add_firewall_ssh_port: 22
 
+# Host-local inbound exposure. Keep in sync with the Caddy listeners and the
+# WireGuard port.
+add_firewall_allowed_tcp_ports:
+  - 80
+  - 443
+add_firewall_allowed_udp_ports:
+  - 443
+add_firewall_wireguard_ports:
+  - 51820
+
 # Testing: use Caddy's local CA before public DNS cutover.
-# disable or set this to false (Default) and rerun when DNS points at this host.
-# add_vpn_gateway_caddy_use_internal_tls: true
-add_vpn_gateway_acme_email: "lars@co3d.eu"
-add_vpn_gateway_wg_easy_init_host: "vpn.co3d.eu"
-add_vpn_gateway_routes:
+# Set this to false (default) and rerun when DNS points at this host.
+# add_caddy_use_internal_tls: true
+add_caddy_acme_email: "lars@co3d.eu"
+add_caddy_routes:
   - hostnames:
       - "vpn.co3d.eu"
     upstream: "wg-easy:80"
   - hostnames:
       - "co3d.eu"
     upstream: "website:80"
+  - hostnames:
+      - "lobby.co3d.eu"
+    upstream: "lobby:8080"
   # Later, route a public name to a VPN-connected homelab service:
   # - hostnames:
   #     - "service.vpn.co3d.eu"
   #   upstream: "10.13.0.20:8080"
 
-add_website_domain: "co3d.eu"
+add_vpn_gateway_wg_easy_init_host: "vpn.co3d.eu"
 
-# External CI publishing. The role creates a password-locked "website-deploy"
-# account that owns /opt/website/content and writes the key pair and README to
-# /root/website-publish*. The key rotates on every run; fetch the private key
-# after each run, or disable rotation:
-# add_website_publish_key_rotate: false
-# Set the user to "" to skip the publish account and key setup entirely.
-# add_website_publish_user: ""
-
-# When the website moves to a separate VPN-connected host, add that host to the
-# website group, set a VPN bind address and port, and change the gateway route
-# upstream to that address:
-# add_website_publish_bind: "10.13.0.20"
-# add_website_publish_port: 8080
+add_website_services:
+  - website
+  - lobby
 
 # Optional: importing an existing wg-easy database.
-# It contains wireguard keys, so keep the file outside the repository. 
-# Additionally, use .gitignore to prevent accidental commits.
+# It contains wireguard keys, so keep the file outside the repository.
 # add_vpn_gateway_wg_easy_migration_source: "/workspaces/homelab/wg-easy-backup/wg-easy.db"
 
 # Optional: set this to true to pull newer images on the next playbook run.
 # add_vpn_gateway_pull_images: false
-# add_website_pull_images: false
 
 # Optional: The password is only used on the first start when no `wg-easy.db` exists. Skip this when importing an existing database.
 # After setup, the playbook stops rendering the `INIT_*` variables.

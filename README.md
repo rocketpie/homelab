@@ -49,7 +49,7 @@ pwsh Set-Environment.ps1 -Environment <name>
 Then, inside the dev container:
 
 ```bash
-pwsh run.ps1 <playbook> [-Debug]
+pwsh run.ps1 <playbook> [-Limit <host>] [-Debug]
 pwsh run.ps1 -Help
 ```
 
@@ -67,6 +67,7 @@ PowerShell is kept for readable verification checks:
 ```bash
 pwsh tests/verify-devcontainer.ps1
 pwsh tests/verify-public-gateway-config.ps1
+pwsh tests/verify-public-deploy-script.ps1
 pwsh tests/verify-vault-template-render.ps1
 ```
 

@@ -1,0 +1,146 @@
+---
+- name: Validate caddy inputs
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - add_caddy_http_port | int > 0
+      - add_caddy_https_port | int > 0
+      - add_caddy_routes is sequence
+      - add_caddy_routes is not string
+      - add_caddy_routes | length > 0
+      - >-
+        (add_caddy_use_internal_tls | bool)
+        or (add_caddy_acme_email | string | trim | length > 0)
+    fail_msg: >-
+      add_caddy requires an Ubuntu host, valid ports, a non-empty route list,
+      and an ACME email unless internal TLS is enabled.
+
+- name: Validate caddy route entries
+  ansible.builtin.assert:
+    that:
+      - item.hostnames is defined
+      - item.hostnames is sequence
+      - item.hostnames is not string
+      - item.hostnames | length > 0
+      - item.upstream is defined
+      - item.upstream | string | trim | length > 0
+    fail_msg: "Invalid add_caddy_routes item: {{ item | to_nice_yaml }}"
+  loop: "{{ add_caddy_routes }}"
+  loop_control:
+    label: "{{ item.upstream | default('unnamed-route') }}"
+
+- name: Assert caddy route hostnames are unique
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          add_caddy_routes
+          | map(attribute='hostnames')
+          | flatten
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | unique
+          | length
+        )
+        ==
+        (
+          add_caddy_routes
+          | map(attribute='hostnames')
+          | flatten
+          | map('string')
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | length
+        )
+    fail_msg: "add_caddy_routes hostnames must be unique"
+
+- name: Check Docker Compose availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  changed_when: false
+
+- name: Ensure caddy project directory exists
+  ansible.builtin.file:
+    path: "{{ add_caddy_project_dir }}"
+    state: directory
+    owner: "{{ add_caddy_owner }}"
+    group: "{{ add_caddy_group }}"
+    mode: "0755"
+
+- name: Inspect the shared reverse-proxy network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - inspect
+      - "{{ add_caddy_proxy_network_name }}"
+  register: add_caddy_proxy_network
+  changed_when: false
+  failed_when: false
+
+- name: Create the shared reverse-proxy network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - "{{ add_caddy_proxy_network_name }}"
+  when: add_caddy_proxy_network.rc != 0
+  changed_when: true
+
+- name: Render Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ add_caddy_caddyfile_path }}"
+    owner: "{{ add_caddy_owner }}"
+    group: "{{ add_caddy_group }}"
+    mode: "0644"
+  notify: Restart Caddy
+
+- name: Render caddy Docker Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ add_caddy_compose_file }}"
+    owner: "{{ add_caddy_owner }}"
+    group: "{{ add_caddy_group }}"
+    mode: "0644"
+
+- name: Deploy caddy container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - up
+      - --detach
+      - --remove-orphans
+    chdir: "{{ add_caddy_project_dir }}"
+  register: add_caddy_compose_up
+  changed_when: >-
+    (
+      (add_caddy_compose_up.stdout | default(''))
+      ~ (add_caddy_compose_up.stderr | default(''))
+    ) is search('(Created|Started|Recreated|Pulled)')
+
+- name: Apply pending Caddy config changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Show caddy container status
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - ps
+    chdir: "{{ add_caddy_project_dir }}"
+  register: add_caddy_compose_ps
+  changed_when: false
+
+- name: Display caddy container status
+  ansible.builtin.debug:
+    msg: "{{ add_caddy_compose_ps.stdout_lines }}"

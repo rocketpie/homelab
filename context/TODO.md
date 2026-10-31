@@ -28,8 +28,8 @@ new help page with common issues to search for
 
 
 # docs
-    rename context -> docs
-    move public-gateway-setup.md #Bootstrapping from a provider install script -> netcup-vm-provisioning.md (and refer to it)
+- rename context -> docs
+- move public-gateway-setup.md #Bootstrap SSH Access -> netcup-vm-provisioning, vm ssh bootstrap, etc. (and only refer to it)
 
 # renaming:
     'kea' inventory role -> 'dhcp'

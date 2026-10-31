@@ -1,0 +1,25 @@
+services:
+  caddy:
+    image: {{ add_caddy_image }}
+    restart: unless-stopped
+    ports:
+      - "{{ add_caddy_http_port }}:80/tcp"
+      - "{{ add_caddy_https_port }}:443/tcp"
+{% if add_caddy_http3 | bool %}
+      - "{{ add_caddy_https_port }}:443/udp"
+{% endif %}
+    volumes:
+      - {{ add_caddy_caddyfile_path }}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: {{ add_caddy_proxy_network_name }}
+
+volumes:
+  caddy_data:
+  caddy_config:

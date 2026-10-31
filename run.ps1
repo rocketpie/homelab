@@ -19,7 +19,10 @@ param(
             Where-Object { $_ -like "$wordToComplete*" } |
             Sort-Object
         })]
-    [string]$Playbook
+    [string]$Playbook,
+
+    [Parameter(ParameterSetName = "Run")]
+    [string[]]$Limit
 )
 
 Set-StrictMode -Version Latest
@@ -31,7 +34,7 @@ $debugEnabled = $PSBoundParameters.ContainsKey('Debug')
 
 function Write-Help {
     Write-Host "Usage:"
-    Write-Host "  pwsh run.ps1 <playbook> [-Debug]"
+    Write-Host "  pwsh run.ps1 <playbook> [-Limit <host>[,<host>]] [-Debug]"
     Write-Host "  pwsh run.ps1 -Help"
     Write-Host ""
     Write-Host "Arguments:"
@@ -39,6 +42,7 @@ function Write-Help {
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Help                  Show this help (default)"
+    Write-Host "  -Limit                 Pass an Ansible host limit, e.g. -Limit gateway1"
     Write-Host "  -Debug                 Run ansible-playbook with -v"
     Write-Host ""
     Write-Host "This is a convenience wrapper around ansible-playbook. For the current pwsh session it:"
@@ -61,7 +65,7 @@ function Main {
         }
 
         "Run" {
-            Invoke-Playbook -PlaybookName $Playbook
+            Invoke-Playbook -PlaybookName $Playbook -Limit $Limit
         }
     }
 }
@@ -120,7 +124,7 @@ function Use-ActiveEnvironment($State) {
     }
 }
 
-function Invoke-Playbook([string]$PlaybookName) {
+function Invoke-Playbook([string]$PlaybookName, [string[]]$Limit) {
     Require-Command "ansible-playbook"
 
     $activeEnvironment = Get-ActiveEnvironmentState
@@ -140,6 +144,9 @@ function Invoke-Playbook([string]$PlaybookName) {
     }
 
     $ansibleArgs = @("-i", $inventory, $playbookPath)
+    if ($null -ne $Limit -and $Limit.Count -gt 0) {
+        $ansibleArgs += @("--limit", ($Limit -join ","))
+    }
     $activeVaultPasswordFile = Get-ActiveRuntimePath $activeEnvironment "vaultPasswordFile" "hostVaultPasswordFile"
     if (-not [string]::IsNullOrWhiteSpace($activeVaultPasswordFile)) {
         if (-not (Test-Path -LiteralPath $activeVaultPasswordFile)) {

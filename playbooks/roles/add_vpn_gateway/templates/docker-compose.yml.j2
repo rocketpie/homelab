@@ -1,23 +1,4 @@
 services:
-  caddy:
-    image: {{ add_vpn_gateway_caddy_image }}
-    container_name: {{ add_vpn_gateway_caddy_container_name }}
-    restart: unless-stopped
-    ports:
-      - "{{ add_vpn_gateway_caddy_http_port }}:80/tcp"
-      - "{{ add_vpn_gateway_caddy_https_port }}:443/tcp"
-{% if add_vpn_gateway_caddy_http3 | bool %}
-      - "{{ add_vpn_gateway_caddy_https_port }}:443/udp"
-{% endif %}
-    volumes:
-      - {{ add_vpn_gateway_caddyfile_path }}:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - proxy
-    depends_on:
-      - wg-easy
-
   wg-easy:
     image: {{ add_vpn_gateway_wg_easy_image }}
     container_name: {{ add_vpn_gateway_wg_easy_container_name }}
@@ -74,7 +55,3 @@ networks:
 {% if not add_vpn_gateway_wg_easy_disable_ipv6 | bool %}
         - subnet: {{ add_vpn_gateway_wg_easy_network_subnet6 }}
 {% endif %}
-
-volumes:
-  caddy_data:
-  caddy_config:

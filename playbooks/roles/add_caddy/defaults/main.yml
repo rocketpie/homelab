@@ -1,0 +1,27 @@
+---
+add_caddy_project_dir: /opt/caddy
+add_caddy_compose_file: "{{ add_caddy_project_dir }}/docker-compose.yml"
+add_caddy_caddyfile_path: "{{ add_caddy_project_dir }}/Caddyfile"
+add_caddy_owner: root
+add_caddy_group: root
+
+add_caddy_acme_email: ""
+
+# Caddy routes. Each route maps one or more public hostnames to an upstream.
+# Examples:
+#   - hostnames: ["vpn.co3d.eu"]
+#     upstream: "wg-easy:80"
+#   - hostnames: ["lobby.co3d.eu"]
+#     upstream: "lobby:8080"
+# A later split can point an upstream at a VPN-connected homelab address.
+add_caddy_routes: []
+
+add_caddy_proxy_network_name: vpn-gateway-proxy
+
+add_caddy_image: caddy:2.11.7-alpine
+add_caddy_http_port: 80
+add_caddy_https_port: 443
+add_caddy_http3: true
+
+# Testing and internal deployment: use only the local CA instead of Let's Encrypt via ACME.
+add_caddy_use_internal_tls: false
