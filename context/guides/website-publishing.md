@@ -96,7 +96,7 @@ minute:
 5. loads the archive with `docker load`
 6. requires the loaded tag to be exactly `homelab/<service>:latest`
 7. requires the image labels `public` and `<service>`
-8. runs `docker compose up -d --no-deps <service>`
+8. runs `docker compose up -d --no-deps --force-recreate <service>`
 9. prunes unused public images and deletes the archive only after success
 
 A rejected or failed deploy keeps the archive for inspection. The next publish
@@ -125,7 +125,8 @@ sudo ls -la /opt/public/lobby /opt/public/triggers
 | --- | --- |
 | `skipping <service>: missing <archive>` | marker arrived before the archive |
 | `skipping <service>: checksum mismatch` | uploaded archive does not match its `.sha256` |
-| `skipping <service>: not a service in ...` | marker name is not selected on this host |
+| `skipping <service>: docker compose config failed: ...` | Docker or the compose file failed to parse; the error is included |
+| `skipping <service>: not a service in ...` | marker name is not selected on this host; the service list is included |
 | `skipping <service>: docker load failed` | archive is corrupt or not a `docker save` stream |
 | `rejecting <service>: archive did not contain ...` | wrong image tag in the archive |
 | `rejecting <service>: expected labels ...` | image labels missing or wrong |

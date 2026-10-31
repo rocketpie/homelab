@@ -290,7 +290,7 @@ exit 0
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $triggerDir "website.restart"))) "success: marker must be consumed"
 
     $dockerCalls = Get-DockerLog
-    Assert-Contains $dockerCalls "compose up -d --no-deps website" "success"
+    Assert-Contains $dockerCalls "compose up -d --no-deps --force-recreate website" "success"
     Assert-Contains $dockerCalls "image prune -af --filter label=com.co3d.service=public" "success"
     Assert-Contains $dockerCalls "image prune -f" "success"
 

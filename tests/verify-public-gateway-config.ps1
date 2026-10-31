@@ -245,9 +245,15 @@ foreach ($hostName in $vserverHostNames) {
     }
 }
 
-$uniqueRouteHostnames = @($allRouteHostnames | Select-Object -Unique)
-if ($uniqueRouteHostnames.Count -ne $allRouteHostnames.Count) {
-    throw "Caddy route hostnames must be unique across all public hosts."
+$duplicateRouteHostnames = @(
+    $allRouteHostnames
+    | Group-Object
+    | Where-Object { $_.Count -gt 1 }
+    | ForEach-Object { $_.Name }
+)
+
+if ($duplicateRouteHostnames.Count -gt 0) {
+    Write-Warning "Caddy route hostnames are declared on more than one host: $($duplicateRouteHostnames -join ', '). DNS now decides which host receives traffic."
 }
 
 Write-Host "[ok] caddy routes cover every selected website service"

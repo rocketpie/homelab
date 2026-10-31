@@ -170,8 +170,13 @@ for marker in "$trigger_dir"/*.restart; do
         continue
     fi
 
-    if ! (cd "$project_dir" && docker compose config --services | grep -qx "$service"); then
-        log "skipping $service: not a service in $compose_file"
+    if ! services_output="$(cd "$project_dir" && docker compose config --services 2>&1)"; then
+        log "skipping $service: docker compose config failed: $services_output"
+        continue
+    fi
+
+    if ! printf '%s\n' "$services_output" | grep -qx "$service"; then
+        log "skipping $service: not a service in $compose_file (services: $(printf '%s' "$services_output" | tr '\n' ' '))"
         continue
     fi
 
@@ -200,7 +205,7 @@ for marker in "$trigger_dir"/*.restart; do
     fi
 
     log "restarting $service"
-    if (cd "$project_dir" && docker compose up -d --no-deps "$service"); then
+    if (cd "$project_dir" && docker compose up -d --no-deps --force-recreate "$service"); then
         # Host-owned cleanup: prior tagged images, then unlabeled dangling layers.
         docker image prune -af --filter "label=com.co3d.service=public" >/dev/null 2>&1 || true
         docker image prune -f >/dev/null 2>&1 || true
