@@ -88,21 +88,21 @@ If the environment key is not authorized on the new host, add it once from
 the container host before the first playbook run:
 
 ```bash
-ssh-copy-id -i ~/.homelab/environments/<name>/ssh/ansible.pub root@62.83.36.224
+ssh-copy-id -i ~/.homelab/environments/<name>/ssh/ansible.pub root@<IP>
 ```
 
 Then verify the agent identity works from inside the dev container:
 
 ```bash
-ssh root@62.83.36.224 'id'
+ssh root@<IP> 'id'
 ```
 
 If this is the first SSH connection, accept the host key when prompted. 
 After a reinstall, remove the old host key first, then add the new one:
 
 ```bash
-ssh-keygen -R 62.83.36.224 # after reinstall only
-ssh-keyscan -H 62.83.36.224 >> ~/.ssh/known_hosts
+ssh-keygen -R <IP> # after reinstall only
+ssh-keyscan -H <IP> >> ~/.ssh/known_hosts
 ```
 
 If password authentication is enabled, the alternative is to put
@@ -151,7 +151,7 @@ The host is in both groups in [`inventory/hosts.yml`](../../inventory/hosts.yml)
 vpn_gateway:
   hosts:
     gateway2:
-      ansible_host: 62.83.36.224
+      ansible_host: <IP>
       dns_name: vpn.co3d.eu
 
 website:
@@ -345,7 +345,7 @@ sudo docker inspect wg-easy --format '{{range .Mounts}}{{if eq .Destination "/et
 From a machine that can reach both hosts:
 
 ```bash
-scp -3 olduser@oldhost:/path/to/wg-easy.db root@62.83.36.224:/tmp/wg-easy.db
+scp -3 olduser@oldhost:/path/to/wg-easy.db root@<IP>:/tmp/wg-easy.db
 ```
 
 On the new host:

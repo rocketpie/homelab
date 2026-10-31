@@ -25,6 +25,7 @@ host_users:
     description: "automation service account"
     groups:
       - sudo
+    lock_passwd: true
 #    sudo: "ALL=(ALL) NOPASSWD:ALL"
     ssh_authorized_keys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICYIQ2DpOGZ7q8FwbYfuJvDzaO0LYE3qrrD5q7qb0pKD lars@co3d.eu"

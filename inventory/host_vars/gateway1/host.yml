@@ -1,0 +1,11 @@
+ansible_user: root
+add_firewall_ssh_port: 22
+
+add_caddy_acme_email: "lars@co3d.eu"
+add_caddy_routes:
+  - hostnames:
+      - "lobby.co3d.eu"
+    upstream: "lobby:8080"
+
+add_website_services:
+  - lobby
