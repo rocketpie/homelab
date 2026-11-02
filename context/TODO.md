@@ -1,5 +1,3 @@
-# migrate to new gateway2
-- sudo systemctl restart wg-quick@co3d on all hosts
 
 # Build / CI
 - wire the `tests/verify-*.ps1` checks into the build/CI path; `build.ps1` currently only runs ansible lint and syntax checks.

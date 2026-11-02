@@ -106,8 +106,7 @@ current inventory. All commands used the real run arguments from `run.ps1`.
   its own `hosts (N):` block. The same host appears in all three blocks.
 - `localhost` plays (`add-vm.yml`, `set-vm-network.yml`) list `localhost` and do
   not reach the later dynamic plays.
-- Empty groups produce `hosts (0):` and exit 0 (`add-pwsh-ubuntu.yml` with the
-  undefined `targets` group, `kea`, `provisioned_vms`).
+- Empty groups produce `hosts (0):` and exit 0 (`kea`, `provisioned_vms`).
 - Host order is not the inventory order and is not stable enough for numeric
   selection. Sort and de-duplicate the union before displaying `[1]`, `[2]`.
 - `--limit <unknown>` makes `--list-hosts` exit 1 with
@@ -136,7 +135,7 @@ current inventory. All commands used the real run arguments from `run.ps1`.
 | `set-vm-hardware.yml` | `localhost` | No run.ps1 prompt; existing VM prompt inside the play |
 | `set-vm-network.yml` | `localhost` | No run.ps1 prompt; existing prompt inside the play |
 | `configure-netcontroller.yml` | `localhost` only | No prompt; later plays use runtime `add_host` groups |
-| `add-pwsh-ubuntu.yml` | none (`targets` is undefined) | No prompt; Ansible reports the empty target |
+| `add-pwsh-ubuntu.yml` | 5 hosts in `vm` | Prompt unless a default is declared |
 
 ### Findings that change the design
 
