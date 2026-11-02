@@ -91,13 +91,24 @@
     dest: "{{ add_ansible_execution_node_keyring_path }}"
     mode: "0644"
 
+- name: Remove legacy NodeSource apt list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/nodesource.list
+    state: absent
+
 - name: Add NodeSource apt repo
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [signed-by={{ add_ansible_execution_node_keyring_path }}]
-      {{ add_ansible_execution_node_repo_url }}/node_{{ add_ansible_execution_node_major_version }}.x
-      nodistro main
-    filename: nodesource
+  ansible.builtin.deb822_repository:
+    name: nodesource
+    types:
+      - deb
+    uris:
+      - "{{ add_ansible_execution_node_repo_url }}/node_{{ add_ansible_execution_node_major_version }}.x"
+    suites:
+      - nodistro
+    components:
+      - main
+    signed_by: "{{ add_ansible_execution_node_keyring_path }}"
+    install_python_debian: true
     state: present
 
 - name: Add Microsoft repo GPG key
@@ -107,13 +118,27 @@
     mode: "0644"
   when: add_ansible_execution_install_powershell | bool
 
+- name: Remove legacy Microsoft apt list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/microsoft-prod.list
+    state: absent
+  when: add_ansible_execution_install_powershell | bool
+
 - name: Add Microsoft apt repo
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch=amd64 signed-by=/etc/apt/keyrings/microsoft.asc]
-      https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod
-      {{ ansible_facts['distribution_release'] }} main
-    filename: microsoft-prod
+  ansible.builtin.deb822_repository:
+    name: microsoft-prod
+    types:
+      - deb
+    uris:
+      - "https://packages.microsoft.com/ubuntu/{{ ansible_facts['distribution_version'] }}/prod"
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}"
+    components:
+      - main
+    architectures:
+      - amd64
+    signed_by: /etc/apt/keyrings/microsoft.asc
+    install_python_debian: true
     state: present
   when: add_ansible_execution_install_powershell | bool
 

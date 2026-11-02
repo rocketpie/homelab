@@ -28,7 +28,6 @@
     mode: "0600"
     backup: true
   notify: Apply netplan config
-  register: set_vm_network_netplan_render
 
 - name: Validate and apply VM netplan config
   block:
@@ -39,7 +38,6 @@
 
     - name: Flush netplan apply handler
       ansible.builtin.meta: flush_handlers
-      when: set_vm_network_netplan_render.changed
 
   rescue:
     - name: Troubleshoot rendered netplan file after failure

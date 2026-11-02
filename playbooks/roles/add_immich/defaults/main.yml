@@ -18,7 +18,8 @@ add_immich_version: v2
 add_immich_server_image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
 add_immich_machine_learning_image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
 add_immich_redis_image: docker.io/valkey/valkey:9@sha256:3eeb09785cd61ec8e3be35f8804c8892080f3ca21934d628abc24ee4ed1698f6
-add_immich_postgres_image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+add_immich_postgres_image: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@\
+  sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"
 add_immich_docker_binary_path: /usr/bin/docker
 
 add_immich_db_password: ""
