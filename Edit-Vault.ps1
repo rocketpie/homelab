@@ -40,8 +40,8 @@ function Write-Help {
     Write-Host "Options:"
     Write-Host "  -Help                  Show this help (default)"
     Write-Host ""
-    Write-Host "This uses the active environment's vault password from vault_pass.ps1."
-    Write-Host "TMPDIR is set to /dev/shm so the editor's plaintext copy stays on tmpfs."
+    Write-Host "Automatically uses the active environment's vault password from vault_pass.ps1."
+    Write-Host "ANSIBLE_LOCAL_TEMP and TMPDIR are set to /dev/shm so the editor's plaintext copy stays on tmpfs."
     Write-Host ""
     Write-Host "Activate an environment on the container host first:"
     Write-Host "  pwsh Set-Environment.ps1 -Environment <name>"
@@ -66,14 +66,14 @@ function Invoke-VaultEdit([string]$VaultPath) {
 
     $resolvedVaultPath = Resolve-VaultPath $VaultPath
     Ensure-ActiveVaultPassword
+    Assert-TmpfsDirectory $vaultTempDirectory
 
-    if (-not (Test-Path -LiteralPath $vaultTempDirectory -PathType Container)) {
-        throw "Vault temp directory not found: $vaultTempDirectory"
-    }
-
-    # Keep the decrypted editor copy off persistent disk.
+    # ansible-vault writes the decrypted editor copy under ANSIBLE_LOCAL_TEMP,
+    # not TMPDIR. Set both so Ansible and the editor stay on tmpfs.
+    $previousLocalTemp = $env:ANSIBLE_LOCAL_TEMP
     $previousTmpDir = $env:TMPDIR
     try {
+        $env:ANSIBLE_LOCAL_TEMP = $vaultTempDirectory
         $env:TMPDIR = $vaultTempDirectory
         & ansible-vault edit $resolvedVaultPath --vault-password-file $vaultPasswordScript
         if ($LASTEXITCODE -ne 0) {
@@ -81,12 +81,35 @@ function Invoke-VaultEdit([string]$VaultPath) {
         }
     }
     finally {
-        if ($null -eq $previousTmpDir) {
-            Remove-Item Env:TMPDIR -ErrorAction SilentlyContinue
-        }
-        else {
-            $env:TMPDIR = $previousTmpDir
-        }
+        Restore-EnvironmentVariable "ANSIBLE_LOCAL_TEMP" $previousLocalTemp
+        Restore-EnvironmentVariable "TMPDIR" $previousTmpDir
+    }
+}
+
+function Assert-TmpfsDirectory([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        throw "Vault temp directory not found: $Path"
+    }
+
+    if (-not (Get-Command "stat" -ErrorAction SilentlyContinue)) {
+        throw "Missing dependency: 'stat' not found on PATH."
+    }
+
+    $fileSystemType = (& stat -f -c %T $Path).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not determine the filesystem type of '$Path'."
+    }
+    if ($fileSystemType -ne "tmpfs") {
+        throw "Vault temp directory '$Path' is not tmpfs (detected '$fileSystemType'). Refusing to leave the decrypted editor copy on persistent storage."
+    }
+}
+
+function Restore-EnvironmentVariable([string]$Name, $Value) {
+    if ($null -eq $Value) {
+        Remove-Item -Path "Env:$Name" -ErrorAction SilentlyContinue
+    }
+    else {
+        Set-Item -Path "Env:$Name" -Value $Value
     }
 }
 

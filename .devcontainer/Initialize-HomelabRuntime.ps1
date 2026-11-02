@@ -15,6 +15,7 @@ It guarantees that the runtime directory:
   - exists before Docker creates the container mount;
   - is memory-backed (tmpfs), so the active vault password is not persisted to
     a normal disk directory;
+  - cannot be pointed at persistent storage;
   - has restrictive permissions (0700);
   - is supported by the host, by failing closed on non-Linux or non-tmpfs
     hosts.
@@ -47,12 +48,18 @@ if (-not $IsLinux) {
     throw "The active environment runtime directory requires a Linux container host (eg. WSL) with tmpfs under /dev/shm."
 }
 
-$runtimeRoot = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_ROOT)) {
-    "/dev/shm/homelab"
+$runtimeDirName = if ([string]::IsNullOrWhiteSpace($env:HOMELAB_RUNTIME_DIRNAME)) {
+    "homelab"
 }
 else {
-    $env:HOMELAB_RUNTIME_ROOT
+    $env:HOMELAB_RUNTIME_DIRNAME
 }
+
+if ($runtimeDirName -notmatch "^[A-Za-z0-9][A-Za-z0-9_-]*$") {
+    throw "Invalid runtime directory name '$runtimeDirName'. Use letters, digits, '-' and '_'."
+}
+
+$runtimeRoot = Join-Path "/dev/shm" $runtimeDirName
 
 $controlDir = Join-Path $runtimeRoot "control"
 $runtimeDir = Join-Path $runtimeRoot "homelab-active"

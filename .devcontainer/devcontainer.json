@@ -13,7 +13,7 @@
             "type": "bind"
         },
         {
-            "source": "${localEnv:HOMELAB_RUNTIME_ROOT:/dev/shm/homelab}/homelab-active",
+            "source": "/dev/shm/${localEnv:HOMELAB_RUNTIME_DIRNAME:homelab}/homelab-active",
             "target": "/home/vscode/.homelab-active",
             "type": "bind"
         }

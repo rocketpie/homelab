@@ -21,6 +21,24 @@ function Get-RelativeRepoPath([string]$BasePath, [string]$Path) {
     return [System.IO.Path]::GetRelativePath($BasePath, $Path)
 }
 
+function Test-EncryptedVault([string]$Path) {
+    $firstLine = Get-Content -LiteralPath $Path -TotalCount 1
+    return $firstLine -like '$ANSIBLE_VAULT;*'
+}
+
+function Protect-PlaintextVault([string]$Path) {
+    $encryptedLines = @(& ansible-vault encrypt $Path --vault-password-file $vaultPasswordFile --output=-)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to encrypt '$Path'."
+    }
+    if ($encryptedLines.Count -eq 0) {
+        throw "ansible-vault returned no encrypted content for '$Path'."
+    }
+
+    Set-Content -LiteralPath $Path -Encoding utf8NoBOM -Value $encryptedLines
+    Write-Host "Encrypted $(Get-RelativeRepoPath -BasePath $repoRootPath -Path $Path)"
+}
+
 function Get-VaultTemplateContent([string]$TargetFilePath) {
     $targetLines = [string[]](Get-Content -LiteralPath $TargetFilePath)
     $markerIndex = -1
@@ -61,6 +79,18 @@ else {
 }
 
 Require-Command "ansible-vault"
+
+# Convert any plaintext vault first, so a vault that already exists is protected
+# even when no template marker points at it.
+$existingVaultFiles = Get-ChildItem -LiteralPath $repoRootPath -Recurse -File -Filter "vault.yml" |
+Where-Object { $_.FullName -notmatch "[\\/](\.git|node_modules)[\\/]" } |
+Sort-Object FullName
+
+foreach ($vaultFile in $existingVaultFiles) {
+    if (-not (Test-EncryptedVault $vaultFile.FullName)) {
+        Protect-PlaintextVault $vaultFile.FullName
+    }
+}
 
 $targetFiles = Get-ChildItem -LiteralPath $repoRootPath -Recurse -File -Include *.yml,*.yaml |
 Where-Object { $_.Name -ne "vault.yml" } |

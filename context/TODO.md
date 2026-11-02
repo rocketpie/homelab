@@ -15,17 +15,10 @@ new help page with common issues to search for
 - make all playbooks work on VMs available via ssh, regardless of provisioning by the homelab proxmox, or a cloud provider.
     see eg. public-gateway-setup.md 
 
-# Set-Environment
-- environment-switching.md: "`Set-Environment.ps1` refuses to copy a plaintext `vault.yml`. Encrypt it first with the active environment's password:"
-    why not auto-encrypt?
-- remove non-tmpfs option. HOMELAB_RUNTIME_ROOT -> RUNTIME_DIRNAME (in tmpfs)
-- how can we simplify the script? is all status tracking, locking, rollback etc necessary? (eg. Switch is just -Deactivate + Load)
-
-- environment-switching.md: 
-    - 'Be aware that `ansible-vault edit` uses a local temporary file for the editor. If plaintext must never touch disk, point `TMPDIR` at a tmpfs directory or use a workflow that keeps the editor buffer in memory.'
-    - '`/dev/shm` is tmpfs, but swap can still page it unless swap is disabled or encrypted.'
-    review vault edit, swap behaviour
-
+# Edit-Vault
+ - unify Init into Edit.
+ autocomplete existing vault names and missing one's where a template comment exists.
+ - when editing a missing vault, only then initialize from the template.
 
 # docs
 - rename context -> docs

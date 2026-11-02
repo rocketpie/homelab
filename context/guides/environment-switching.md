@@ -56,6 +56,8 @@ The host tmpfs runtime root is prepared by
 which is wired as the dev container's `initializeCommand`. It runs on the host
 before the container starts and guarantees that the runtime directory is set up correctly.
 
+The runtime root is `/dev/shm/<HOMELAB_RUNTIME_DIRNAME>`; there must be no option to point the runtime at persistent storage.
+
 ## Environment Store layout
 
 ```text
@@ -109,18 +111,15 @@ If the target environment does not exist, the script creates its directories,
 prints the key and vault setup steps, and exits before changing the active
 environment.
 
-1. Validate: that all repository `vault.yml` files are encrypted.
-2. Save old: synchronizes the current repository vaults into the leaving environment's `repo/` mirror.
-3. Load new: synchronizes the target environments stored `vault.yml` files into the repository.
-4. Writes the target environment's vault password to `vault_pass`.
-5. Stops the old host `ssh-agent` and starts a new one with the target environment's key. 
-6. Writes the new state to 
-   `control/active-environment.json` and 
-   `homelab-active/homelab-environment.json`.
-7. Rolls back the repository vaults, active password, host state, and newly
-   started agent if a step fails.
+1. Validate that all target `vault.yml` files are encrypted.
+2. Read the target vault password and SSH passphrase.
+3. Deactivate the current environment: save its repository vaults (unless
+   `-NoSave`), remove them from the repository, stop the host `ssh-agent`, and clear the active state.
+4. Load the target: load its stored `vault.yml` files into the repository
+   and write its vault password to `vault_pass`, Start a new host `ssh-agent` with the target environment's key.
+5. Write the new state to `control/active-environment.json` and `homelab-active/homelab-environment.json`.
 
-Saving mirrors the repository: it copies all repository vaults into the store and removes all store vaults that no longer exist in the repository, so deleting a `vault.yml` is persisted.
+Saving mirrors the repository: it copies all adds, edits and deletes into the store.
 
 ## Deactivating
 
@@ -128,12 +127,12 @@ Saving mirrors the repository: it copies all repository vaults into the store an
 the environment store, deletes all active `vault.yml` files from the repository,
 stops the host `ssh-agent`, and removes all files from the runtime directory.
 The container is left without any active vault files, password, or agent socket.
-The encrypted copies stay in the environment store, so `Set-Environment.ps1 <name>` switches them back.
 
-If saving fails, the repository vaults are rolled back and deactivation aborts.
+`-Deactivate` has no environment argument, so the state file is the only record of which environment owned the vault files currently in the  repository.
 
 If repository vault files exist but no active runtime is present, deactivate refuses to remove them.
-Use `-Force` to clear the runtime and remove the unmanaged vault files.
+Use `-Force` to clear orphaned runtime vaults without saving.
+
 
 ## `run.ps1` uses the active environment
 
@@ -180,7 +179,7 @@ pwsh Edit-Vault.ps1 restic1
 ```
 
 It uses the active environment's password through `vault_pass.ps1` and sets
-`TMPDIR=/dev/shm` so the editor's plaintext copy stays on tmpfs.
+`ANSIBLE_LOCAL_TEMP=/dev/shm` so the editor's plaintext copy stays on tmpfs.
 
 ## Security notes
 
@@ -210,7 +209,7 @@ It uses the active environment's password through `vault_pass.ps1` and sets
 - **"must run on the container host"** — The entire purpose is to keep the secrets out of the container.
   Can't do that if you have access to the secret store inside it. Run the command from the host.
 - **"Runtime root ... is not tmpfs"** — `/dev/shm` is not mounted as tmpfs.
-  Fix the host mount rather than using `-Force` unless you accept the risk.
+  Fix the host mount; the runtime root must not be pointed at persistent storage.
 - **"repository ... vault.yml file(s) but no active runtime environment"** — the
   host rebooted or the tmpfs runtime was cleared. The script will not guess
   which environment owned the repository vaults. Re-run a switch with `-Force`
