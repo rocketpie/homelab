@@ -84,6 +84,8 @@ Create the environment by invoking the switch for it:
 pwsh Set-Environment.ps1 -Environment Prod
 ```
 
+Existing environments are matched case-insensitive: `prod` switches to an existing `PROD` environment.
+
 If the environment does not exist, the script creates its directories, reports
 the next steps, and exits. Generate the environment key. The key must be the
 identity authorized on that environment's hosts:

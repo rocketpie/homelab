@@ -204,6 +204,30 @@ function Get-EnvironmentDir([string]$Name) {
     return Join-Path $EnvRoot $Name
 }
 
+function Resolve-EnvironmentName([string]$Name) {
+    if (-not (Test-Path -LiteralPath $EnvRoot)) {
+        return $Name
+    }
+
+    $environmentDirs = @(Get-ChildItem -LiteralPath $EnvRoot -Directory -ErrorAction SilentlyContinue)
+
+    $exactMatch = $environmentDirs | Where-Object { $_.Name -ceq $Name } | Select-Object -First 1
+    if ($null -ne $exactMatch) {
+        return $exactMatch.Name
+    }
+
+    $candidates = @($environmentDirs | Where-Object { $_.Name -ieq $Name })
+    if ($candidates.Count -eq 0) {
+        return $Name
+    }
+    if ($candidates.Count -gt 1) {
+        $names = ($candidates.Name | Sort-Object) -join ", "
+        throw "Environment name '$Name' is ambiguous. Matching environments: $names."
+    }
+
+    return $candidates[0].Name
+}
+
 function Get-ActiveState {
     if (-not (Test-Path -LiteralPath $statePath)) {
         return $null
@@ -668,6 +692,7 @@ function Invoke-Deactivate {
 function Invoke-Switch {
     Assert-Host
 
+    $Environment = Resolve-EnvironmentName $Environment
     $envDir = Get-EnvironmentDir $Environment
     if (-not (Test-Path -LiteralPath $envDir)) {
         New-Environment $Environment
