@@ -111,6 +111,8 @@ If the target environment does not exist, the script creates its directories,
 prints the key and vault setup steps, and exits before changing the active
 environment.
 
+If the target environment is already active, the script prints that and exits.
+
 1. Validate that all target `vault.yml` files are encrypted.
 2. Read the target vault password and SSH passphrase.
 3. Deactivate the current environment: save its repository vaults (unless
@@ -155,7 +157,7 @@ literal values.
 
 ## Creating and updating vaults
 
-Use `Initialize-VaultTemplates.ps1` to create missing vaults from the template comments. New files are directly encrypted using the active vault password.
+Use `Initialize-VaultTemplates.ps1` to create missing vaults from the template comments. It also encrypts any existing plaintext `vault.yml` under `inventory/`. New files are directly encrypted using the active vault password.
 
 ```bash
 pwsh srv/Initialize-VaultTemplates.ps1

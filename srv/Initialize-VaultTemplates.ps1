@@ -80,10 +80,16 @@ else {
 
 Require-Command "ansible-vault"
 
+# Vaults and their template markers live under inventory/. Limiting the scan
+# avoids walking unrelated directories such as .git or the dev container.
+$inventoryRoot = Join-Path $repoRootPath "inventory"
+if (-not (Test-Path -LiteralPath $inventoryRoot -PathType Container)) {
+    throw "Inventory directory not found: $inventoryRoot"
+}
+
 # Convert any plaintext vault first, so a vault that already exists is protected
 # even when no template marker points at it.
-$existingVaultFiles = Get-ChildItem -LiteralPath $repoRootPath -Recurse -File -Filter "vault.yml" |
-Where-Object { $_.FullName -notmatch "[\\/](\.git|node_modules)[\\/]" } |
+$existingVaultFiles = Get-ChildItem -LiteralPath $inventoryRoot -Recurse -File -Filter "vault.yml" |
 Sort-Object FullName
 
 foreach ($vaultFile in $existingVaultFiles) {
@@ -92,7 +98,7 @@ foreach ($vaultFile in $existingVaultFiles) {
     }
 }
 
-$targetFiles = Get-ChildItem -LiteralPath $repoRootPath -Recurse -File -Include *.yml,*.yaml |
+$targetFiles = Get-ChildItem -LiteralPath $inventoryRoot -Recurse -File -Include *.yml,*.yaml |
 Where-Object { $_.Name -ne "vault.yml" } |
 Sort-Object FullName
 

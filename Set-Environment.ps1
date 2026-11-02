@@ -139,6 +139,10 @@ function Write-Help {
     Write-Host "  -Force               Allow unmanaged repo vaults, or clearing repo vaults without an active runtime"
     Write-Host "  -Deactivate          Save active vaults, remove them from the repo, stop the agent, and clear the active environment"
     Write-Host ""
+    Write-Host "Switching from an existing environment:"
+    Write-Host "  Deactivates the current environment, then loads the target."
+    Write-Host "  If saving fails, the repository is left unchanged."
+    Write-Host ""
     Write-Host "Advanced Options:"
     Write-Host "  -RememberMe          Remember entered vault and SSH passphrases for this host session"
     Write-Host "  -ForgetMe            Forget all entered vault and SSH passphrases from this host session"
@@ -619,6 +623,12 @@ function Invoke-Switch {
         return
     }
 
+    $activeState = Get-ActiveState
+    if ($null -ne $activeState -and $activeState.environment -eq $Environment) {
+        Write-Host "Environment '$Environment' is already active."
+        return
+    }
+
     Initialize-RuntimeDir
     $key = Get-EnvironmentKey $envDir
     $targetVaults = @(Get-EnvironmentVaultFiles $envDir)
@@ -634,17 +644,8 @@ function Invoke-Switch {
     }
     $sshPassphraseInfo = Get-EnvironmentSshPassphrase $Environment $key.PrivateKey
 
-    # A switch is a deactivate followed by a load. If saving fails, nothing has
-    # been removed yet. If loading fails, the repository is left inactive; fix
-    # the error and re-run, or restore the previous environment by hand.
+    # Deactivate the current environment, then load the target.
     $null = Clear-ActiveEnvironment -SaveVaults (-not $NoSave)
-
-    # Saving can add vaults that were only in the repository, so re-read the
-    # target and prompt if it now has vaults but no password was collected.
-    $targetVaults = @(Get-EnvironmentVaultFiles $envDir)
-    if ($targetVaults.Count -gt 0 -and $null -eq $targetVaultPassword) {
-        $targetVaultPassword = Read-VaultPassword $Environment -RememberMe:$RememberMe
-    }
 
     $managedVaults = @(Copy-EnvironmentVaultsToRepo $envDir)
     if ($managedVaults.Count -gt 0) {
